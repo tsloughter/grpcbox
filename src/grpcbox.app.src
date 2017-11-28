@@ -1,0 +1,19 @@
+{application, grpcbox,
+ [{description, "An OTP application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, { grpcbox_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    chatterbox,
+    jsx,
+    gpb
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, []},
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.
