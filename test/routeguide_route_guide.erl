@@ -36,9 +36,9 @@ get_feature(Message, GrpcStream) ->
 -spec list_features(Message::rectangle(), GrpcStream :: grpcbox_stream:t()) -> ok.
 list_features(_Message, GrpcStream) ->
     grpcbox_stream:add_headers([{<<"info">>, <<"this is a test-implementation">>}], GrpcStream),
-    GrpcStream1= grpcbox_stream:send(#{name => <<"Tour Eiffel">>,
-                                       location => #{latitude => 3,
-                                                     longitude => 5}}, GrpcStream),
+    GrpcStream1 = grpcbox_stream:send(#{name => <<"Tour Eiffel">>,
+                                        location => #{latitude => 3,
+                                                      longitude => 5}}, GrpcStream),
     grpcbox_stream:send(#{name => <<"Louvre">>,
                           location => #{latitude => 4,
                                         longitude => 5}}, GrpcStream1),

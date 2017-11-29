@@ -38,6 +38,7 @@
 -define(GRPC_STATUS_UNIMPLEMENTED, <<"12">>).
 
 init(ConnPid, StreamId, _) ->
+    process_flag(trap_exit, true),
     {ok, #state{connection_pid=ConnPid,
                 stream_id=StreamId,
                 handler=self()}}.
@@ -67,7 +68,7 @@ on_receive_request_headers(Headers, State) ->
                     case InputStreaming of
                         true ->
                             Ref = make_ref(),
-                            Pid = proc_lib:spawn_link(?MODULE, handle_streams, [Ref, State1]),
+                            Pid = proc_lib:spawn_link(?MODULE, handle_streams, [Ref, State1#state{handler=self()}]),
                             {ok, State1#state{input_ref=Ref,
                                               callback_pid=Pid}};
                         _ ->
@@ -80,10 +81,6 @@ on_receive_request_headers(Headers, State) ->
             end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State)
     end.
 
-
-add_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
-    State#state{resp_headers=RespHeaders++Headers}.
-
 handle_streams(Ref, State=#state{method=#method{module=Module,
                                                 function=Function,
                                                 output={_, false}}}) ->
@@ -92,8 +89,7 @@ handle_streams(Ref, State=#state{method=#method{module=Module,
 handle_streams(Ref, State=#state{method=#method{module=Module,
                                                 function=Function,
                                                 output={_, true}}}) ->
-    Module:Function(Ref, State),
-    end_stream(State).
+    Module:Function(Ref, State).
 
 on_send_push_promise(_, State) ->
     {ok, State}.
@@ -115,7 +111,7 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                              Pid ! {Ref, Message},
                                              StateAcc;
                                          {false, true} ->
-                                             _ = proc_lib:spawn_link(?MODULE, handle_streams, [Message, StateAcc]),
+                                             _ = proc_lib:spawn_link(?MODULE, handle_streams, [Message, StateAcc#state{handler=self()}]),
                                              StateAcc;
                                          {false, false} ->
                                              {ok ,Response, StateAcc1} = Module:Function(Message, StateAcc),
@@ -133,25 +129,17 @@ on_request_end_stream(State=#state{input_ref=Ref,
                                    method=#method{input={_Input, true},
                                                   output={_Output, false}}}) ->
     Pid ! {Ref, eos},
-    end_stream(State),
     {ok, State};
 on_request_end_stream(State=#state{input_ref=Ref,
                                    callback_pid=Pid,
                                    method=#method{input={_Input, true},
                                                   output={_Output, true}}}) ->
-    %% {Message, _, _} = Module:Function(eos, State),
-    %% send(false, Message, State),
     Pid ! {Ref, eos},
-    end_stream(State),
     {ok, State};
 on_request_end_stream(State=#state{input_ref=_Ref,
                                    callback_pid=_Pid,
                                    method=#method{input={_Input, false},
                                                   output={_Output, true}}}) ->
-    %% {Message, _, _} = Module:Function(eos, State),
-    %% send(false, Message, State),
-    %% Pid ! {Ref, eos},
-    end_stream(State),
     {ok, State};
 on_request_end_stream(State=#state{method=#method{output={_Output, false}}}) ->
     end_stream(State),
@@ -183,14 +171,22 @@ send_headers(State=#state{connection_pid=ConnPid,
 
 
 handle_info({add_headers, Headers}, State) ->
-    add_headers(Headers, State);
+    update_headers(Headers, State);
 handle_info({send_proto, Message}, State) ->
-    send(false, Message, State).
+    send(false, Message, State);
+handle_info({'EXIT', _, _}, State) ->
+    end_stream(State),
+    State.
 
-send(Message, State=#state{handler=_Pid}) ->
-    send(false, Message, State).
-    %% h2_stream:make_call(Pid, {send_proto, Message}),
-    %% State.
+add_headers(Headers, #state{handler=Pid}) ->
+    h2_stream:send_call(Pid, {add_headers, Headers}).
+
+update_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
+    State#state{resp_headers=RespHeaders++Headers}.
+
+send(Message, State=#state{handler=Pid}) ->
+    ok = h2_stream:send_call(Pid, {send_proto, Message}),
+    State.
 
 send(End, Message, State=#state{headers_sent=false}) ->
     State1 = send_headers(State),
