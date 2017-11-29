@@ -80,7 +80,7 @@ route_chat(Ref, Data, GrpcStream) ->
 %% Supporting functions
 
 data() ->
-    DataFile = "/home/tristan/Devel/grpcbox/test/grpcbox_SUITE_data/route_guide_db.json",
+    DataFile = "test/grpcbox_SUITE_data/route_guide_db.json",
     {ok, Json} = file:read_file(DataFile),
     jsx:decode(Json, [return_maps, {labels, atom}]).
 
