@@ -8,6 +8,7 @@
 -export([send/2,
          send/3,
          add_headers/2,
+         add_trailers/2,
          handle_streams/2,
          handle_info/2]).
 
@@ -28,8 +29,8 @@
                 response_encoding :: gzip | undefined,
                 content_type      :: proto | json,
                 resp_headers=[]   :: list(),
+                resp_trailers=[]  :: list(),
                 headers_sent=false :: boolean(),
-                trailers=[]       :: list(),
                 stream_id         :: stream_id(),
                 method            :: #method{}}).
 
@@ -149,13 +150,13 @@ on_request_end_stream(State=#state{method=#method{output={_Output, false}}}) ->
 
 end_stream(#state{connection_pid=ConnPid,
                   stream_id=StreamId,
-                  trailers=Trailers}) ->
+                  resp_trailers=Trailers}) ->
     timer:sleep(200),
     h2_connection:send_headers(ConnPid, StreamId, [{<<"grpc-status">>, <<"0">>} | Trailers], [{send_end_stream, true}]).
 
 end_stream(Status, Message, #state{connection_pid=ConnPid,
                                    stream_id=StreamId,
-                                   trailers=Trailers}) ->
+                                   resp_trailers=Trailers}) ->
     timer:sleep(200),
     h2_connection:send_headers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
                                                    {<<"grpc-message">>, Message} | Trailers], [{send_end_stream, true}]).
@@ -172,6 +173,8 @@ send_headers(State=#state{connection_pid=ConnPid,
 
 handle_info({add_headers, Headers}, State) ->
     update_headers(Headers, State);
+handle_info({add_trailers, Trailers}, State) ->
+    update_trailers(Trailers, State);
 handle_info({send_proto, Message}, State) ->
     send(false, Message, State);
 handle_info({'EXIT', _, _}, State) ->
@@ -181,8 +184,14 @@ handle_info({'EXIT', _, _}, State) ->
 add_headers(Headers, #state{handler=Pid}) ->
     h2_stream:send_call(Pid, {add_headers, Headers}).
 
+add_trailers(Headers, #state{handler=Pid}) ->
+    h2_stream:send_call(Pid, {add_trailers, Headers}).
+
 update_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
     State#state{resp_headers=RespHeaders++Headers}.
+
+update_trailers(Trailers, State=#state{resp_trailers=RespTrailers}) ->
+    State#state{resp_trailers=RespTrailers++Trailers}.
 
 send(Message, State=#state{handler=Pid}) ->
     ok = h2_stream:send_call(Pid, {send_proto, Message}),

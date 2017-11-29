@@ -36,14 +36,14 @@ get_feature(Message, GrpcStream) ->
 -spec list_features(Message::rectangle(), GrpcStream :: grpcbox_stream:t()) -> ok.
 list_features(_Message, GrpcStream) ->
     grpcbox_stream:add_headers([{<<"info">>, <<"this is a test-implementation">>}], GrpcStream),
-    GrpcStream1 = grpcbox_stream:send(#{name => <<"Tour Eiffel">>,
+    grpcbox_stream:send(#{name => <<"Tour Eiffel">>,
                                         location => #{latitude => 3,
                                                       longitude => 5}}, GrpcStream),
     grpcbox_stream:send(#{name => <<"Louvre">>,
                           location => #{latitude => 4,
-                                        longitude => 5}}, GrpcStream1),
+                                        longitude => 5}}, GrpcStream),
 
-    %% Stream3 = grpc:set_trailers(Stream2, #{<<"nr_of_points_sent">> => <<"2">>}),
+    grpcbox_stream:add_trailers([{<<"nr_of_points_sent">>, <<"2">>}], GrpcStream),
     ok.
 
 -spec record_route(reference(), GrpcStream :: grpcbox_stream:t()) -> {ok, route_summary(), grpcbox_stream:t()}.
