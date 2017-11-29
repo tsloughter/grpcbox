@@ -7,6 +7,7 @@
 
 -export([send/2,
          send/3,
+         add_headers/2,
          handle_streams/2,
          handle_info/2]).
 
@@ -18,14 +19,17 @@
 
 -export_type([t/0]).
 
--record(state, {req_headers=[]    :: list(),
+-record(state, {handler           :: pid(),
+                req_headers=[]    :: list(),
                 input_ref         :: reference(),
                 callback_pid      :: pid(),
                 connection_pid    :: pid(),
                 request_encoding  :: gzip | undefined,
                 response_encoding :: gzip | undefined,
                 content_type      :: proto | json,
-                resp_headers      :: list(),
+                resp_headers=[]   :: list(),
+                headers_sent=false :: boolean(),
+                trailers=[]       :: list(),
                 stream_id         :: stream_id(),
                 method            :: #method{}}).
 
@@ -35,10 +39,10 @@
 
 init(ConnPid, StreamId, _) ->
     {ok, #state{connection_pid=ConnPid,
-                stream_id=StreamId}}.
+                stream_id=StreamId,
+                handler=self()}}.
 
-on_receive_request_headers(Headers, State=#state{connection_pid=ConnPid,
-                                                 stream_id=StreamId}) ->
+on_receive_request_headers(Headers, State) ->
     case string:lexemes(proplists:get_value(<<":path">>, Headers), "/") of
         [Service, Method] ->
             case ets:lookup(?SERVICES_TAB, {Service, Method}) of
@@ -53,27 +57,21 @@ on_receive_request_headers(Headers, State=#state{connection_pid=ConnPid,
                     RespHeaders = [{<<":status">>, <<"200">>},
                                    {<<"content-type">>, content_type(ContentType)}
                                    | response_encoding(ResponseEncoding)],
-                    h2_connection:send_headers(ConnPid, StreamId, RespHeaders),
+
+                    State1 = State#state{resp_headers=RespHeaders,
+                                         req_headers=Headers,
+                                         request_encoding=RequestEncoding,
+                                         response_encoding=ResponseEncoding,
+                                         content_type=ContentType,
+                                         method=M},
                     case InputStreaming of
                         true ->
                             Ref = make_ref(),
-                            Pid = proc_lib:spawn_link(?MODULE, handle_streams, [Ref, State#state{resp_headers=RespHeaders,
-                                                                                                 method=M}]),
-                            {ok, State#state{req_headers=Headers,
-                                             resp_headers=RespHeaders,
-                                             input_ref=Ref,
-                                             callback_pid=Pid,
-                                             content_type=ContentType,
-                                             request_encoding=RequestEncoding,
-                                             response_encoding=ResponseEncoding,
-                                             method=M}};
+                            Pid = proc_lib:spawn_link(?MODULE, handle_streams, [Ref, State1]),
+                            {ok, State1#state{input_ref=Ref,
+                                              callback_pid=Pid}};
                         _ ->
-                            {ok, State#state{req_headers=Headers,
-                                             resp_headers=RespHeaders,
-                                             content_type=ContentType,
-                                             request_encoding=RequestEncoding,
-                                             response_encoding=ResponseEncoding,
-                                             method=M}}
+                            {ok, State1}
                     end;
                 _ ->
                     end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"service method not found">>, State)
@@ -82,19 +80,20 @@ on_receive_request_headers(Headers, State=#state{connection_pid=ConnPid,
             end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State)
     end.
 
-handle_info(Info, State) ->
-    io:format("HELLO INFO ~p~n", [Info]),
-    State.
+
+add_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
+    State#state{resp_headers=RespHeaders++Headers}.
 
 handle_streams(Ref, State=#state{method=#method{module=Module,
                                                 function=Function,
                                                 output={_, false}}}) ->
-    Response = Module:Function(Ref, State),
-    send(false, Response, State);
+    {ok, Response, State1} = Module:Function(Ref, State),
+    send(false, Response, State1);
 handle_streams(Ref, State=#state{method=#method{module=Module,
                                                 function=Function,
                                                 output={_, true}}}) ->
-    Module:Function(Ref, State).
+    Module:Function(Ref, State),
+    end_stream(State).
 
 on_send_push_promise(_, State) ->
     {ok, State}.
@@ -109,21 +108,21 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                                          output={_Output, OutputStream}}})->
     try
         Messages = split_frame(Bin, Encoding),
-        _State1 = [begin
-                      Message = Proto:decode_msg(EncodedMessage, Input),
-                      case {InputStream, OutputStream} of
-                          {true, _} ->
-                              Pid ! {Ref, Message},
-                              State;
-                          {false, true} ->
-                              _ = proc_lib:spawn(Module, Function, [Message, State]),
-                              State;
-                          {false, false} ->
-                              {ok ,Response} = Module:Function(Message, State),
-                              send(false, Response, State)
-                      end
-                  end || EncodedMessage <- Messages],
-        {ok, State}
+        State1 = lists:foldl(fun(EncodedMessage, StateAcc) ->
+                                     Message = Proto:decode_msg(EncodedMessage, Input),
+                                     case {InputStream, OutputStream} of
+                                         {true, _} ->
+                                             Pid ! {Ref, Message},
+                                             StateAcc;
+                                         {false, true} ->
+                                             _ = proc_lib:spawn_link(?MODULE, handle_streams, [Message, StateAcc]),
+                                             StateAcc;
+                                         {false, false} ->
+                                             {ok ,Response, StateAcc1} = Module:Function(Message, StateAcc),
+                                             send(false, Response, StateAcc1)
+                                     end
+                             end, State, Messages),
+        {ok, State1}
     catch
         throw:{grpc_error, {Status, Message}} ->
             end_stream(Status, Message, State)
@@ -161,19 +160,41 @@ on_request_end_stream(State=#state{method=#method{output={_Output, false}}}) ->
 %% Internal
 
 end_stream(#state{connection_pid=ConnPid,
-                  stream_id=StreamId}) ->
+                  stream_id=StreamId,
+                  trailers=Trailers}) ->
     timer:sleep(200),
-    h2_connection:send_headers(ConnPid, StreamId, [{<<"grpc-status">>, <<"0">>}], [{send_end_stream, true}]).
+    h2_connection:send_headers(ConnPid, StreamId, [{<<"grpc-status">>, <<"0">>} | Trailers], [{send_end_stream, true}]).
 
 end_stream(Status, Message, #state{connection_pid=ConnPid,
-                                   stream_id=StreamId}) ->
+                                   stream_id=StreamId,
+                                   trailers=Trailers}) ->
     timer:sleep(200),
     h2_connection:send_headers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
-                                                   {<<"grpc-message">>, Message}], [{send_end_stream, true}]).
+                                                   {<<"grpc-message">>, Message} | Trailers], [{send_end_stream, true}]).
 
-send(Message, State) ->
+send_headers(State=#state{headers_sent=true}) ->
+    State;
+send_headers(State=#state{connection_pid=ConnPid,
+                          stream_id=StreamId,
+                          resp_headers=Headers,
+                          headers_sent=false}) ->
+    h2_connection:send_headers(ConnPid, StreamId, Headers, [{send_end_stream, false}]),
+    State#state{headers_sent=true}.
+
+
+handle_info({add_headers, Headers}, State) ->
+    add_headers(Headers, State);
+handle_info({send_proto, Message}, State) ->
     send(false, Message, State).
 
+send(Message, State=#state{handler=_Pid}) ->
+    send(false, Message, State).
+    %% h2_stream:make_call(Pid, {send_proto, Message}),
+    %% State.
+
+send(End, Message, State=#state{headers_sent=false}) ->
+    State1 = send_headers(State),
+    send(End, Message, State1);
 send(End, Message, State=#state{connection_pid=ConnPid,
                                 stream_id=StreamId,
                                 response_encoding=Encoding,
@@ -182,7 +203,7 @@ send(End, Message, State=#state{connection_pid=ConnPid,
                                                output={Output, _}}}) ->
     BodyToSend = Proto:encode_msg(Message, Output),
     OutFrame = encode_frame(Encoding, BodyToSend),
-    h2_connection:send_body(ConnPid, StreamId, OutFrame, [{send_end_stream, End}]),
+    ok = h2_connection:send_body(ConnPid, StreamId, OutFrame, [{send_end_stream, End}]),
     State.
 
 
