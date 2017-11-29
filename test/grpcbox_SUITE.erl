@@ -20,7 +20,7 @@ init_per_suite(Config) ->
                                                use_packages,
                                                maps]),
     code:load_binary(Mod, Proto, Code),
-    grpc_client:compile(Proto),
+    grpc_client:compile(Proto, [{strings_as_binaries, true}]),
     application:ensure_all_started(grpcbox),
     Config.
 
@@ -34,5 +34,5 @@ unary(_Config) ->
     ?assertEqual(#{location =>
                        #{latitude => 409146138,longitude => -746188906},
                    name =>
-                       "Berkshire Valley Management Area Trail, Jefferson, NJ, USA"}, Feature),
+                       <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature),
     ct:pal("Stream ~p", [Feature]).
