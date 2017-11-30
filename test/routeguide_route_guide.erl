@@ -80,9 +80,13 @@ route_chat(Ref, Data, GrpcStream) ->
 %% Supporting functions
 
 data() ->
-    DataFile = "test/grpcbox_SUITE_data/route_guide_db.json",
-    {ok, Json} = file:read_file(DataFile),
-    jsx:decode(Json, [return_maps, {labels, atom}]).
+    case file:read_file("test/grpcbox_SUITE_data/route_guide_db.json") of
+        {ok, Json} ->
+            jsx:decode(Json, [return_maps, {labels, atom}]);
+        {error, enoent} ->
+            {ok, Json} = file:read_file("../../../../test/grpcbox_SUITE_data/route_guide_db.json"),
+            jsx:decode(Json, [return_maps, {labels, atom}])
+    end.
 
 find_point(_Location, []) ->
     "";

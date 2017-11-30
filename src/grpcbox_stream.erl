@@ -115,7 +115,7 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                              _ = proc_lib:spawn_link(?MODULE, handle_streams, [Message, StateAcc#state{handler=self()}]),
                                              StateAcc;
                                          {false, false} ->
-                                             {ok ,Response, StateAcc1} = Module:Function(Message, StateAcc),
+                                             {ok, Response, StateAcc1} = Module:Function(Message, StateAcc),
                                              send(false, Response, StateAcc1)
                                      end
                              end, State, Messages),
@@ -182,10 +182,10 @@ handle_info({'EXIT', _, _}, State) ->
     State.
 
 add_headers(Headers, #state{handler=Pid}) ->
-    h2_stream:send_call(Pid, {add_headers, Headers}).
+    Pid ! {add_headers, Headers}.
 
 add_trailers(Headers, #state{handler=Pid}) ->
-    h2_stream:send_call(Pid, {add_trailers, Headers}).
+    Pid ! {add_trailers, Headers}.
 
 update_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
     State#state{resp_headers=RespHeaders++Headers}.
@@ -194,8 +194,7 @@ update_trailers(Trailers, State=#state{resp_trailers=RespTrailers}) ->
     State#state{resp_trailers=RespTrailers++Trailers}.
 
 send(Message, State=#state{handler=Pid}) ->
-    ok = h2_stream:send_call(Pid, {send_proto, Message}),
-    State.
+    Pid ! {send_proto, Message}.
 
 send(End, Message, State=#state{headers_sent=false}) ->
     State1 = send_headers(State),
@@ -210,7 +209,6 @@ send(End, Message, State=#state{connection_pid=ConnPid,
     OutFrame = encode_frame(Encoding, BodyToSend),
     ok = h2_connection:send_body(ConnPid, StreamId, OutFrame, [{send_end_stream, End}]),
     State.
-
 
 encode_frame(gzip, Bin) ->
     CompressedBin = zlib:gzip(Bin),
