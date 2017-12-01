@@ -16,9 +16,27 @@ start(_StartType, _StartArgs) ->
     {ok, ServicePbModules} = application:get_env(grpcbox, service_protos),
     load_services(ServicePbModules),
 
+    Options = application:get_env(grpcbox, options, []),
+    AuthFun = get_authfun(application:get_env(chatterbox, ssl, false), Options),
+    application:set_env(chatterbox, stream_callback_opts, [AuthFun]),
     chatterbox_sup:start_link(),
 
     grpcbox_sup:start_link().
+
+get_authfun(true, Options) ->
+    case proplists:get_value(auth_fun, Options) of
+        undefined ->
+            case proplists:get_value(client_cert_dir, Options) of
+                undefined ->
+                    undefined;
+                Dir ->
+                    grpc_lib:auth_fun(Dir)
+            end;
+        Fun ->
+            Fun
+    end;
+get_authfun(_, _) ->
+    undefined.
 
 %%--------------------------------------------------------------------
 stop(_State) ->
@@ -37,7 +55,7 @@ load_services([ServicePbModule | Rest]) ->
          [begin
               SnakedMethodName = atom_snake_case(Name),
               SnakedServiceName = atom_snake_case(ServiceName),
-              io:format("found: ~s/~s (~p) -> (~p)~n", [ServiceName, Name, Input, Output]),
+              %% io:format("found: ~s/~s (~p) -> (~p)~n", [ServiceName, Name, Input, Output]),
               ets:insert(?SERVICES_TAB, #method{key={atom_to_binary(ServiceName, utf8), atom_to_binary(Name, utf8)},
                                                 module=SnakedServiceName,
                                                 function=SnakedMethodName,

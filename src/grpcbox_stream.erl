@@ -20,43 +20,52 @@
 
 -export_type([t/0]).
 
--record(state, {handler           :: pid(),
-                req_headers=[]    :: list(),
-                input_ref         :: reference(),
-                callback_pid      :: pid(),
-                connection_pid    :: pid(),
-                request_encoding  :: gzip | undefined,
-                response_encoding :: gzip | undefined,
-                content_type      :: proto | json,
-                resp_headers=[]   :: list(),
-                resp_trailers=[]  :: list(),
+-record(state, {handler            :: pid(),
+                socket,
+                auth_fun,
+                ctx                :: ctx:ctx(),
+                req_headers=[]     :: list(),
+                input_ref          :: reference(),
+                callback_pid       :: pid(),
+                connection_pid     :: pid(),
+                request_encoding   :: gzip | undefined,
+                response_encoding  :: gzip | undefined,
+                content_type       :: proto | json,
+                resp_headers=[]    :: list(),
+                resp_trailers=[]   :: list(),
                 headers_sent=false :: boolean(),
-                stream_id         :: stream_id(),
-                method            :: #method{}}).
+                stream_id          :: stream_id(),
+                method             :: #method{}}).
 
 -opaque t() :: #state{}.
 
+-define(GRPC_STATUS_OK, <<"0">>).
+%% -define(GRPC_STATUS_UNKNOWN, <<"2">>).
 -define(GRPC_STATUS_UNIMPLEMENTED, <<"12">>).
+%% -define(GRPC_STATUS_INTERNAL, <<"13">>).
+-define(GRPC_STATUS_UNAUTHENTICATED, <<"16">>).
 
-init(ConnPid, StreamId, _) ->
+init(ConnPid, StreamId, [Socket, AuthFun]) ->
     process_flag(trap_exit, true),
     {ok, #state{connection_pid=ConnPid,
                 stream_id=StreamId,
+                auth_fun=AuthFun,
+                socket=Socket,
                 handler=self()}}.
 
-on_receive_request_headers(Headers, State) ->
+on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
+                                                 socket=Socket}) ->
     case string:lexemes(proplists:get_value(<<":path">>, Headers), "/") of
         [Service, Method] ->
             case ets:lookup(?SERVICES_TAB, {Service, Method}) of
-                [M=#method{module=Module,
-                           function=Function,
-                           input={_, InputStreaming}}] ->
-                    io:format("Calling ~p:~p~n", [Module, Function]),
+                [M=#method{input={_, InputStreaming}}] ->
                     RequestEncoding = parse_options(<<"grpc-encoding">>, Headers),
                     ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
                     ContentType = parse_options(<<"content-type">>, Headers),
+                    _Timeout = parse_options(<<"grpc-timeout">>, Headers),
 
                     RespHeaders = [{<<":status">>, <<"200">>},
+                                   {<<"user-agent">>, <<"grpc-erlang/0.1.0">>},
                                    {<<"content-type">>, content_type(ContentType)}
                                    | response_encoding(ResponseEncoding)],
 
@@ -66,14 +75,19 @@ on_receive_request_headers(Headers, State) ->
                                          response_encoding=ResponseEncoding,
                                          content_type=ContentType,
                                          method=M},
-                    case InputStreaming of
-                        true ->
-                            Ref = make_ref(),
-                            Pid = proc_lib:spawn_link(?MODULE, handle_streams, [Ref, State1#state{handler=self()}]),
-                            {ok, State1#state{input_ref=Ref,
-                                              callback_pid=Pid}};
+                    case authenticate(sock:peercert(Socket), AuthFun) of
+                        {true, _Identity} ->
+                            case InputStreaming of
+                                true ->
+                                    Ref = make_ref(),
+                                    Pid = proc_lib:spawn_link(?MODULE, handle_streams, [Ref, State1#state{handler=self()}]),
+                                    {ok, State1#state{input_ref=Ref,
+                                                      callback_pid=Pid}};
+                                _ ->
+                                    {ok, State1}
+                            end;
                         _ ->
-                            {ok, State1}
+                            end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State1)
                     end;
                 _ ->
                     end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"service method not found">>, State)
@@ -81,6 +95,13 @@ on_receive_request_headers(Headers, State) ->
         _ ->
             end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State)
     end.
+
+authenticate(_, undefined) ->
+    {true, undefined};
+authenticate({ok, Cert}, Fun) ->
+    Fun(Cert);
+authenticate(_, _) ->
+    false.
 
 handle_streams(Ref, State=#state{method=#method{module=Module,
                                                 function=Function,
@@ -148,12 +169,11 @@ on_request_end_stream(State=#state{method=#method{output={_Output, false}}}) ->
 
 %% Internal
 
-end_stream(#state{connection_pid=ConnPid,
-                  stream_id=StreamId,
-                  resp_trailers=Trailers}) ->
-    timer:sleep(200),
-    h2_connection:send_headers(ConnPid, StreamId, [{<<"grpc-status">>, <<"0">>} | Trailers], [{send_end_stream, true}]).
+end_stream(State) ->
+    end_stream(?GRPC_STATUS_OK, <<>>, State).
 
+end_stream(Status, Message, State=#state{headers_sent=false}) ->
+    end_stream(Status, Message, send_headers(State));
 end_stream(Status, Message, #state{connection_pid=ConnPid,
                                    stream_id=StreamId,
                                    resp_trailers=Trailers}) ->
@@ -193,7 +213,7 @@ update_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
 update_trailers(Trailers, State=#state{resp_trailers=RespTrailers}) ->
     State#state{resp_trailers=RespTrailers++Trailers}.
 
-send(Message, State=#state{handler=Pid}) ->
+send(Message, #state{handler=Pid}) ->
     Pid ! {send_proto, Message}.
 
 send(End, Message, State=#state{headers_sent=false}) ->
@@ -249,6 +269,28 @@ content_type(json) ->
 content_type(_) ->
     <<"application/grpc+proto">>.
 
+timeout_to_duration(T, "H") ->
+    erlang:convert_time_unit(timer:hours(T), millisecond, nanosecond);
+timeout_to_duration(T, "M") ->
+    erlang:convert_time_unit(timer:minutes(T), millisecond, nanosecond);
+timeout_to_duration(T, "S") ->
+    erlang:convert_time_unit(T, second, nanosecond);
+timeout_to_duration(T, "m") ->
+    erlang:convert_time_unit(T, millisecond, nanosecond);
+timeout_to_duration(T, "u") ->
+    erlang:convert_time_unit(T, microsecond, nanosecond);
+timeout_to_duration(T, "n") ->
+    timer:seconds(T).
+
+
+parse_options(<<"grpc-timeout">>, Headers) ->
+    case proplists:get_value(<<"grpc-timeout">>, Headers, infinity) of
+        infinity ->
+            infinity;
+        T ->
+            {I, U} = string:to_integer(T),
+            timeout_to_duration(I, U)
+    end;
 parse_options(<<"content-type">>, Headers) ->
     case proplists:get_value(<<"content-type">>, Headers, undefined) of
         undefined ->
