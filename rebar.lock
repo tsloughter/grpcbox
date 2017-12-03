@@ -4,7 +4,6 @@
        {ref,"05bf807d4b7352dbd6e56468ea37d10b42983ae0"}},
   0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},2},
- {<<"gpb">>,{pkg,<<"gpb">>,<<"4.0.2">>},1},
  {<<"grpc_lib">>,
   {git,"https://github.com/Bluehouse-Technology/grpc_lib",
        {ref,"1f195cfb52f9243ae67934da2e49498ba04578cd"}},
@@ -14,7 +13,6 @@
 [
 {pkg_hash,[
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
- {<<"gpb">>, <<"43CF080145BC5A8DFD4BB53FA3FD638469E0B3F0ADC1D283B26D7D934FC67267">>},
  {<<"hpack">>, <<"17670F83FF984AE6CD74B1C456EDDE906D27FF013740EE4D9EFAA4F1BF999633">>},
  {<<"lager">>, <<"A6DEB74DAE7927F46BD13255268308EF03EB206EC784A94EAF7C1C0F3B811615">>}]}
 ].

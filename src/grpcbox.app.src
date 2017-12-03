@@ -1,8 +1,8 @@
 {application, grpcbox,
- [{description, "An OTP application"},
+ [{description, "Erlang grpc server library based on chatterbox"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, { grpcbox_app, []}},
+  {mod, {grpcbox_app, []}},
   {applications,
    [kernel,
     stdlib,
@@ -12,7 +12,7 @@
   {env,[]},
   {modules, []},
 
-  {maintainers, []},
+  {maintainers, ["Tristan Sloughter"]},
   {licenses, ["Apache 2.0"]},
-  {links, []}
+  {links, [{"Github", "https://github.com/tsloughter/grpcbox_plugin"}]}
  ]}.

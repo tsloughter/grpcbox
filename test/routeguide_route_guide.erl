@@ -27,11 +27,11 @@
     #{name => string(),
       location => point()}.
 
--spec get_feature(Message :: point(), GrpcStream :: grpcbox_stream:t()) -> {ok, feature(), grpcbox_stream:t()}.
-get_feature(Message, GrpcStream) ->
+-spec get_feature(Ctx :: ctx:ctx(), Message :: point()) -> {ok, feature(), ctx:ctx()}.
+get_feature(Ctx, Message) ->
     Feature = #{name => find_point(Message, data()),
                 location => Message},
-    {ok, Feature, GrpcStream}.
+    {ok, Feature, Ctx}.
 
 -spec list_features(Message::rectangle(), GrpcStream :: grpcbox_stream:t()) -> ok.
 list_features(_Message, GrpcStream) ->

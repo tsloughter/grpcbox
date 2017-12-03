@@ -80,7 +80,8 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                             case InputStreaming of
                                 true ->
                                     Ref = make_ref(),
-                                    Pid = proc_lib:spawn_link(?MODULE, handle_streams, [Ref, State1#state{handler=self()}]),
+                                    Pid = proc_lib:spawn_link(?MODULE, handle_streams,
+                                                              [Ref, State1#state{handler=self()}]),
                                     {ok, State1#state{input_ref=Ref,
                                                       callback_pid=Pid}};
                                 _ ->
@@ -133,10 +134,11 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                              Pid ! {Ref, Message},
                                              StateAcc;
                                          {false, true} ->
-                                             _ = proc_lib:spawn_link(?MODULE, handle_streams, [Message, StateAcc#state{handler=self()}]),
+                                             _ = proc_lib:spawn_link(?MODULE, handle_streams,
+                                                                     [Message, StateAcc#state{handler=self()}]),
                                              StateAcc;
                                          {false, false} ->
-                                             {ok, Response, StateAcc1} = Module:Function(Message, StateAcc),
+                                             {ok, Response, StateAcc1} = Module:Function(StateAcc, Message),
                                              send(false, Response, StateAcc1)
                                      end
                              end, State, Messages),
@@ -179,7 +181,8 @@ end_stream(Status, Message, #state{connection_pid=ConnPid,
                                    resp_trailers=Trailers}) ->
     timer:sleep(200),
     h2_connection:send_headers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
-                                                   {<<"grpc-message">>, Message} | Trailers], [{send_end_stream, true}]).
+                                                   {<<"grpc-message">>, Message} | Trailers],
+                               [{send_end_stream, true}]).
 
 send_headers(State=#state{headers_sent=true}) ->
     State;
