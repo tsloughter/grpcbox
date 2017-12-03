@@ -62,8 +62,16 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                     RequestEncoding = parse_options(<<"grpc-encoding">>, Headers),
                     ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
                     ContentType = parse_options(<<"content-type">>, Headers),
-                    _Timeout = parse_options(<<"grpc-timeout">>, Headers),
 
+                    Metadata =  lists:foldl(fun({K = <<"grpc-", _/binary>>, V}, Acc) ->
+                                                    maps:put(K, V, Acc)
+                                            end, #{}, Headers),
+                    Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
+                              infinity ->
+                                  ctx:with_values(Metadata);
+                              D ->
+                                  ctx:with_deadline(ctx:with_values(Metadata), D, nanosecond)
+                          end,
                     RespHeaders = [{<<":status">>, <<"200">>},
                                    {<<"user-agent">>, <<"grpc-erlang/0.1.0">>},
                                    {<<"content-type">>, content_type(ContentType)}
@@ -74,6 +82,7 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                                          request_encoding=RequestEncoding,
                                          response_encoding=ResponseEncoding,
                                          content_type=ContentType,
+                                         ctx=Ctx,
                                          method=M},
                     case authenticate(sock:peercert(Socket), AuthFun) of
                         {true, _Identity} ->
@@ -120,6 +129,7 @@ on_send_push_promise(_, State) ->
 on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                           input_ref=Ref,
                                           callback_pid=Pid,
+                                          ctx=Ctx,
                                           method=#method{module=Module,
                                                          function=Function,
                                                          proto=Proto,
@@ -138,8 +148,8 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                                                      [Message, StateAcc#state{handler=self()}]),
                                              StateAcc;
                                          {false, false} ->
-                                             {ok, Response, StateAcc1} = Module:Function(StateAcc, Message),
-                                             send(false, Response, StateAcc1)
+                                             {ok, Response, Ctx1} = Module:Function(Ctx, Message),
+                                             send(false, Response, StateAcc#state{ctx=Ctx1})
                                      end
                              end, State, Messages),
         {ok, State1}
