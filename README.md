@@ -3,12 +3,14 @@ grpcbox
 
 Library for creating [grpc](https://grpc.io) servers in Erlang, based on the [chatterbox](https://github.com/joedevivo/chatterbox) http2 server.
 
+Very much still alpha quality.
+
 Implementing a Service
 ----
 
 The easiest way to get started is using the plugin, [grpcbox_plugin](https://github.com/tsloughter/grpcbox_plugin):
 
-```
+```erlang
 {deps, [grpcbox]}.
 
 {grpc, [{protos, "priv/protos"},
@@ -21,10 +23,10 @@ Currently `grpcbox` and the plugin are a bit picky and the `gpb` options will al
 
 Assuming the `priv/protos` directory of your application has the `route_guide.proto` found in this repo, `priv/protos/route_guide.proto`, the output from running the plugin will be:
 
-```
+```shell
 $ rebar3 grpc gen
 ===> Writing src/route_guide_pb.erl
-===> Writing src/grpcbox_route_guide_behaviour.erl
+===> Writing src/grpcbox_route_guide_bhvr.erl
 ```
 
 #### Unary RPC
@@ -104,7 +106,6 @@ record_route(Ref, GrpcStream) ->
 record_route(Ref, Data=#{t_start := T0, acc := Points}, GrpcStream) ->
     receive
         {Ref, eos} ->
-            %% receiving 'eos' tells us that we need to return a result.
             {ok, #{elapsed_time => erlang:system_time(1) - T0,
                    point_count => length(Points),
                    feature_count => count_features(Points),

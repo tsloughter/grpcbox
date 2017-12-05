@@ -14,5 +14,5 @@
 
   {maintainers, ["Tristan Sloughter"]},
   {licenses, ["Apache 2.0"]},
-  {links, [{"Github", "https://github.com/tsloughter/grpcbox_plugin"}]}
+  {links, [{"Github", "https://github.com/tsloughter/grpcbox"}]}
  ]}.

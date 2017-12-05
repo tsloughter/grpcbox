@@ -18,7 +18,11 @@
          on_receive_request_data/2,
          on_request_end_stream/1]).
 
--export_type([t/0]).
+-export_type([t/0,
+              grpc_status/0,
+              grpc_status_message/0,
+              grpc_error/0,
+              grpc_error_response/0]).
 
 -record(state, {handler            :: pid(),
                 socket,
@@ -39,11 +43,13 @@
 
 -opaque t() :: #state{}.
 
--define(GRPC_STATUS_OK, <<"0">>).
-%% -define(GRPC_STATUS_UNKNOWN, <<"2">>).
--define(GRPC_STATUS_UNIMPLEMENTED, <<"12">>).
-%% -define(GRPC_STATUS_INTERNAL, <<"13">>).
--define(GRPC_STATUS_UNAUTHENTICATED, <<"16">>).
+-type grpc_status_message() :: unicode:chardata().
+-type grpc_status() :: 0..16.
+-type grpc_error() :: {grpc_status(), grpc_status_message()}.
+-type grpc_error_response() :: {grpc_error, grpc_error()}.
+
+
+-define(THROW(Status, Message), throw({grpc_error, {Status, Message}})).
 
 init(ConnPid, StreamId, [Socket, AuthFun]) ->
     process_flag(trap_exit, true),
@@ -55,6 +61,7 @@ init(ConnPid, StreamId, [Socket, AuthFun]) ->
 
 on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                                                  socket=Socket}) ->
+    %% proplists:get_value(<<":method">>, Headers) =:= <<"POST">>,
     case string:lexemes(proplists:get_value(<<":path">>, Headers), "/") of
         [Service, Method] ->
             case ets:lookup(?SERVICES_TAB, {Service, Method}) of
@@ -64,7 +71,9 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                     ContentType = parse_options(<<"content-type">>, Headers),
 
                     Metadata =  lists:foldl(fun({K = <<"grpc-", _/binary>>, V}, Acc) ->
-                                                    maps:put(K, V, Acc)
+                                                    maps:put(K, V, Acc);
+                                               (_, Acc) ->
+                                                    Acc
                                             end, #{}, Headers),
                     Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
                               infinity ->
@@ -100,7 +109,7 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                             end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State1)
                     end;
                 _ ->
-                    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"service method not found">>, State)
+                    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State)
             end;
         _ ->
             end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State)
@@ -138,24 +147,31 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
     try
         Messages = split_frame(Bin, Encoding),
         State1 = lists:foldl(fun(EncodedMessage, StateAcc) ->
-                                     Message = Proto:decode_msg(EncodedMessage, Input),
-                                     case {InputStream, OutputStream} of
-                                         {true, _} ->
-                                             Pid ! {Ref, Message},
-                                             StateAcc;
-                                         {false, true} ->
-                                             _ = proc_lib:spawn_link(?MODULE, handle_streams,
-                                                                     [Message, StateAcc#state{handler=self()}]),
-                                             StateAcc;
-                                         {false, false} ->
-                                             {ok, Response, Ctx1} = Module:Function(Ctx, Message),
-                                             send(false, Response, StateAcc#state{ctx=Ctx1})
+                                     try Proto:decode_msg(EncodedMessage, Input) of
+                                         Message ->
+                                             case {InputStream, OutputStream} of
+                                                 {true, _} ->
+                                                     Pid ! {Ref, Message},
+                                                     StateAcc;
+                                                 {false, true} ->
+                                                     _ = proc_lib:spawn_link(?MODULE, handle_streams,
+                                                                             [Message, StateAcc#state{handler=self()}]),
+                                                     StateAcc;
+                                                 {false, false} ->
+                                                     {ok, Response, Ctx1} = Module:Function(Ctx, Message),
+                                                     send(false, Response, StateAcc#state{ctx=Ctx1})
+                                             end
+                                     catch
+                                         error:{gpb_error, _} ->
+                                             ?THROW(?GRPC_STATUS_INTERNAL, <<"Error parsing request protocol buffer">>)
                                      end
                              end, State, Messages),
         {ok, State1}
     catch
         throw:{grpc_error, {Status, Message}} ->
-            end_stream(Status, Message, State)
+            end_stream(Status, Message, State);
+        _C:_T ->
+            end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State)
     end.
 
 on_request_end_stream(State=#state{input_ref=Ref,
@@ -261,10 +277,15 @@ split_frame(<<0, Length:32, Encoded:Length/binary, Rest/binary>>, Encoding, Acc)
 split_frame(<<1, Length:32, Compressed:Length/binary, Rest/binary>>, Encoding, Acc) ->
     Encoded = case Encoding of
                   <<"gzip">> ->
-                      zlib:gunzip(Compressed);
+                      try zlib:gunzip(Compressed)
+                      catch
+                          error:data_error ->
+                              ?THROW(?GRPC_STATUS_INTERNAL,
+                                     <<"Could not decompress but compression algorithm supported">>)
+                      end;
                   _ ->
-                      throw({grpc_error, {?GRPC_STATUS_UNIMPLEMENTED,
-                                          <<"compression mechanism not supported">>}})
+                      ?THROW(?GRPC_STATUS_UNIMPLEMENTED,
+                             <<"Compression mechanism used by client not supported by the server">>)
               end,
     split_frame(Rest, Encoding, [Encoded | Acc]).
 
@@ -315,7 +336,7 @@ parse_options(<<"content-type">>, Headers) ->
         <<"application/grpc+json">> ->
             json;
         <<"application/grpc+", _>> ->
-            throw({grpc_error, {?GRPC_STATUS_UNIMPLEMENTED, <<"unknown content-type">>}})
+            ?THROW(?GRPC_STATUS_UNIMPLEMENTED, <<"unknown content-type">>)
     end;
 parse_options(<<"grpc-encoding">>, Headers) ->
     parse_encoding(<<"grpc-encoding">>, Headers);
@@ -333,5 +354,5 @@ parse_encoding(EncodingType, Headers) ->
         <<"deflate">> ->
             deflate;
         _ ->
-            throw({grpc_error, {?GRPC_STATUS_UNIMPLEMENTED, <<"unknown encoding">>}})
+            ?THROW(?GRPC_STATUS_UNIMPLEMENTED, <<"unknown encoding">>)
     end.
