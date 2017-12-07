@@ -29,6 +29,8 @@ $ rebar3 grpc gen
 ===> Writing src/grpcbox_route_guide_bhvr.erl
 ```
 
+A behaviour is used because it provides a way to generate the interface and types without being where the actual implementation is also done. This way if a change happens to the proto you can regenerate the interface without any issues with the implementation of the service, simply then update the implemntation callbacks to match the changed interface.
+
 #### Unary RPC
 
 Unary RPCs receive a single request and return a single response. The RPC `GetFeature` takes a single `Point` and returns the `Feature` at that point:

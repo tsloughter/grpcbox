@@ -1,5 +1,5 @@
 {"1.1.0",
-[{<<"chatterbox">>,{pkg,<<"ts_chatterbox">>,<<"0.6.0">>},0},
+[{<<"chatterbox">>,{pkg,<<"ts_chatterbox">>,<<"0.6.1">>},0},
  {<<"ctx">>,{pkg,<<"ctx">>,<<"0.1.0">>},0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},2},
  {<<"gpb">>,{pkg,<<"gpb">>,<<"4.0.2">>},0},
@@ -8,7 +8,7 @@
  {<<"lager">>,{pkg,<<"lager">>,<<"3.2.4">>},1}]}.
 [
 {pkg_hash,[
- {<<"chatterbox">>, <<"8298634A6B36F085F61C86482FA5A5FAD6A83CE25BCA263A90366237E7452326">>},
+ {<<"chatterbox">>, <<"5E1409CD959278F6CFCB0A08B93C9B3BE9B051165D9AC56320B3B6691A5B347A">>},
  {<<"ctx">>, <<"A188F86F94A5743B4DBF1B3B9A4C7C714EE7764F66A9F9DA5B99BE93FA0F7F02">>},
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
  {<<"gpb">>, <<"43CF080145BC5A8DFD4BB53FA3FD638469E0B3F0ADC1D283B26D7D934FC67267">>},

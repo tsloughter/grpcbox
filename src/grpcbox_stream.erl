@@ -112,7 +112,10 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                     end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State)
             end;
         _ ->
-            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State)
+            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State#state{resp_headers=[{<<":status">>, <<"200">>},
+                                                                                                        {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]}),
+            {ok, State#state{resp_headers=[{<<":status">>, <<"200">>},
+                                   {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]}}
     end.
 
 authenticate(_, undefined) ->
@@ -193,6 +196,9 @@ on_request_end_stream(State=#state{input_ref=_Ref,
     {ok, State};
 on_request_end_stream(State=#state{method=#method{output={_Output, false}}}) ->
     end_stream(State),
+    {ok, State};
+on_request_end_stream(State) ->
+    end_stream(State),
     {ok, State}.
 
 %% Internal
@@ -205,10 +211,9 @@ end_stream(Status, Message, State=#state{headers_sent=false}) ->
 end_stream(Status, Message, #state{connection_pid=ConnPid,
                                    stream_id=StreamId,
                                    resp_trailers=Trailers}) ->
-    timer:sleep(200),
-    h2_connection:send_headers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
-                                                   {<<"grpc-message">>, Message} | Trailers],
-                               [{send_end_stream, true}]).
+    h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
+                                                    {<<"grpc-message">>, Message} | Trailers],
+                                [{send_end_stream, true}]).
 
 send_headers(State=#state{headers_sent=true}) ->
     State;
