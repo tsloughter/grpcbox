@@ -1,6 +1,6 @@
 {application, grpcbox,
  [{description, "Erlang grpc server library based on chatterbox"},
-  {vsn, "0.1.0"},
+  {vsn, "0.1.1"},
   {registered, []},
   {mod, {grpcbox_app, []}},
   {applications,
