@@ -6,7 +6,7 @@ TLS=false
 tests=(
     empty_unary
     large_unary
-    # client_streaming
+    client_streaming
     # server_streaming
     # ping_pong
     # empty_stream

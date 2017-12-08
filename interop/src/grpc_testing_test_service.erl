@@ -40,8 +40,18 @@ streaming_output_call(_StreamingOutputCallRequest, _Stream) ->
 -spec streaming_input_call(reference(), grpcbox_stream:t()) ->
                                   {ok, test_pb:'grpc.testing.StreamingInputCallResponse'()} |
                                   grpcbox_stream:grpc_error_response().
-streaming_input_call(_Ref, _Stream) ->
-    {ok, #{}}.
+streaming_input_call(Ref, GrpcStream) ->
+    streaming_input_call(Ref, #{aggregated_payload_size => 0}, GrpcStream).
+
+streaming_input_call(Ref, Data=#{aggregated_payload_size := Size}, GrpcStream) ->
+    receive
+        {Ref, eos} ->
+            {ok, #{aggregated_payload_size => Size}, GrpcStream};
+        {Ref, #{payload := #{type := _Type,
+                             body := Body},
+                expect_compressed := _Compressed}} ->
+            streaming_input_call(Ref, Data#{aggregated_payload_size => Size + size(Body)}, GrpcStream)
+    end.
 
 -spec full_duplex_call(reference(), grpcbox_stream:t()) ->
                               ok | grpcbox_stream:grpc_error_response().
