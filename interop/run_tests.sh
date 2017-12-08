@@ -8,7 +8,7 @@ tests=(
     large_unary
     client_streaming
     server_streaming
-    # ping_pong
+    ping_pong
     # empty_stream
     # timeout_on_sleeping_server
     # compute_engine_creds

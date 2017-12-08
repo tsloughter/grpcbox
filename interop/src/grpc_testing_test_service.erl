@@ -66,8 +66,24 @@ streaming_input_call(Ref, Data=#{aggregated_payload_size := Size}, GrpcStream) -
 
 -spec full_duplex_call(reference(), grpcbox_stream:t()) ->
                               ok | grpcbox_stream:grpc_error_response().
-full_duplex_call(_Ref, _Stream) ->
-    ok.
+full_duplex_call(Ref, Stream) ->
+    receive
+        {Ref, eos} ->
+            ok;
+        {Ref, #{response_type := ResponseType,
+                response_parameters := ResponseParameters,
+                payload := _Payload,
+                response_status := _Status
+               }} ->
+            lists:foreach(fun(#{size := Size,
+                                interval_us := _Interval,
+                                compressed := _Compressed}) ->
+                                  Body = << <<0>> || _ <- lists:seq(1, Size) >>,
+                                  grpcbox_stream:send(#{payload => #{type => ResponseType,
+                                                                     body => Body}}, Stream)
+                          end, ResponseParameters),
+            full_duplex_call(Ref, Stream)
+    end.
 
 -spec half_duplex_call(reference(), grpcbox_stream:t()) ->
     ok | grpcbox_stream:grpc_error_response().
