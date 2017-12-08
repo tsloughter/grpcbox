@@ -34,7 +34,18 @@ cacheable_unary_call(Ctx, _SimpleRequest) ->
 
 -spec streaming_output_call(test_pb:'grpc.testing.StreamingOutputCallRequest'(), grpcbox_stream:t()) ->
                                    ok | grpcbox_stream:grpc_error_response().
-streaming_output_call(_StreamingOutputCallRequest, _Stream) ->
+streaming_output_call(#{response_type := ResponseType,
+                        response_parameters := ResponseParameters,
+                        payload := _Payload,
+                        response_status := _Status
+                       }, Stream) ->
+    lists:foreach(fun(#{size := Size,
+                        interval_us := _Interval,
+                        compressed := _Compressed}) ->
+                          Body = << <<0>> || _ <- lists:seq(1, Size) >>,
+                          grpcbox_stream:send(#{payload => #{type => ResponseType,
+                                                             body => Body}}, Stream)
+                  end, ResponseParameters),
     ok.
 
 -spec streaming_input_call(reference(), grpcbox_stream:t()) ->
