@@ -151,7 +151,7 @@ route_chat(Ref, Data, GrpcStream) ->
 
 Metadata is sent in headers and trailers.
 
-Test
+CT Tests
 ---
 
 To run the Common Test suite:
@@ -160,14 +160,24 @@ To run the Common Test suite:
 $ rebar3 ct
 ```
 
-To run another client implementation to test, in particular the route guide example that comes with the Go client, `google.golang.org/grpc/examples/route_guide/client/client.go`:
+Interop Tests
+---
+
+The `interop` rebar3 profile builds with an implementation of the `test.proto` for grpc interop testing:
 
 ```
-$ rebar3 as test shell
+$ rebar3 as interop shell
 ```
 
-And run the client from your `$GOPATH`:
+With the shell running the tests can then be run from a script:
 
 ```
-$ bin/client -server_addr 127.0.0.1:8080
+$ interop/run_tests.sh
+```
+
+The script by default uses the Go test client that can be installed with the following:
+
+```
+$ go get -u github.com/grpc/grpc-go/interop
+$ go build -o $GOPATH/bin/go-grpc-interop-client github.com/grpc/grpc-go/interop/client
 ```

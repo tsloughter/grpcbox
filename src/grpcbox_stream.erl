@@ -27,6 +27,7 @@
 -record(state, {handler            :: pid(),
                 socket,
                 auth_fun,
+                buffer             :: binary(),
                 ctx                :: ctx:ctx(),
                 req_headers=[]     :: list(),
                 input_ref          :: reference(),
@@ -55,6 +56,7 @@ init(ConnPid, StreamId, [Socket, AuthFun]) ->
     process_flag(trap_exit, true),
     {ok, #state{connection_pid=ConnPid,
                 stream_id=StreamId,
+                buffer = <<>>,
                 auth_fun=AuthFun,
                 socket=Socket,
                 handler=self()}}.
@@ -142,13 +144,14 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                           input_ref=Ref,
                                           callback_pid=Pid,
                                           ctx=Ctx,
+                                          buffer=Buffer,
                                           method=#method{module=Module,
                                                          function=Function,
                                                          proto=Proto,
                                                          input={Input, InputStream},
                                                          output={_Output, OutputStream}}})->
     try
-        Messages = split_frame(Bin, Encoding),
+        {NewBuffer, Messages} = split_frame(<<Buffer/binary, Bin/binary>>, Encoding),
         State1 = lists:foldl(fun(EncodedMessage, StateAcc) ->
                                      try Proto:decode_msg(EncodedMessage, Input) of
                                          Message ->
@@ -169,7 +172,7 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                              ?THROW(?GRPC_STATUS_INTERNAL, <<"Error parsing request protocol buffer">>)
                                      end
                              end, State, Messages),
-        {ok, State1}
+        {ok, State1#state{buffer=NewBuffer}}
     catch
         throw:{grpc_error, {Status, Message}} ->
             end_stream(Status, Message, State);
@@ -208,12 +211,13 @@ end_stream(State) ->
 
 end_stream(Status, Message, State=#state{headers_sent=false}) ->
     end_stream(Status, Message, send_headers(State));
-end_stream(Status, Message, #state{connection_pid=ConnPid,
-                                   stream_id=StreamId,
-                                   resp_trailers=Trailers}) ->
+end_stream(Status, Message, State=#state{connection_pid=ConnPid,
+                                         stream_id=StreamId,
+                                         resp_trailers=Trailers}) ->
     h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
                                                     {<<"grpc-message">>, Message} | Trailers],
-                                [{send_end_stream, true}]).
+                                [{send_end_stream, true}]),
+    {ok, State}.
 
 send_headers(State=#state{headers_sent=true}) ->
     State;
@@ -276,7 +280,7 @@ split_frame(Frame, Encoding) ->
     split_frame(Frame, Encoding, []).
 
 split_frame(<<>>, _Encoding, Acc) ->
-    lists:reverse(Acc);
+    {<<>>, lists:reverse(Acc)};
 split_frame(<<0, Length:32, Encoded:Length/binary, Rest/binary>>, Encoding, Acc) ->
     split_frame(Rest, Encoding, [Encoded | Acc]);
 split_frame(<<1, Length:32, Compressed:Length/binary, Rest/binary>>, Encoding, Acc) ->
@@ -292,7 +296,9 @@ split_frame(<<1, Length:32, Compressed:Length/binary, Rest/binary>>, Encoding, A
                       ?THROW(?GRPC_STATUS_UNIMPLEMENTED,
                              <<"Compression mechanism used by client not supported by the server">>)
               end,
-    split_frame(Rest, Encoding, [Encoded | Acc]).
+    split_frame(Rest, Encoding, [Encoded | Acc]);
+split_frame(Bin, _Encoding, Acc) ->
+    {Bin, lists:reverse(Acc)}.
 
 response_encoding(gzip) ->
     [{<<"grpc-encoding">>, <<"gzip">>}];
