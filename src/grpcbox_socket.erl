@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/2]).
+-export([start_link/3]).
 
 -export([init/1,
          handle_call/3,
@@ -13,15 +13,15 @@
 
 %% public api
 
-start_link(ListenOpts, AcceptorOpts) ->
-    gen_server:start_link(?MODULE, [ListenOpts, AcceptorOpts], []).
+start_link(Pool, ListenOpts, AcceptorOpts) ->
+    gen_server:start_link(?MODULE, [Pool, ListenOpts, AcceptorOpts], []).
 
 %% gen_server api
 
-init([ListenOpts, PoolOpts]) ->
+init([Pool, ListenOpts, PoolOpts]) ->
     Port = maps:get(port, ListenOpts, 8080),
     IPAddress = maps:get(ip, ListenOpts, {0,0,0,0}),
-    AcceptorPoolSize = maps:get(pool_size, PoolOpts, 10),
+    AcceptorPoolSize = maps:get(size, PoolOpts, 10),
     SocketOpts = maps:get(socket_options, ListenOpts, [{reuseaddr, true},
                                                        {nodelay, true},
                                                        {reuseaddr, true},
@@ -34,7 +34,7 @@ init([ListenOpts, PoolOpts]) ->
         {ok, Socket} ->
             %% acceptor could close the socket if there is a problem
             MRef = monitor(port, Socket),
-            grpcbox_pool:accept_socket(Socket, AcceptorPoolSize),
+            grpcbox_pool:accept_socket(Pool, Socket, AcceptorPoolSize),
             {ok, {Socket, MRef}};
         {error, Reason} ->
             {stop, Reason}

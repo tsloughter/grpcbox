@@ -167,6 +167,8 @@ The `interop` rebar3 profile builds with an implementation of the `test.proto` f
 
 ```
 $ rebar3 as interop shell
+
+> grpcbox_sup:start_child().
 ```
 
 With the shell running the tests can then be run from a script:

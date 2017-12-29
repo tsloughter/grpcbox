@@ -2,27 +2,23 @@
 
 -behaviour(acceptor_pool).
 
--export([start_link/2,
-         accept_socket/2]).
+-export([start_link/4,
+         accept_socket/3]).
 
 -export([init/1]).
 
-%% public api
+start_link(Name, ServerOpts, ChatterboxOpts, ListenOpts) ->
+    acceptor_pool:start_link({local, Name}, ?MODULE, [ServerOpts, ChatterboxOpts, ListenOpts]).
 
-start_link(ChatterboxOpts, ListenOpts) ->
-    acceptor_pool:start_link({local, grpcbox_pool}, ?MODULE, [ChatterboxOpts, ListenOpts]).
+accept_socket(Pool, Socket, Acceptors) ->
+    acceptor_pool:accept_socket(Pool, Socket, Acceptors).
 
-accept_socket(Socket, Acceptors) ->
-    acceptor_pool:accept_socket(grpcbox_pool, Socket, Acceptors).
-
-%% acceptor_pool api
-
-init([ChatterboxOpts, ListenOpts]) ->
+init([ServerOpts, ChatterboxOpts, ListenOpts]) ->
     {Transport, SslOpts} = case ListenOpts of
                                #{ssl := true,
                                  keyfile := KeyFile,
                                  certfile := CertFile,
-                                cacertfile := CACertFile} ->
+                                 cacertfile := CACertFile} ->
                                    {ssl, [{keyfile, KeyFile},
                                           {certfile, CertFile},
                                           {honor_cipher_order, false},
@@ -36,6 +32,6 @@ init([ChatterboxOpts, ListenOpts]) ->
                            end,
 
     Conn = #{id => grpcbox_acceptor,
-             start => {grpcbox_acceptor, {Transport, ChatterboxOpts, SslOpts}, []},
+             start => {grpcbox_acceptor, {Transport, ServerOpts, ChatterboxOpts, SslOpts}, []},
              grace => 5000},
     {ok, {#{}, [Conn]}}.
