@@ -7,8 +7,12 @@
 
 -export([send/2,
          send/3,
+         send_headers/2,
          add_headers/2,
          add_trailers/2,
+         set_trailers/2,
+         code_to_status/1,
+         error/2,
          handle_streams/2,
          handle_info/2]).
 
@@ -39,6 +43,7 @@
                 resp_headers=[]    :: list(),
                 resp_trailers=[]   :: list(),
                 headers_sent=false :: boolean(),
+                trailers_sent=false :: boolean(),
                 stream_id          :: stream_id(),
                 method             :: #method{}}).
 
@@ -49,8 +54,8 @@
 -type grpc_error() :: {grpc_status(), grpc_status_message()}.
 -type grpc_error_response() :: {grpc_error, grpc_error()}.
 
-
--define(THROW(Status, Message), throw({grpc_error, {Status, Message}})).
+-define(GRPC_ERROR(Status, Message), {grpc_error, {Status, Message}}).
+-define(THROW(Status, Message), throw(?GRPC_ERROR(Status, Message))).
 
 init(ConnPid, StreamId, [Socket, AuthFun]) ->
     process_flag(trap_exit, true),
@@ -64,30 +69,35 @@ init(ConnPid, StreamId, [Socket, AuthFun]) ->
 on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                                                  socket=Socket}) ->
     %% proplists:get_value(<<":method">>, Headers) =:= <<"POST">>,
+    RequestEncoding = parse_options(<<"grpc-encoding">>, Headers),
+    ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
+    ContentType = parse_options(<<"content-type">>, Headers),
+
+    Metadata =  lists:foldl(fun({K, V}, Acc) ->
+                                    case is_reserved_header(K) of
+                                        true ->
+                                            Acc;
+                                        false ->
+                                            maps:put(K, maybe_decode_header(K, V), Acc)
+                                    end
+                            end, #{}, Headers),
+
+    Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
+              infinity ->
+                  grpcbox_metadata:new_incoming_ctx(Metadata);
+              D ->
+                  ctx:with_deadline_after(grpcbox_metadata:new_incoming_ctx(Metadata), D, nanosecond)
+          end,
+
+    RespHeaders = [{<<":status">>, <<"200">>},
+                   {<<"user-agent">>, <<"grpc-erlang/0.1.0">>},
+                   {<<"content-type">>, content_type(ContentType)}
+                   | response_encoding(ResponseEncoding)],
+
     case string:lexemes(proplists:get_value(<<":path">>, Headers), "/") of
         [Service, Method] ->
             case ets:lookup(?SERVICES_TAB, {Service, Method}) of
                 [M=#method{input={_, InputStreaming}}] ->
-                    RequestEncoding = parse_options(<<"grpc-encoding">>, Headers),
-                    ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
-                    ContentType = parse_options(<<"content-type">>, Headers),
-
-                    Metadata =  lists:foldl(fun({K = <<"grpc-", _/binary>>, V}, Acc) ->
-                                                    maps:put(K, V, Acc);
-                                               (_, Acc) ->
-                                                    Acc
-                                            end, #{}, Headers),
-                    Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
-                              infinity ->
-                                  ctx:with_values(Metadata);
-                              D ->
-                                  ctx:with_deadline(ctx:with_values(Metadata), D, nanosecond)
-                          end,
-                    RespHeaders = [{<<":status">>, <<"200">>},
-                                   {<<"user-agent">>, <<"grpc-erlang/0.1.0">>},
-                                   {<<"content-type">>, content_type(ContentType)}
-                                   | response_encoding(ResponseEncoding)],
-
                     State1 = State#state{resp_headers=RespHeaders,
                                          req_headers=Headers,
                                          request_encoding=RequestEncoding,
@@ -111,13 +121,15 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                             end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State1)
                     end;
                 _ ->
-                    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State)
+                    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>,
+                               State#state{resp_headers=RespHeaders})
             end;
         _ ->
-            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State#state{resp_headers=[{<<":status">>, <<"200">>},
-                                                                                                        {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]}),
+            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>,
+                       State#state{resp_headers=[{<<":status">>, <<"200">>},
+                                                 {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]}),
             {ok, State#state{resp_headers=[{<<":status">>, <<"200">>},
-                                   {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]}}
+                                           {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]}}
     end.
 
 authenticate(_, undefined) ->
@@ -130,8 +142,12 @@ authenticate(_, _) ->
 handle_streams(Ref, State=#state{method=#method{module=Module,
                                                 function=Function,
                                                 output={_, false}}}) ->
-    {ok, Response, State1} = Module:Function(Ref, State),
-    send(false, Response, State1);
+    case Module:Function(Ref, State) of
+        {ok, Response, State1} ->
+            send(false, Response, State1);
+        E={grpc_error, _} ->
+            throw(E)
+    end;
 handle_streams(Ref, State=#state{method=#method{module=Module,
                                                 function=Function,
                                                 output={_, true}}}) ->
@@ -139,6 +155,12 @@ handle_streams(Ref, State=#state{method=#method{module=Module,
 
 on_send_push_promise(_, State) ->
     {ok, State}.
+
+ctx_with_stream(Ctx, Stream) ->
+    ctx:set(Ctx, ctx_stream_key, Stream).
+
+from_ctx(Ctx) ->
+    ctx:get(Ctx, ctx_stream_key).
 
 on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                           input_ref=Ref,
@@ -164,8 +186,14 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                                                              [Message, StateAcc#state{handler=self()}]),
                                                      StateAcc;
                                                  {false, false} ->
-                                                     {ok, Response, Ctx1} = Module:Function(Ctx, Message),
-                                                     send(false, Response, StateAcc#state{ctx=Ctx1})
+                                                     Ctx1 = ctx_with_stream(Ctx, StateAcc),
+                                                     case Module:Function(Ctx1, Message) of
+                                                         {ok, Response, Ctx2} ->
+                                                             StateAcc1 = from_ctx(Ctx2),
+                                                             send(false, Response, StateAcc1);
+                                                         E={grpc_error, _} ->
+                                                             throw(E)
+                                                     end
                                              end
                                      catch
                                          error:{gpb_error, _} ->
@@ -211,23 +239,58 @@ end_stream(State) ->
 
 end_stream(Status, Message, State=#state{headers_sent=false}) ->
     end_stream(Status, Message, send_headers(State));
+end_stream(_Status, _Message, State=#state{trailers_sent=true}) ->
+    {ok, State};
 end_stream(Status, Message, State=#state{connection_pid=ConnPid,
                                          stream_id=StreamId,
                                          resp_trailers=Trailers}) ->
+    EncodedTrailers = encode_headers(Trailers),
     h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
-                                                    {<<"grpc-message">>, Message} | Trailers],
+                                                    {<<"grpc-message">>, Message} | EncodedTrailers],
                                 [{send_end_stream, true}]),
-    {ok, State}.
+    {ok, State#state{trailers_sent=true}}.
 
-send_headers(State=#state{headers_sent=true}) ->
+set_trailers(Ctx=#{}, Trailers) ->
+    State = from_ctx(Ctx),
+    ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers)}).
+
+send_headers(State) ->
+    send_headers([], State).
+
+send_headers(Ctx=#{}, Headers) when is_map(Headers) ->
+    State = from_ctx(Ctx),
+    send_headers(maps:to_list(grpc_lib:maybe_encode_headers(Headers)), State);
+
+send_headers(_Metadata, State=#state{headers_sent=true}) ->
     State;
-send_headers(State=#state{connection_pid=ConnPid,
-                          stream_id=StreamId,
-                          resp_headers=Headers,
-                          headers_sent=false}) ->
-    h2_connection:send_headers(ConnPid, StreamId, Headers, [{send_end_stream, false}]),
+send_headers(Metadata, State=#state{connection_pid=ConnPid,
+                                    stream_id=StreamId,
+                                    resp_headers=Headers,
+                                    headers_sent=false}) ->
+    MdHeaders = encode_headers(Metadata),
+    h2_connection:send_headers(ConnPid, StreamId, Headers++MdHeaders, [{send_end_stream, false}]),
     State#state{headers_sent=true}.
 
+code_to_status(0) -> ?GRPC_STATUS_OK;
+code_to_status(1) -> ?GRPC_STATUS_CANCELLED;
+code_to_status(2) -> ?GRPC_STATUS_UNKNOWN;
+code_to_status(3) -> ?GRPC_STATUS_INVALID_ARGUMENT;
+code_to_status(4) -> ?GRPC_STATUS_DEADLINE_EXCEEDED;
+code_to_status(5) -> ?GRPC_STATUS_NOT_FOUND;
+code_to_status(6) -> ?GRPC_STATUS_ALREADY_EXISTS;
+code_to_status(7) -> ?GRPC_STATUS_PERMISSION_DENIED;
+code_to_status(8) -> ?GRPC_STATUS_RESOURCE_EXHAUSTED;
+code_to_status(9) -> ?GRPC_STATUS_FAILED_PRECONDITION;
+code_to_status(10) -> ?GRPC_STATUS_ABORTED;
+code_to_status(11) -> ?GRPC_STATUS_OUT_OF_RANGE;
+code_to_status(12) -> ?GRPC_STATUS_UNIMPLEMENTED;
+code_to_status(13) -> ?GRPC_STATUS_INTERNAL;
+code_to_status(14) -> ?GRPC_STATUS_UNAVAILABLE;
+code_to_status(15) -> ?GRPC_STATUS_DATA_LOSS;
+code_to_status(16) -> ?GRPC_STATUS_UNAUTHENTICATED.
+
+error(Status, Message) ->
+    exit(?GRPC_ERROR(Status, Message)).
 
 handle_info({add_headers, Headers}, State) ->
     update_headers(Headers, State);
@@ -235,8 +298,14 @@ handle_info({add_trailers, Trailers}, State) ->
     update_trailers(Trailers, State);
 handle_info({send_proto, Message}, State) ->
     send(false, Message, State);
-handle_info({'EXIT', _, _}, State) ->
+handle_info({'EXIT', _, normal}, State) ->
     end_stream(State),
+    State;
+handle_info({'EXIT', _, {grpc_error, {Status, Message}}}, State) ->
+    end_stream(Status, Message, State),
+    State;
+handle_info({'EXIT', _, _Other}, State) ->
+    end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
     State.
 
 add_headers(Headers, #state{handler=Pid}) ->
@@ -314,17 +383,17 @@ content_type(json) ->
 content_type(_) ->
     <<"application/grpc+proto">>.
 
-timeout_to_duration(T, "H") ->
+timeout_to_duration(T, <<"H">>) ->
     erlang:convert_time_unit(timer:hours(T), millisecond, nanosecond);
-timeout_to_duration(T, "M") ->
+timeout_to_duration(T, <<"M">>) ->
     erlang:convert_time_unit(timer:minutes(T), millisecond, nanosecond);
-timeout_to_duration(T, "S") ->
+timeout_to_duration(T, <<"S">>) ->
     erlang:convert_time_unit(T, second, nanosecond);
-timeout_to_duration(T, "m") ->
+timeout_to_duration(T, <<"m">>) ->
     erlang:convert_time_unit(T, millisecond, nanosecond);
-timeout_to_duration(T, "u") ->
+timeout_to_duration(T, <<"u">>) ->
     erlang:convert_time_unit(T, microsecond, nanosecond);
-timeout_to_duration(T, "n") ->
+timeout_to_duration(T, <<"n">>) ->
     timer:seconds(T).
 
 
@@ -367,3 +436,44 @@ parse_encoding(EncodingType, Headers) ->
         _ ->
             ?THROW(?GRPC_STATUS_UNIMPLEMENTED, <<"unknown encoding">>)
     end.
+
+
+%% TODO: consolidate with grpc_lib. But have to update their header map to support
+%% a list of values for a key.
+
+maybe_decode_header(Key, Value) ->
+    case binary:longest_common_suffix([Key, <<"-bin">>]) == 4 of
+        true ->
+            decode_header(Value);
+        false ->
+            Value
+    end.
+
+%% golang gRPC implementation does not add the padding that the Erlang
+%% decoder needs...
+decode_header(Base64) when byte_size(Base64) rem 4 == 3 ->
+    base64:decode(<<Base64/bytes, "=">>);
+decode_header(Base64) when byte_size(Base64) rem 4 == 2 ->
+    base64:decode(<<Base64/bytes, "==">>);
+decode_header(Base64) ->
+    base64:decode(Base64).
+
+encode_headers([]) ->
+    [];
+encode_headers([{Key, Value} | Rest]) ->
+     case binary:longest_common_suffix([Key, <<"-bin">>]) == 4 of
+         true ->
+             [{Key, base64:encode(Value)} | encode_headers(Rest)];
+         false ->
+             [{Key, Value} | encode_headers(Rest)]
+     end.
+
+is_reserved_header(<<"content-type">>) -> true;
+is_reserved_header(<<"grpc-message-type">>) -> true;
+is_reserved_header(<<"grpc-encoding">>) -> true;
+is_reserved_header(<<"grpc-message">>) -> true;
+is_reserved_header(<<"grpc-status">>) -> true;
+is_reserved_header(<<"grpc-timeout">>) -> true;
+is_reserved_header(<<"grpc-status-details-bin">>) -> true;
+is_reserved_header(<<"te">>) -> true;
+is_reserved_header(_) -> false.

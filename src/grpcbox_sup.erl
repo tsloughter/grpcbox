@@ -7,29 +7,19 @@
 
 -behaviour(supervisor).
 
-%% API
--export([start_link/0]).
+-export([start_link/4]).
 
-%% Supervisor callbacks
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
 
-%%====================================================================
-%% API functions
-%%====================================================================
+start_link(ChatterboxOpts, ListenOpts, PoolOpts, TransportOpts) ->
+    supervisor:start_link(?MODULE, [ChatterboxOpts, ListenOpts, PoolOpts, TransportOpts]).
 
-start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
-
-%%====================================================================
-%% Supervisor callbacks
-%%====================================================================
-
-%% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
-init([]) ->
-    {ok, { {one_for_all, 0, 1}, []} }.
-
-%%====================================================================
-%% Internal functions
-%%====================================================================
+init([ChatterboxOpts, ListenOpts, PoolOpts, TransportOpts]) ->
+    RestartStrategy = #{strategy => rest_for_one},
+    Pool = #{id => grpcbox_pool,
+             start => {grpcbox_pool, start_link, [chatterbox:settings(server, ChatterboxOpts), TransportOpts]}},
+    Socket = #{id => grpcbox_socket,
+               start => {grpcbox_socket, start_link, [ListenOpts, PoolOpts]}},
+    {ok, {RestartStrategy, [Pool, Socket]}}.

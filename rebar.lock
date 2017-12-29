@@ -1,6 +1,5 @@
 {"1.1.0",
-[{<<"chatterbox">>,{pkg,<<"ts_chatterbox">>,<<"0.6.1">>},0},
- {<<"ctx">>,{pkg,<<"ctx">>,<<"0.1.0">>},0},
+[{<<"acceptor_pool">>,{pkg,<<"acceptor_pool">>,<<"1.0.0-rc.0">>},0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},2},
  {<<"gpb">>,{pkg,<<"gpb">>,<<"4.0.2">>},0},
  {<<"grpc_lib">>,{pkg,<<"grpc_lib">>,<<"0.1.0">>},0},
@@ -8,8 +7,7 @@
  {<<"lager">>,{pkg,<<"lager">>,<<"3.2.4">>},1}]}.
 [
 {pkg_hash,[
- {<<"chatterbox">>, <<"5E1409CD959278F6CFCB0A08B93C9B3BE9B051165D9AC56320B3B6691A5B347A">>},
- {<<"ctx">>, <<"A188F86F94A5743B4DBF1B3B9A4C7C714EE7764F66A9F9DA5B99BE93FA0F7F02">>},
+ {<<"acceptor_pool">>, <<"679D741DF87FC13599B1AEF2DF8F78F1F880449A6BEFAB7C44FB6FAE0E92A2DE">>},
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
  {<<"gpb">>, <<"43CF080145BC5A8DFD4BB53FA3FD638469E0B3F0ADC1D283B26D7D934FC67267">>},
  {<<"grpc_lib">>, <<"8BA1C69A59B948D1AF18473EF7A201F92B8851FB96126200AB32CE8D70A9A45B">>},

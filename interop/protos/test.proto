@@ -18,8 +18,8 @@
 
 syntax = "proto3";
 
-import "priv/interop/empty.proto";
-import "priv/interop/messages.proto";
+import "interop/protos/empty.proto";
+import "interop/protos/messages.proto";
 
 package grpc.testing;
 

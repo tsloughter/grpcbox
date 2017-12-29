@@ -19,9 +19,12 @@ start(_StartType, _StartArgs) ->
     Options = application:get_env(grpcbox, options, []),
     AuthFun = get_authfun(application:get_env(chatterbox, ssl, false), Options),
     application:set_env(chatterbox, stream_callback_opts, [AuthFun]),
-    chatterbox_sup:start_link(),
-
-    grpcbox_sup:start_link().
+    %% chatterbox_sup:start_link(),
+    ChatterboxOpts = application:get_env(grpcbox, chatterbox_opts, #{}),
+    ListenOpts = application:get_env(grpcbox, listen_opts, #{}),
+    PoolOpts = application:get_env(grpcbox, pool_opts, #{}),
+    TransportOpts = application:get_env(grpcbox, transport_opts, #{}),
+    grpcbox_sup:start_link(ChatterboxOpts, ListenOpts, PoolOpts, TransportOpts).
 
 get_authfun(true, Options) ->
     case proplists:get_value(auth_fun, Options) of
@@ -52,23 +55,35 @@ load_services([ServicePbModule | Rest]) ->
     ServiceNames = ServicePbModule:get_service_names(),
     [begin
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
-         [begin
-              SnakedMethodName = atom_snake_case(Name),
-              SnakedServiceName = atom_snake_case(ServiceName),
-              %% io:format("found: ~s/~s (~p) -> (~p)~n", [ServiceName, Name, Input, Output]),
-              ets:insert(?SERVICES_TAB, #method{key={atom_to_binary(ServiceName, utf8), atom_to_binary(Name, utf8)},
-                                                module=SnakedServiceName,
-                                                function=SnakedMethodName,
-                                                proto=ServicePbModule,
-                                                input={Input, InputStream},
-                                                output={Output, OutputStream},
-                                                opts=Opts})
-          end || #{name := Name,
-                   input := Input,
-                   output := Output,
-                   input_stream := InputStream,
-                   output_stream := OutputStream,
-                   opts := Opts} <- Methods]
+         SnakedServiceName = atom_snake_case(ServiceName),
+         try lists:keyfind(exports, 1, SnakedServiceName:module_info()) of
+             {exports, Exports} ->
+                 [begin
+                      SnakedMethodName = atom_snake_case(Name),
+                      case lists:member({SnakedMethodName, 2}, Exports) of
+                          true ->
+                              %% ct:pal("found: ~s/~s (~p) -> (~p)~n", [ServiceName, Name, Input, Output]),
+                              ets:insert(?SERVICES_TAB, #method{key={atom_to_binary(ServiceName, utf8),
+                                                                     atom_to_binary(Name, utf8)},
+                                                                module=SnakedServiceName,
+                                                                function=SnakedMethodName,
+                                                                proto=ServicePbModule,
+                                                                input={Input, InputStream},
+                                                                output={Output, OutputStream},
+                                                                opts=Opts});
+                          false ->
+                              unimplemented_method
+                      end
+                  end || #{name := Name,
+                           input := Input,
+                           output := Output,
+                           input_stream := InputStream,
+                           output_stream := OutputStream,
+                           opts := Opts} <- Methods]
+         catch
+             _:_ ->
+                 unimplemented_service
+         end
      end || ServiceName <- ServiceNames],
 
     load_services(Rest).

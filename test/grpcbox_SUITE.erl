@@ -34,20 +34,15 @@ end_per_suite(_Config) ->
 init_per_group(ssl, Config) ->
     ClientCerts = filename:join(cert_dir(Config), "clients"),
     application:set_env(grpcbox, options, [{client_cert_dir, ClientCerts}]),
-    application:set_env(chatterbox, ssl, true),
-    application:set_env(chatterbox, ssl_options, [{certfile, cert(Config, "localhost.crt")},
-                                                  {keyfile, cert(Config, "localhost.key")},
-                                                  {honor_cipher_order, false},
-                                                  {cacertfile, cert(Config, "My_Root_CA.crt")},
-                                                  {fail_if_no_peer_cert, true},
-                                                  {verify, verify_peer},
-                                                  {versions, ['tlsv1.2']},
-                                                  {next_protocols_advertised, [<<"h2">>]}]),
+    application:set_env(grpcbox, transport_opts, #{ssl => true,
+                                                   keyfile => cert(Config, "localhost.key"),
+                                                   certfile => cert(Config, "localhost.crt"),
+                                                   cacertfile => cert(Config, "My_Root_CA.crt")}),
 
     application:ensure_all_started(grpcbox),
     Config;
 init_per_group(tcp, Config) ->
-    application:set_env(chatterbox, ssl, false),
+    application:set_env(grpcbox, transport_opts, #{}),
     application:ensure_all_started(grpcbox),
     Config.
 
