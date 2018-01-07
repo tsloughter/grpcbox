@@ -173,6 +173,16 @@ The interceptor is configured in the `grpc_opts` set in the environment or passe
 
 ##### Middleware
 
+There is a provided interceptor `grpcbox_chain_interceptor` which accepts a list of interceptors to apply in order, with the final interceptor calling the method handler. An example from the test suite adds a trailer in each interceptor to show the chain working:
+
+```erlang
+#{service_protos => [route_guide_pb],
+  unary_interceptor =>
+    grpcbox_chain_interceptor:unary([fun ?MODULE:one/4,
+                                     fun ?MODULE:two/4,
+                                     fun ?MODULE:three/4])})
+```
+
 #### Metadata
 
 Metadata is sent in headers and trailers.

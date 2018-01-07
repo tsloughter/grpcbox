@@ -10,7 +10,7 @@ groups() ->
      {tcp, [], [unary_no_auth, multiple_servers]}].
 
 all() ->
-    [{group, ssl}, {group, tcp}, unary_interceptor].
+    [{group, ssl}, {group, tcp}, unary_interceptor, chain_interceptor].
 
 init_per_suite(Config) ->
     DataDir = ?config(data_dir, Config),
@@ -65,10 +65,25 @@ init_per_testcase(unary_interceptor, Config) ->
     application:ensure_all_started(grpcbox),
     ?assertMatch({ok, _}, grpcbox_sup:start_child()),
     Config;
+init_per_testcase(chain_interceptor, Config) ->
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
+                                              unary_interceptor =>
+                                                  grpcbox_chain_interceptor:unary([fun ?MODULE:one/4,
+                                                                                   fun ?MODULE:two/4,
+                                                                                   fun ?MODULE:three/4])}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    Config;
 init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(unary_interceptor, _Config) ->
+    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
+                                                   port => 8080})),
+    application:stop(grpcbox),
+    ok;
+end_per_testcase(chain_interceptor, _Config) ->
     ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
                                                    port => 8080})),
     application:stop(grpcbox),
@@ -96,6 +111,14 @@ multiple_servers(_Config) ->
     {ok, Connection2} = grpc_client:connect(tcp, "localhost", 8081),
     unary(Connection2).
 
+unary(Connection) ->
+    Point = #{latitude => 409146138, longitude => -746188906},
+    {ok, #{result := Feature}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
+    ?assertEqual(#{location =>
+                       #{latitude => 409146138,longitude => -746188906},
+                   name =>
+                       <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature).
+
 unary_interceptor(_Config) ->
     {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
 
@@ -106,13 +129,15 @@ unary_interceptor(_Config) ->
                        #{latitude => 30, longitude => 90},
                    name => <<"">>}, Feature).
 
-unary(Connection) ->
+chain_interceptor(_Config) ->
+    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
+
+    %% our test interceptor replaces the point with lat 30 and long 90
     Point = #{latitude => 409146138, longitude => -746188906},
-    {ok, #{result := Feature}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
-    ?assertEqual(#{location =>
-                       #{latitude => 409146138,longitude => -746188906},
-                   name =>
-                       <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature).
+    {ok, #{trailers := Trailers}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
+    ?assertMatch(#{<<"x-grpc-interceptor-one">> := <<"one">>,
+                   <<"x-grpc-interceptor-three">> := <<"three">>,
+                   <<"x-grpc-interceptor-two">> := <<"two">>}, Trailers).
 
 cert_dir(Config) ->
     DataDir = ?config(data_dir, Config),
@@ -122,3 +147,21 @@ cert(Config, FileName) ->
     R = filename:join([cert_dir(Config), FileName]),
     true = filelib:is_file(R),
     R.
+
+one(Ctx, Message, _ServerInfo, Handler) ->
+    ct:pal("interceptor one~n"),
+    Trailer = grpcbox_metadata:pairs([{<<"x-grpc-interceptor-one">>, <<"one">>}]),
+    Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
+    Handler(Ctx1, Message).
+
+two(Ctx, Message, _ServerInfo, Handler) ->
+    ct:pal("interceptor two~n"),
+    Trailer = grpcbox_metadata:pairs([{<<"x-grpc-interceptor-two">>, <<"two">>}]),
+    Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
+    Handler(Ctx1, Message).
+
+three(Ctx, Message, _ServerInfo, Handler) ->
+    ct:pal("interceptor three~n"),
+    Trailer = grpcbox_metadata:pairs([{<<"x-grpc-interceptor-three">>, <<"three">>}]),
+    Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
+    Handler(Ctx1, Message).

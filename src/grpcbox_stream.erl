@@ -132,11 +132,10 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                                State#state{resp_headers=RespHeaders})
             end;
         _ ->
-            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>,
-                       State#state{resp_headers=[{<<":status">>, <<"200">>},
-                                                 {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]}),
-            {ok, State#state{resp_headers=[{<<":status">>, <<"200">>},
-                                           {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]}}
+            State1 = State#state{resp_headers=[{<<":status">>, <<"200">>},
+                                               {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]},
+            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State1),
+            {ok, State1}
     end.
 
 authenticate(_, undefined) ->
@@ -347,6 +346,9 @@ handle_info({'EXIT', _, _Other}, State) ->
 add_headers(Headers, #state{handler=Pid}) ->
     Pid ! {add_headers, Headers}.
 
+add_trailers(Ctx=#{}, Trailers=#{}) ->
+    State=#state{resp_trailers=RespTrailers} = from_ctx(Ctx),
+    ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers)++RespTrailers});
 add_trailers(Headers, #state{handler=Pid}) ->
     Pid ! {add_trailers, Headers}.
 
