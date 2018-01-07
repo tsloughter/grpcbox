@@ -10,7 +10,7 @@ groups() ->
      {tcp, [], [unary_no_auth, multiple_servers]}].
 
 all() ->
-    [{group, ssl}, {group, tcp}].
+    [{group, ssl}, {group, tcp}, unary_interceptor].
 
 init_per_suite(Config) ->
     DataDir = ?config(data_dir, Config),
@@ -55,6 +55,27 @@ end_per_group(_, _Config) ->
     application:stop(grpcbox),
     ok.
 
+init_per_testcase(unary_interceptor, Config) ->
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
+                                              unary_interceptor => fun(Ctx, _Req, _, Method) ->
+                                                                           Method(Ctx, #{latitude => 30,
+                                                                                         longitude => 90})
+                                                                   end}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    Config;
+init_per_testcase(_, Config) ->
+    Config.
+
+end_per_testcase(unary_interceptor, _Config) ->
+    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
+                                                   port => 8080})),
+    application:stop(grpcbox),
+    ok;
+end_per_testcase(_, _Config) ->
+    ok.
+
 unary_no_auth(_Config) ->
     {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
     unary(Connection).
@@ -74,6 +95,16 @@ multiple_servers(_Config) ->
 
     {ok, Connection2} = grpc_client:connect(tcp, "localhost", 8081),
     unary(Connection2).
+
+unary_interceptor(_Config) ->
+    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
+
+    %% our test interceptor replaces the point with lat 30 and long 90
+    Point = #{latitude => 409146138, longitude => -746188906},
+    {ok, #{result := Feature}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
+    ?assertEqual(#{location =>
+                       #{latitude => 30, longitude => 90},
+                   name => <<"">>}, Feature).
 
 unary(Connection) ->
     Point = #{latitude => 409146138, longitude => -746188906},

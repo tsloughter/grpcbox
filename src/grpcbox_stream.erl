@@ -34,6 +34,7 @@
                 buffer             :: binary(),
                 ctx                :: ctx:ctx(),
                 req_headers=[]     :: list(),
+                full_method        :: binary() | undefined,
                 input_ref          :: reference(),
                 callback_pid       :: pid(),
                 connection_pid     :: pid(),
@@ -44,6 +45,8 @@
                 resp_trailers=[]   :: list(),
                 headers_sent=false :: boolean(),
                 trailers_sent=false :: boolean(),
+                unary_interceptor  :: fun() | undefined,
+                stream_interceptor :: fun() | undefined,
                 stream_id          :: stream_id(),
                 method             :: #method{}}).
 
@@ -57,12 +60,14 @@
 -define(GRPC_ERROR(Status, Message), {grpc_error, {Status, Message}}).
 -define(THROW(Status, Message), throw(?GRPC_ERROR(Status, Message))).
 
-init(ConnPid, StreamId, [Socket, AuthFun]) ->
+init(ConnPid, StreamId, [Socket, AuthFun, UnaryInterceptor, StreamInterceptor]) ->
     process_flag(trap_exit, true),
     {ok, #state{connection_pid=ConnPid,
                 stream_id=StreamId,
                 buffer = <<>>,
                 auth_fun=AuthFun,
+                unary_interceptor=UnaryInterceptor,
+                stream_interceptor=StreamInterceptor,
                 socket=Socket,
                 handler=self()}}.
 
@@ -94,12 +99,14 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                    {<<"content-type">>, content_type(ContentType)}
                    | response_encoding(ResponseEncoding)],
 
-    case string:lexemes(proplists:get_value(<<":path">>, Headers), "/") of
+    FullPath = proplists:get_value(<<":path">>, Headers),
+    case string:lexemes(FullPath, "/") of
         [Service, Method] ->
             case ets:lookup(?SERVICES_TAB, {Service, Method}) of
                 [M=#method{input={_, InputStreaming}}] ->
                     State1 = State#state{resp_headers=RespHeaders,
                                          req_headers=Headers,
+                                         full_method=FullPath,
                                          request_encoding=RequestEncoding,
                                          response_encoding=ResponseEncoding,
                                          content_type=ContentType,
@@ -139,19 +146,40 @@ authenticate({ok, Cert}, Fun) ->
 authenticate(_, _) ->
     false.
 
-handle_streams(Ref, State=#state{method=#method{module=Module,
+handle_streams(Ref, State=#state{full_method=FullMethod,
+                                 stream_interceptor=StreamInterceptor,
+                                 method=#method{module=Module,
                                                 function=Function,
                                                 output={_, false}}}) ->
-    case Module:Function(Ref, State) of
+    case (case StreamInterceptor of
+              undefined -> Module:Function(Ref, State);
+              _ ->
+                  ServerInfo = #{full_method => FullMethod,
+                                 service => Module,
+                                 input_stream => true,
+                                 output_strema => false},
+                  StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+          end) of
         {ok, Response, State1} ->
             send(false, Response, State1);
         E={grpc_error, _} ->
             throw(E)
     end;
-handle_streams(Ref, State=#state{method=#method{module=Module,
+handle_streams(Ref, State=#state{full_method=FullMethod,
+                                 stream_interceptor=StreamInterceptor,
+                                 method=#method{module=Module,
                                                 function=Function,
                                                 output={_, true}}}) ->
-    Module:Function(Ref, State).
+    case StreamInterceptor of
+        undefined ->
+            Module:Function(Ref, State);
+        _ ->
+            ServerInfo = #{full_method => FullMethod,
+                           service => Module,
+                           input_stream => true,
+                           output_strema => true},
+            StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+    end.
 
 on_send_push_promise(_, State) ->
     {ok, State}.
@@ -165,8 +193,10 @@ from_ctx(Ctx) ->
 on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                           input_ref=Ref,
                                           callback_pid=Pid,
+                                          unary_interceptor=UnaryInterceptor,
                                           ctx=Ctx,
                                           buffer=Buffer,
+                                          full_method=FullMethod,
                                           method=#method{module=Module,
                                                          function=Function,
                                                          proto=Proto,
@@ -187,7 +217,13 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                                      StateAcc;
                                                  {false, false} ->
                                                      Ctx1 = ctx_with_stream(Ctx, StateAcc),
-                                                     case Module:Function(Ctx1, Message) of
+                                                     case (case UnaryInterceptor of
+                                                               undefined -> Module:Function(Ctx1, Message);
+                                                               _ ->
+                                                                   ServerInfo = #{full_method => FullMethod,
+                                                                                  service => Module},
+                                                                   UnaryInterceptor(Ctx1, Message, ServerInfo, fun Module:Function/2)
+                                                           end) of
                                                          {ok, Response, Ctx2} ->
                                                              StateAcc1 = from_ctx(Ctx2),
                                                              send(false, Response, StateAcc1);

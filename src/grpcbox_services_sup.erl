@@ -22,19 +22,32 @@ start_link(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
     %% give the services_sup a name because in the future we might want to reference it easily for
     %% debugging purposes or live configuration changes
     Name = services_sup_name(ListenOpts),
-    supervisor:start_link({local, Name}, ?MODULE, [ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts]).
+    supervisor:start_link({local, Name}, ?MODULE, [ServerOpts, GrpcOpts, ListenOpts,
+                                                   PoolOpts, TransportOpts]).
+interceptor(Type, Opts) ->
+    case maps:get(Type, Opts, undefined) of
+        {Module, Function} ->
+            fun Module:Function/4;
+        Fun when is_function(Fun, 4) ->
+            Fun;
+        undefined ->
+            undefined
+    end.
 
 init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts]) ->
     AuthFun = get_authfun(maps:get(ssl, ListenOpts, false), GrpcOpts),
+    UnaryInterceptor = interceptor(unary_interceptor, GrpcOpts),
+    StreamInterceptor = interceptor(stream_interceptor, GrpcOpts),
     ChatterboxOpts = #{stream_callback_mod => grpcbox_stream,
-                       stream_callback_opts => [AuthFun]},
+                       stream_callback_opts => [AuthFun, UnaryInterceptor, StreamInterceptor]},
 
     %% unique name for pool based on the ip and port it will listen on
     Name = pool_name(ListenOpts),
 
     RestartStrategy = #{strategy => rest_for_one},
     Pool = #{id => grpcbox_pool,
-             start => {grpcbox_pool, start_link, [Name, chatterbox:settings(server, ServerOpts), ChatterboxOpts, TransportOpts]}},
+             start => {grpcbox_pool, start_link, [Name, chatterbox:settings(server, ServerOpts),
+                                                  ChatterboxOpts, TransportOpts]}},
     Socket = #{id => grpcbox_socket,
                start => {grpcbox_socket, start_link, [Name, ListenOpts, PoolOpts]}},
     {ok, {RestartStrategy, [Pool, Socket]}}.

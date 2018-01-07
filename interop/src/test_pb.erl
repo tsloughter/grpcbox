@@ -29,20 +29,16 @@
 -export_type(['grpc.testing.PayloadType'/0]).
 
 %% message types
--type 'grpc.testing.BoolValue'() ::
-      #{value                   => boolean() | 0 | 1 % = 1
+-type 'grpc.testing.EchoStatus'() ::
+      #{code                    => integer(),       % = 1, 32 bits
+        message                 => iodata()         % = 2
        }.
 -type 'grpc.testing.Payload'() ::
       #{type                    => 'COMPRESSABLE' | integer(), % = 1, enum grpc.testing.PayloadType
         body                    => binary()         % = 2
        }.
--type 'grpc.testing.StreamingInputCallRequest'() ::
-      #{payload                 => 'grpc.testing.Payload'(), % = 1
-        expect_compressed       => 'grpc.testing.BoolValue'() % = 2
-       }.
--type 'grpc.testing.EchoStatus'() ::
-      #{code                    => integer(),       % = 1, 32 bits
-        message                 => iolist()         % = 2
+-type 'grpc.testing.BoolValue'() ::
+      #{value                   => boolean() | 0 | 1 % = 1
        }.
 -type 'grpc.testing.ResponseParameters'() ::
       #{size                    => integer(),       % = 1, 32 bits
@@ -55,6 +51,18 @@
         payload                 => 'grpc.testing.Payload'(), % = 3
         response_status         => 'grpc.testing.EchoStatus'() % = 7
        }.
+-type 'grpc.testing.StreamingInputCallResponse'() ::
+      #{aggregated_payload_size => integer()        % = 1, 32 bits
+       }.
+-type 'grpc.testing.SimpleResponse'() ::
+      #{payload                 => 'grpc.testing.Payload'(), % = 1
+        username                => iodata(),        % = 2
+        oauth_scope             => iodata()         % = 3
+       }.
+-type 'grpc.testing.StreamingInputCallRequest'() ::
+      #{payload                 => 'grpc.testing.Payload'(), % = 1
+        expect_compressed       => 'grpc.testing.BoolValue'() % = 2
+       }.
 -type 'grpc.testing.SimpleRequest'() ::
       #{response_type           => 'COMPRESSABLE' | integer(), % = 1, enum grpc.testing.PayloadType
         response_size           => integer(),       % = 2, 32 bits
@@ -65,35 +73,27 @@
         response_status         => 'grpc.testing.EchoStatus'(), % = 7
         expect_compressed       => 'grpc.testing.BoolValue'() % = 8
        }.
--type 'grpc.testing.SimpleResponse'() ::
-      #{payload                 => 'grpc.testing.Payload'(), % = 1
-        username                => iolist(),        % = 2
-        oauth_scope             => iolist()         % = 3
-       }.
--type 'grpc.testing.StreamingInputCallResponse'() ::
-      #{aggregated_payload_size => integer()        % = 1, 32 bits
-       }.
 -type 'grpc.testing.ReconnectInfo'() ::
       #{passed                  => boolean() | 0 | 1, % = 1
         backoff_ms              => [integer()]      % = 2, 32 bits
        }.
--type 'grpc.testing.ReconnectParams'() ::
-      #{max_reconnect_backoff_ms => integer()       % = 1, 32 bits
-       }.
 -type 'grpc.testing.StreamingOutputCallResponse'() ::
       #{payload                 => 'grpc.testing.Payload'() % = 1
+       }.
+-type 'grpc.testing.ReconnectParams'() ::
+      #{max_reconnect_backoff_ms => integer()       % = 1, 32 bits
        }.
 -type 'grpc.testing.Empty'() ::
       #{
        }.
--export_type(['grpc.testing.BoolValue'/0, 'grpc.testing.Payload'/0, 'grpc.testing.StreamingInputCallRequest'/0, 'grpc.testing.EchoStatus'/0, 'grpc.testing.ResponseParameters'/0, 'grpc.testing.StreamingOutputCallRequest'/0, 'grpc.testing.SimpleRequest'/0, 'grpc.testing.SimpleResponse'/0, 'grpc.testing.StreamingInputCallResponse'/0, 'grpc.testing.ReconnectInfo'/0, 'grpc.testing.ReconnectParams'/0, 'grpc.testing.StreamingOutputCallResponse'/0, 'grpc.testing.Empty'/0]).
+-export_type(['grpc.testing.EchoStatus'/0, 'grpc.testing.Payload'/0, 'grpc.testing.BoolValue'/0, 'grpc.testing.ResponseParameters'/0, 'grpc.testing.StreamingOutputCallRequest'/0, 'grpc.testing.StreamingInputCallResponse'/0, 'grpc.testing.SimpleResponse'/0, 'grpc.testing.StreamingInputCallRequest'/0, 'grpc.testing.SimpleRequest'/0, 'grpc.testing.ReconnectInfo'/0, 'grpc.testing.StreamingOutputCallResponse'/0, 'grpc.testing.ReconnectParams'/0, 'grpc.testing.Empty'/0]).
 
--spec encode_msg('grpc.testing.BoolValue'() | 'grpc.testing.Payload'() | 'grpc.testing.StreamingInputCallRequest'() | 'grpc.testing.EchoStatus'() | 'grpc.testing.ResponseParameters'() | 'grpc.testing.StreamingOutputCallRequest'() | 'grpc.testing.SimpleRequest'() | 'grpc.testing.SimpleResponse'() | 'grpc.testing.StreamingInputCallResponse'() | 'grpc.testing.ReconnectInfo'() | 'grpc.testing.ReconnectParams'() | 'grpc.testing.StreamingOutputCallResponse'() | 'grpc.testing.Empty'(),'grpc.testing.BoolValue' | 'grpc.testing.Payload' | 'grpc.testing.StreamingInputCallRequest' | 'grpc.testing.EchoStatus' | 'grpc.testing.ResponseParameters' | 'grpc.testing.StreamingOutputCallRequest' | 'grpc.testing.SimpleRequest' | 'grpc.testing.SimpleResponse' | 'grpc.testing.StreamingInputCallResponse' | 'grpc.testing.ReconnectInfo' | 'grpc.testing.ReconnectParams' | 'grpc.testing.StreamingOutputCallResponse' | 'grpc.testing.Empty') -> binary().
+-spec encode_msg('grpc.testing.EchoStatus'() | 'grpc.testing.Payload'() | 'grpc.testing.BoolValue'() | 'grpc.testing.ResponseParameters'() | 'grpc.testing.StreamingOutputCallRequest'() | 'grpc.testing.StreamingInputCallResponse'() | 'grpc.testing.SimpleResponse'() | 'grpc.testing.StreamingInputCallRequest'() | 'grpc.testing.SimpleRequest'() | 'grpc.testing.ReconnectInfo'() | 'grpc.testing.StreamingOutputCallResponse'() | 'grpc.testing.ReconnectParams'() | 'grpc.testing.Empty'(),'grpc.testing.EchoStatus' | 'grpc.testing.Payload' | 'grpc.testing.BoolValue' | 'grpc.testing.ResponseParameters' | 'grpc.testing.StreamingOutputCallRequest' | 'grpc.testing.StreamingInputCallResponse' | 'grpc.testing.SimpleResponse' | 'grpc.testing.StreamingInputCallRequest' | 'grpc.testing.SimpleRequest' | 'grpc.testing.ReconnectInfo' | 'grpc.testing.StreamingOutputCallResponse' | 'grpc.testing.ReconnectParams' | 'grpc.testing.Empty') -> binary().
 encode_msg(Msg, MsgName) ->
     encode_msg(Msg, MsgName, []).
 
 
--spec encode_msg('grpc.testing.BoolValue'() | 'grpc.testing.Payload'() | 'grpc.testing.StreamingInputCallRequest'() | 'grpc.testing.EchoStatus'() | 'grpc.testing.ResponseParameters'() | 'grpc.testing.StreamingOutputCallRequest'() | 'grpc.testing.SimpleRequest'() | 'grpc.testing.SimpleResponse'() | 'grpc.testing.StreamingInputCallResponse'() | 'grpc.testing.ReconnectInfo'() | 'grpc.testing.ReconnectParams'() | 'grpc.testing.StreamingOutputCallResponse'() | 'grpc.testing.Empty'(),'grpc.testing.BoolValue' | 'grpc.testing.Payload' | 'grpc.testing.StreamingInputCallRequest' | 'grpc.testing.EchoStatus' | 'grpc.testing.ResponseParameters' | 'grpc.testing.StreamingOutputCallRequest' | 'grpc.testing.SimpleRequest' | 'grpc.testing.SimpleResponse' | 'grpc.testing.StreamingInputCallResponse' | 'grpc.testing.ReconnectInfo' | 'grpc.testing.ReconnectParams' | 'grpc.testing.StreamingOutputCallResponse' | 'grpc.testing.Empty', list()) -> binary().
+-spec encode_msg('grpc.testing.EchoStatus'() | 'grpc.testing.Payload'() | 'grpc.testing.BoolValue'() | 'grpc.testing.ResponseParameters'() | 'grpc.testing.StreamingOutputCallRequest'() | 'grpc.testing.StreamingInputCallResponse'() | 'grpc.testing.SimpleResponse'() | 'grpc.testing.StreamingInputCallRequest'() | 'grpc.testing.SimpleRequest'() | 'grpc.testing.ReconnectInfo'() | 'grpc.testing.StreamingOutputCallResponse'() | 'grpc.testing.ReconnectParams'() | 'grpc.testing.Empty'(),'grpc.testing.EchoStatus' | 'grpc.testing.Payload' | 'grpc.testing.BoolValue' | 'grpc.testing.ResponseParameters' | 'grpc.testing.StreamingOutputCallRequest' | 'grpc.testing.StreamingInputCallResponse' | 'grpc.testing.SimpleResponse' | 'grpc.testing.StreamingInputCallRequest' | 'grpc.testing.SimpleRequest' | 'grpc.testing.ReconnectInfo' | 'grpc.testing.StreamingOutputCallResponse' | 'grpc.testing.ReconnectParams' | 'grpc.testing.Empty', list()) -> binary().
 encode_msg(Msg, MsgName, Opts) ->
     case proplists:get_bool(verify, Opts) of
       true -> verify_msg(Msg, MsgName, Opts);
@@ -101,56 +101,67 @@ encode_msg(Msg, MsgName, Opts) ->
     end,
     TrUserData = proplists:get_value(user_data, Opts),
     case MsgName of
-      'grpc.testing.BoolValue' ->
-	  'e_msg_grpc.testing.BoolValue'(Msg, TrUserData);
-      'grpc.testing.Payload' ->
-	  'e_msg_grpc.testing.Payload'(Msg, TrUserData);
-      'grpc.testing.StreamingInputCallRequest' ->
-	  'e_msg_grpc.testing.StreamingInputCallRequest'(Msg,
-							 TrUserData);
       'grpc.testing.EchoStatus' ->
 	  'e_msg_grpc.testing.EchoStatus'(Msg, TrUserData);
+      'grpc.testing.Payload' ->
+	  'e_msg_grpc.testing.Payload'(Msg, TrUserData);
+      'grpc.testing.BoolValue' ->
+	  'e_msg_grpc.testing.BoolValue'(Msg, TrUserData);
       'grpc.testing.ResponseParameters' ->
 	  'e_msg_grpc.testing.ResponseParameters'(Msg,
 						  TrUserData);
       'grpc.testing.StreamingOutputCallRequest' ->
 	  'e_msg_grpc.testing.StreamingOutputCallRequest'(Msg,
 							  TrUserData);
-      'grpc.testing.SimpleRequest' ->
-	  'e_msg_grpc.testing.SimpleRequest'(Msg, TrUserData);
-      'grpc.testing.SimpleResponse' ->
-	  'e_msg_grpc.testing.SimpleResponse'(Msg, TrUserData);
       'grpc.testing.StreamingInputCallResponse' ->
 	  'e_msg_grpc.testing.StreamingInputCallResponse'(Msg,
 							  TrUserData);
+      'grpc.testing.SimpleResponse' ->
+	  'e_msg_grpc.testing.SimpleResponse'(Msg, TrUserData);
+      'grpc.testing.StreamingInputCallRequest' ->
+	  'e_msg_grpc.testing.StreamingInputCallRequest'(Msg,
+							 TrUserData);
+      'grpc.testing.SimpleRequest' ->
+	  'e_msg_grpc.testing.SimpleRequest'(Msg, TrUserData);
       'grpc.testing.ReconnectInfo' ->
 	  'e_msg_grpc.testing.ReconnectInfo'(Msg, TrUserData);
-      'grpc.testing.ReconnectParams' ->
-	  'e_msg_grpc.testing.ReconnectParams'(Msg, TrUserData);
       'grpc.testing.StreamingOutputCallResponse' ->
 	  'e_msg_grpc.testing.StreamingOutputCallResponse'(Msg,
 							   TrUserData);
+      'grpc.testing.ReconnectParams' ->
+	  'e_msg_grpc.testing.ReconnectParams'(Msg, TrUserData);
       'grpc.testing.Empty' ->
 	  'e_msg_grpc.testing.Empty'(Msg, TrUserData)
     end.
 
 
 
-'e_msg_grpc.testing.BoolValue'(Msg, TrUserData) ->
-    'e_msg_grpc.testing.BoolValue'(Msg, <<>>, TrUserData).
+'e_msg_grpc.testing.EchoStatus'(Msg, TrUserData) ->
+    'e_msg_grpc.testing.EchoStatus'(Msg, <<>>, TrUserData).
 
 
-'e_msg_grpc.testing.BoolValue'(#{} = M, Bin,
-			       TrUserData) ->
+'e_msg_grpc.testing.EchoStatus'(#{} = M, Bin,
+				TrUserData) ->
+    B1 = case M of
+	   #{code := F1} ->
+	       begin
+		 TrF1 = id(F1, TrUserData),
+		 if TrF1 =:= 0 -> Bin;
+		    true -> e_type_int32(TrF1, <<Bin/binary, 8>>)
+		 end
+	       end;
+	   _ -> Bin
+	 end,
     case M of
-      #{value := F1} ->
+      #{message := F2} ->
 	  begin
-	    TrF1 = id(F1, TrUserData),
-	    if TrF1 =:= false -> Bin;
-	       true -> e_type_bool(TrF1, <<Bin/binary, 8>>)
+	    TrF2 = id(F2, TrUserData),
+	    case is_empty_string(TrF2) of
+	      true -> B1;
+	      false -> e_type_string(TrF2, <<B1/binary, 18>>)
 	    end
 	  end;
-      _ -> Bin
+      _ -> B1
     end.
 
 'e_msg_grpc.testing.Payload'(Msg, TrUserData) ->
@@ -183,69 +194,21 @@ encode_msg(Msg, MsgName, Opts) ->
       _ -> B1
     end.
 
-'e_msg_grpc.testing.StreamingInputCallRequest'(Msg,
-					       TrUserData) ->
-    'e_msg_grpc.testing.StreamingInputCallRequest'(Msg,
-						   <<>>, TrUserData).
+'e_msg_grpc.testing.BoolValue'(Msg, TrUserData) ->
+    'e_msg_grpc.testing.BoolValue'(Msg, <<>>, TrUserData).
 
 
-'e_msg_grpc.testing.StreamingInputCallRequest'(#{} = M,
-					       Bin, TrUserData) ->
-    B1 = case M of
-	   #{payload := F1} ->
-	       begin
-		 TrF1 = id(F1, TrUserData),
-		 if TrF1 =:= undefined -> Bin;
-		    true ->
-			'e_mfield_grpc.testing.StreamingInputCallRequest_payload'(TrF1,
-										  <<Bin/binary,
-										    10>>,
-										  TrUserData)
-		 end
-	       end;
-	   _ -> Bin
-	 end,
+'e_msg_grpc.testing.BoolValue'(#{} = M, Bin,
+			       TrUserData) ->
     case M of
-      #{expect_compressed := F2} ->
+      #{value := F1} ->
 	  begin
-	    TrF2 = id(F2, TrUserData),
-	    if TrF2 =:= undefined -> B1;
-	       true ->
-		   'e_mfield_grpc.testing.StreamingInputCallRequest_expect_compressed'(TrF2,
-										       <<B1/binary,
-											 18>>,
-										       TrUserData)
+	    TrF1 = id(F1, TrUserData),
+	    if TrF1 =:= false -> Bin;
+	       true -> e_type_bool(TrF1, <<Bin/binary, 8>>)
 	    end
 	  end;
-      _ -> B1
-    end.
-
-'e_msg_grpc.testing.EchoStatus'(Msg, TrUserData) ->
-    'e_msg_grpc.testing.EchoStatus'(Msg, <<>>, TrUserData).
-
-
-'e_msg_grpc.testing.EchoStatus'(#{} = M, Bin,
-				TrUserData) ->
-    B1 = case M of
-	   #{code := F1} ->
-	       begin
-		 TrF1 = id(F1, TrUserData),
-		 if TrF1 =:= 0 -> Bin;
-		    true -> e_type_int32(TrF1, <<Bin/binary, 8>>)
-		 end
-	       end;
-	   _ -> Bin
-	 end,
-    case M of
-      #{message := F2} ->
-	  begin
-	    TrF2 = id(F2, TrUserData),
-	    case is_empty_string(TrF2) of
-	      true -> B1;
-	      false -> e_type_string(TrF2, <<B1/binary, 18>>)
-	    end
-	  end;
-      _ -> B1
+      _ -> Bin
     end.
 
 'e_msg_grpc.testing.ResponseParameters'(Msg,
@@ -349,6 +312,106 @@ encode_msg(Msg, MsgName, Opts) ->
 	    end
 	  end;
       _ -> B3
+    end.
+
+'e_msg_grpc.testing.StreamingInputCallResponse'(Msg,
+						TrUserData) ->
+    'e_msg_grpc.testing.StreamingInputCallResponse'(Msg,
+						    <<>>, TrUserData).
+
+
+'e_msg_grpc.testing.StreamingInputCallResponse'(#{} = M,
+						Bin, TrUserData) ->
+    case M of
+      #{aggregated_payload_size := F1} ->
+	  begin
+	    TrF1 = id(F1, TrUserData),
+	    if TrF1 =:= 0 -> Bin;
+	       true -> e_type_int32(TrF1, <<Bin/binary, 8>>)
+	    end
+	  end;
+      _ -> Bin
+    end.
+
+'e_msg_grpc.testing.SimpleResponse'(Msg, TrUserData) ->
+    'e_msg_grpc.testing.SimpleResponse'(Msg, <<>>,
+					TrUserData).
+
+
+'e_msg_grpc.testing.SimpleResponse'(#{} = M, Bin,
+				    TrUserData) ->
+    B1 = case M of
+	   #{payload := F1} ->
+	       begin
+		 TrF1 = id(F1, TrUserData),
+		 if TrF1 =:= undefined -> Bin;
+		    true ->
+			'e_mfield_grpc.testing.SimpleResponse_payload'(TrF1,
+								       <<Bin/binary,
+									 10>>,
+								       TrUserData)
+		 end
+	       end;
+	   _ -> Bin
+	 end,
+    B2 = case M of
+	   #{username := F2} ->
+	       begin
+		 TrF2 = id(F2, TrUserData),
+		 case is_empty_string(TrF2) of
+		   true -> B1;
+		   false -> e_type_string(TrF2, <<B1/binary, 18>>)
+		 end
+	       end;
+	   _ -> B1
+	 end,
+    case M of
+      #{oauth_scope := F3} ->
+	  begin
+	    TrF3 = id(F3, TrUserData),
+	    case is_empty_string(TrF3) of
+	      true -> B2;
+	      false -> e_type_string(TrF3, <<B2/binary, 26>>)
+	    end
+	  end;
+      _ -> B2
+    end.
+
+'e_msg_grpc.testing.StreamingInputCallRequest'(Msg,
+					       TrUserData) ->
+    'e_msg_grpc.testing.StreamingInputCallRequest'(Msg,
+						   <<>>, TrUserData).
+
+
+'e_msg_grpc.testing.StreamingInputCallRequest'(#{} = M,
+					       Bin, TrUserData) ->
+    B1 = case M of
+	   #{payload := F1} ->
+	       begin
+		 TrF1 = id(F1, TrUserData),
+		 if TrF1 =:= undefined -> Bin;
+		    true ->
+			'e_mfield_grpc.testing.StreamingInputCallRequest_payload'(TrF1,
+										  <<Bin/binary,
+										    10>>,
+										  TrUserData)
+		 end
+	       end;
+	   _ -> Bin
+	 end,
+    case M of
+      #{expect_compressed := F2} ->
+	  begin
+	    TrF2 = id(F2, TrUserData),
+	    if TrF2 =:= undefined -> B1;
+	       true ->
+		   'e_mfield_grpc.testing.StreamingInputCallRequest_expect_compressed'(TrF2,
+										       <<B1/binary,
+											 18>>,
+										       TrUserData)
+	    end
+	  end;
+      _ -> B1
     end.
 
 'e_msg_grpc.testing.SimpleRequest'(Msg, TrUserData) ->
@@ -457,69 +520,6 @@ encode_msg(Msg, MsgName, Opts) ->
       _ -> B7
     end.
 
-'e_msg_grpc.testing.SimpleResponse'(Msg, TrUserData) ->
-    'e_msg_grpc.testing.SimpleResponse'(Msg, <<>>,
-					TrUserData).
-
-
-'e_msg_grpc.testing.SimpleResponse'(#{} = M, Bin,
-				    TrUserData) ->
-    B1 = case M of
-	   #{payload := F1} ->
-	       begin
-		 TrF1 = id(F1, TrUserData),
-		 if TrF1 =:= undefined -> Bin;
-		    true ->
-			'e_mfield_grpc.testing.SimpleResponse_payload'(TrF1,
-								       <<Bin/binary,
-									 10>>,
-								       TrUserData)
-		 end
-	       end;
-	   _ -> Bin
-	 end,
-    B2 = case M of
-	   #{username := F2} ->
-	       begin
-		 TrF2 = id(F2, TrUserData),
-		 case is_empty_string(TrF2) of
-		   true -> B1;
-		   false -> e_type_string(TrF2, <<B1/binary, 18>>)
-		 end
-	       end;
-	   _ -> B1
-	 end,
-    case M of
-      #{oauth_scope := F3} ->
-	  begin
-	    TrF3 = id(F3, TrUserData),
-	    case is_empty_string(TrF3) of
-	      true -> B2;
-	      false -> e_type_string(TrF3, <<B2/binary, 26>>)
-	    end
-	  end;
-      _ -> B2
-    end.
-
-'e_msg_grpc.testing.StreamingInputCallResponse'(Msg,
-						TrUserData) ->
-    'e_msg_grpc.testing.StreamingInputCallResponse'(Msg,
-						    <<>>, TrUserData).
-
-
-'e_msg_grpc.testing.StreamingInputCallResponse'(#{} = M,
-						Bin, TrUserData) ->
-    case M of
-      #{aggregated_payload_size := F1} ->
-	  begin
-	    TrF1 = id(F1, TrUserData),
-	    if TrF1 =:= 0 -> Bin;
-	       true -> e_type_int32(TrF1, <<Bin/binary, 8>>)
-	    end
-	  end;
-      _ -> Bin
-    end.
-
 'e_msg_grpc.testing.ReconnectInfo'(Msg, TrUserData) ->
     'e_msg_grpc.testing.ReconnectInfo'(Msg, <<>>,
 				       TrUserData).
@@ -548,24 +548,6 @@ encode_msg(Msg, MsgName, Opts) ->
       _ -> B1
     end.
 
-'e_msg_grpc.testing.ReconnectParams'(Msg, TrUserData) ->
-    'e_msg_grpc.testing.ReconnectParams'(Msg, <<>>,
-					 TrUserData).
-
-
-'e_msg_grpc.testing.ReconnectParams'(#{} = M, Bin,
-				     TrUserData) ->
-    case M of
-      #{max_reconnect_backoff_ms := F1} ->
-	  begin
-	    TrF1 = id(F1, TrUserData),
-	    if TrF1 =:= 0 -> Bin;
-	       true -> e_type_int32(TrF1, <<Bin/binary, 8>>)
-	    end
-	  end;
-      _ -> Bin
-    end.
-
 'e_msg_grpc.testing.StreamingOutputCallResponse'(Msg,
 						 TrUserData) ->
     'e_msg_grpc.testing.StreamingOutputCallResponse'(Msg,
@@ -590,22 +572,25 @@ encode_msg(Msg, MsgName, Opts) ->
       _ -> Bin
     end.
 
+'e_msg_grpc.testing.ReconnectParams'(Msg, TrUserData) ->
+    'e_msg_grpc.testing.ReconnectParams'(Msg, <<>>,
+					 TrUserData).
+
+
+'e_msg_grpc.testing.ReconnectParams'(#{} = M, Bin,
+				     TrUserData) ->
+    case M of
+      #{max_reconnect_backoff_ms := F1} ->
+	  begin
+	    TrF1 = id(F1, TrUserData),
+	    if TrF1 =:= 0 -> Bin;
+	       true -> e_type_int32(TrF1, <<Bin/binary, 8>>)
+	    end
+	  end;
+      _ -> Bin
+    end.
+
 'e_msg_grpc.testing.Empty'(_Msg, _TrUserData) -> <<>>.
-
-'e_mfield_grpc.testing.StreamingInputCallRequest_payload'(Msg,
-							  Bin, TrUserData) ->
-    SubBin = 'e_msg_grpc.testing.Payload'(Msg, <<>>,
-					  TrUserData),
-    Bin2 = e_varint(byte_size(SubBin), Bin),
-    <<Bin2/binary, SubBin/binary>>.
-
-'e_mfield_grpc.testing.StreamingInputCallRequest_expect_compressed'(Msg,
-								    Bin,
-								    TrUserData) ->
-    SubBin = 'e_msg_grpc.testing.BoolValue'(Msg, <<>>,
-					    TrUserData),
-    Bin2 = e_varint(byte_size(SubBin), Bin),
-    <<Bin2/binary, SubBin/binary>>.
 
 'e_mfield_grpc.testing.ResponseParameters_compressed'(Msg,
 						      Bin, TrUserData) ->
@@ -655,6 +640,28 @@ encode_msg(Msg, MsgName, Opts) ->
     Bin2 = e_varint(byte_size(SubBin), Bin),
     <<Bin2/binary, SubBin/binary>>.
 
+'e_mfield_grpc.testing.SimpleResponse_payload'(Msg, Bin,
+					       TrUserData) ->
+    SubBin = 'e_msg_grpc.testing.Payload'(Msg, <<>>,
+					  TrUserData),
+    Bin2 = e_varint(byte_size(SubBin), Bin),
+    <<Bin2/binary, SubBin/binary>>.
+
+'e_mfield_grpc.testing.StreamingInputCallRequest_payload'(Msg,
+							  Bin, TrUserData) ->
+    SubBin = 'e_msg_grpc.testing.Payload'(Msg, <<>>,
+					  TrUserData),
+    Bin2 = e_varint(byte_size(SubBin), Bin),
+    <<Bin2/binary, SubBin/binary>>.
+
+'e_mfield_grpc.testing.StreamingInputCallRequest_expect_compressed'(Msg,
+								    Bin,
+								    TrUserData) ->
+    SubBin = 'e_msg_grpc.testing.BoolValue'(Msg, <<>>,
+					    TrUserData),
+    Bin2 = e_varint(byte_size(SubBin), Bin),
+    <<Bin2/binary, SubBin/binary>>.
+
 'e_mfield_grpc.testing.SimpleRequest_payload'(Msg, Bin,
 					      TrUserData) ->
     SubBin = 'e_msg_grpc.testing.Payload'(Msg, <<>>,
@@ -680,13 +687,6 @@ encode_msg(Msg, MsgName, Opts) ->
 							Bin, TrUserData) ->
     SubBin = 'e_msg_grpc.testing.BoolValue'(Msg, <<>>,
 					    TrUserData),
-    Bin2 = e_varint(byte_size(SubBin), Bin),
-    <<Bin2/binary, SubBin/binary>>.
-
-'e_mfield_grpc.testing.SimpleResponse_payload'(Msg, Bin,
-					       TrUserData) ->
-    SubBin = 'e_msg_grpc.testing.Payload'(Msg, <<>>,
-					  TrUserData),
     Bin2 = e_varint(byte_size(SubBin), Bin),
     <<Bin2/binary, SubBin/binary>>.
 
@@ -782,14 +782,14 @@ decode_msg(Bin, MsgName) when is_binary(Bin) ->
 decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
     TrUserData = proplists:get_value(user_data, Opts),
     case MsgName of
-      'grpc.testing.BoolValue' ->
-	  try 'd_msg_grpc.testing.BoolValue'(Bin, TrUserData)
+      'grpc.testing.EchoStatus' ->
+	  try 'd_msg_grpc.testing.EchoStatus'(Bin, TrUserData)
 	  catch
 	    Class:Reason ->
 		StackTrace = erlang:get_stacktrace(),
 		error({gpb_error,
 		       {decoding_failure,
-			{Bin, 'grpc.testing.BoolValue',
+			{Bin, 'grpc.testing.EchoStatus',
 			 {Class, Reason, StackTrace}}}})
 	  end;
       'grpc.testing.Payload' ->
@@ -801,25 +801,14 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 			{Bin, 'grpc.testing.Payload',
 			 {Class, Reason, StackTrace}}}})
 	  end;
-      'grpc.testing.StreamingInputCallRequest' ->
-	  try 'd_msg_grpc.testing.StreamingInputCallRequest'(Bin,
-							     TrUserData)
+      'grpc.testing.BoolValue' ->
+	  try 'd_msg_grpc.testing.BoolValue'(Bin, TrUserData)
 	  catch
 	    Class:Reason ->
 		StackTrace = erlang:get_stacktrace(),
 		error({gpb_error,
 		       {decoding_failure,
-			{Bin, 'grpc.testing.StreamingInputCallRequest',
-			 {Class, Reason, StackTrace}}}})
-	  end;
-      'grpc.testing.EchoStatus' ->
-	  try 'd_msg_grpc.testing.EchoStatus'(Bin, TrUserData)
-	  catch
-	    Class:Reason ->
-		StackTrace = erlang:get_stacktrace(),
-		error({gpb_error,
-		       {decoding_failure,
-			{Bin, 'grpc.testing.EchoStatus',
+			{Bin, 'grpc.testing.BoolValue',
 			 {Class, Reason, StackTrace}}}})
 	  end;
       'grpc.testing.ResponseParameters' ->
@@ -844,14 +833,15 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 			{Bin, 'grpc.testing.StreamingOutputCallRequest',
 			 {Class, Reason, StackTrace}}}})
 	  end;
-      'grpc.testing.SimpleRequest' ->
-	  try 'd_msg_grpc.testing.SimpleRequest'(Bin, TrUserData)
+      'grpc.testing.StreamingInputCallResponse' ->
+	  try 'd_msg_grpc.testing.StreamingInputCallResponse'(Bin,
+							      TrUserData)
 	  catch
 	    Class:Reason ->
 		StackTrace = erlang:get_stacktrace(),
 		error({gpb_error,
 		       {decoding_failure,
-			{Bin, 'grpc.testing.SimpleRequest',
+			{Bin, 'grpc.testing.StreamingInputCallResponse',
 			 {Class, Reason, StackTrace}}}})
 	  end;
       'grpc.testing.SimpleResponse' ->
@@ -864,15 +854,25 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 			{Bin, 'grpc.testing.SimpleResponse',
 			 {Class, Reason, StackTrace}}}})
 	  end;
-      'grpc.testing.StreamingInputCallResponse' ->
-	  try 'd_msg_grpc.testing.StreamingInputCallResponse'(Bin,
-							      TrUserData)
+      'grpc.testing.StreamingInputCallRequest' ->
+	  try 'd_msg_grpc.testing.StreamingInputCallRequest'(Bin,
+							     TrUserData)
 	  catch
 	    Class:Reason ->
 		StackTrace = erlang:get_stacktrace(),
 		error({gpb_error,
 		       {decoding_failure,
-			{Bin, 'grpc.testing.StreamingInputCallResponse',
+			{Bin, 'grpc.testing.StreamingInputCallRequest',
+			 {Class, Reason, StackTrace}}}})
+	  end;
+      'grpc.testing.SimpleRequest' ->
+	  try 'd_msg_grpc.testing.SimpleRequest'(Bin, TrUserData)
+	  catch
+	    Class:Reason ->
+		StackTrace = erlang:get_stacktrace(),
+		error({gpb_error,
+		       {decoding_failure,
+			{Bin, 'grpc.testing.SimpleRequest',
 			 {Class, Reason, StackTrace}}}})
 	  end;
       'grpc.testing.ReconnectInfo' ->
@@ -885,17 +885,6 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 			{Bin, 'grpc.testing.ReconnectInfo',
 			 {Class, Reason, StackTrace}}}})
 	  end;
-      'grpc.testing.ReconnectParams' ->
-	  try 'd_msg_grpc.testing.ReconnectParams'(Bin,
-						   TrUserData)
-	  catch
-	    Class:Reason ->
-		StackTrace = erlang:get_stacktrace(),
-		error({gpb_error,
-		       {decoding_failure,
-			{Bin, 'grpc.testing.ReconnectParams',
-			 {Class, Reason, StackTrace}}}})
-	  end;
       'grpc.testing.StreamingOutputCallResponse' ->
 	  try
 	    'd_msg_grpc.testing.StreamingOutputCallResponse'(Bin,
@@ -906,6 +895,17 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 		error({gpb_error,
 		       {decoding_failure,
 			{Bin, 'grpc.testing.StreamingOutputCallResponse',
+			 {Class, Reason, StackTrace}}}})
+	  end;
+      'grpc.testing.ReconnectParams' ->
+	  try 'd_msg_grpc.testing.ReconnectParams'(Bin,
+						   TrUserData)
+	  catch
+	    Class:Reason ->
+		StackTrace = erlang:get_stacktrace(),
+		error({gpb_error,
+		       {decoding_failure,
+			{Bin, 'grpc.testing.ReconnectParams',
 			 {Class, Reason, StackTrace}}}})
 	  end;
       'grpc.testing.Empty' ->
@@ -921,122 +921,165 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 
 
 
-'d_msg_grpc.testing.BoolValue'(Bin, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.BoolValue'(Bin, 0, 0,
-						id(false, TrUserData),
-						TrUserData).
+'d_msg_grpc.testing.EchoStatus'(Bin, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.EchoStatus'(Bin, 0, 0,
+						 id(0, TrUserData),
+						 id(<<>>, TrUserData),
+						 TrUserData).
 
-'dfp_read_field_def_grpc.testing.BoolValue'(<<8,
-					      Rest/binary>>,
-					    Z1, Z2, F@_1, TrUserData) ->
-    'd_field_grpc.testing.BoolValue_value'(Rest, Z1, Z2,
-					   F@_1, TrUserData);
-'dfp_read_field_def_grpc.testing.BoolValue'(<<>>, 0, 0,
-					    F@_1, _) ->
+'dfp_read_field_def_grpc.testing.EchoStatus'(<<8,
+					       Rest/binary>>,
+					     Z1, Z2, F@_1, F@_2, TrUserData) ->
+    'd_field_grpc.testing.EchoStatus_code'(Rest, Z1, Z2,
+					   F@_1, F@_2, TrUserData);
+'dfp_read_field_def_grpc.testing.EchoStatus'(<<18,
+					       Rest/binary>>,
+					     Z1, Z2, F@_1, F@_2, TrUserData) ->
+    'd_field_grpc.testing.EchoStatus_message'(Rest, Z1, Z2,
+					      F@_1, F@_2, TrUserData);
+'dfp_read_field_def_grpc.testing.EchoStatus'(<<>>, 0, 0,
+					     F@_1, F@_2, _) ->
     S1 = #{},
-    if F@_1 == '$undef' -> S1;
-       true -> S1#{value => F@_1}
+    S2 = if F@_1 == '$undef' -> S1;
+	    true -> S1#{code => F@_1}
+	 end,
+    if F@_2 == '$undef' -> S2;
+       true -> S2#{message => F@_2}
     end;
-'dfp_read_field_def_grpc.testing.BoolValue'(Other, Z1,
-					    Z2, F@_1, TrUserData) ->
-    'dg_read_field_def_grpc.testing.BoolValue'(Other, Z1,
-					       Z2, F@_1, TrUserData).
+'dfp_read_field_def_grpc.testing.EchoStatus'(Other, Z1,
+					     Z2, F@_1, F@_2, TrUserData) ->
+    'dg_read_field_def_grpc.testing.EchoStatus'(Other, Z1,
+						Z2, F@_1, F@_2, TrUserData).
 
-'dg_read_field_def_grpc.testing.BoolValue'(<<1:1, X:7,
-					     Rest/binary>>,
-					   N, Acc, F@_1, TrUserData)
+'dg_read_field_def_grpc.testing.EchoStatus'(<<1:1, X:7,
+					      Rest/binary>>,
+					    N, Acc, F@_1, F@_2, TrUserData)
     when N < 32 - 7 ->
-    'dg_read_field_def_grpc.testing.BoolValue'(Rest, N + 7,
-					       X bsl N + Acc, F@_1, TrUserData);
-'dg_read_field_def_grpc.testing.BoolValue'(<<0:1, X:7,
-					     Rest/binary>>,
-					   N, Acc, F@_1, TrUserData) ->
+    'dg_read_field_def_grpc.testing.EchoStatus'(Rest, N + 7,
+						X bsl N + Acc, F@_1, F@_2,
+						TrUserData);
+'dg_read_field_def_grpc.testing.EchoStatus'(<<0:1, X:7,
+					      Rest/binary>>,
+					    N, Acc, F@_1, F@_2, TrUserData) ->
     Key = X bsl N + Acc,
     case Key of
       8 ->
-	  'd_field_grpc.testing.BoolValue_value'(Rest, 0, 0, F@_1,
-						 TrUserData);
+	  'd_field_grpc.testing.EchoStatus_code'(Rest, 0, 0, F@_1,
+						 F@_2, TrUserData);
+      18 ->
+	  'd_field_grpc.testing.EchoStatus_message'(Rest, 0, 0,
+						    F@_1, F@_2, TrUserData);
       _ ->
 	  case Key band 7 of
 	    0 ->
-		'skip_varint_grpc.testing.BoolValue'(Rest, 0, 0, F@_1,
-						     TrUserData);
+		'skip_varint_grpc.testing.EchoStatus'(Rest, 0, 0, F@_1,
+						      F@_2, TrUserData);
 	    1 ->
-		'skip_64_grpc.testing.BoolValue'(Rest, 0, 0, F@_1,
-						 TrUserData);
+		'skip_64_grpc.testing.EchoStatus'(Rest, 0, 0, F@_1,
+						  F@_2, TrUserData);
 	    2 ->
-		'skip_length_delimited_grpc.testing.BoolValue'(Rest, 0,
-							       0, F@_1,
-							       TrUserData);
+		'skip_length_delimited_grpc.testing.EchoStatus'(Rest, 0,
+								0, F@_1, F@_2,
+								TrUserData);
 	    3 ->
-		'skip_group_grpc.testing.BoolValue'(Rest, Key bsr 3, 0,
-						    F@_1, TrUserData);
+		'skip_group_grpc.testing.EchoStatus'(Rest, Key bsr 3, 0,
+						     F@_1, F@_2, TrUserData);
 	    5 ->
-		'skip_32_grpc.testing.BoolValue'(Rest, 0, 0, F@_1,
-						 TrUserData)
+		'skip_32_grpc.testing.EchoStatus'(Rest, 0, 0, F@_1,
+						  F@_2, TrUserData)
 	  end
     end;
-'dg_read_field_def_grpc.testing.BoolValue'(<<>>, 0, 0,
-					   F@_1, _) ->
+'dg_read_field_def_grpc.testing.EchoStatus'(<<>>, 0, 0,
+					    F@_1, F@_2, _) ->
     S1 = #{},
-    if F@_1 == '$undef' -> S1;
-       true -> S1#{value => F@_1}
+    S2 = if F@_1 == '$undef' -> S1;
+	    true -> S1#{code => F@_1}
+	 end,
+    if F@_2 == '$undef' -> S2;
+       true -> S2#{message => F@_2}
     end.
 
-'d_field_grpc.testing.BoolValue_value'(<<1:1, X:7,
+'d_field_grpc.testing.EchoStatus_code'(<<1:1, X:7,
 					 Rest/binary>>,
-				       N, Acc, F@_1, TrUserData)
+				       N, Acc, F@_1, F@_2, TrUserData)
     when N < 57 ->
-    'd_field_grpc.testing.BoolValue_value'(Rest, N + 7,
-					   X bsl N + Acc, F@_1, TrUserData);
-'d_field_grpc.testing.BoolValue_value'(<<0:1, X:7,
+    'd_field_grpc.testing.EchoStatus_code'(Rest, N + 7,
+					   X bsl N + Acc, F@_1, F@_2,
+					   TrUserData);
+'d_field_grpc.testing.EchoStatus_code'(<<0:1, X:7,
 					 Rest/binary>>,
-				       N, Acc, _, TrUserData) ->
-    {NewFValue, RestF} = {X bsl N + Acc =/= 0, Rest},
-    'dfp_read_field_def_grpc.testing.BoolValue'(RestF, 0, 0,
-						NewFValue, TrUserData).
+				       N, Acc, _, F@_2, TrUserData) ->
+    {NewFValue, RestF} = {begin
+			    <<Res:32/signed-native>> = <<(X bsl N +
+							    Acc):32/unsigned-native>>,
+			    Res
+			  end,
+			  Rest},
+    'dfp_read_field_def_grpc.testing.EchoStatus'(RestF, 0,
+						 0, NewFValue, F@_2,
+						 TrUserData).
 
-'skip_varint_grpc.testing.BoolValue'(<<1:1, _:7,
-				       Rest/binary>>,
-				     Z1, Z2, F@_1, TrUserData) ->
-    'skip_varint_grpc.testing.BoolValue'(Rest, Z1, Z2, F@_1,
-					 TrUserData);
-'skip_varint_grpc.testing.BoolValue'(<<0:1, _:7,
-				       Rest/binary>>,
-				     Z1, Z2, F@_1, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.BoolValue'(Rest, Z1,
-						Z2, F@_1, TrUserData).
-
-'skip_length_delimited_grpc.testing.BoolValue'(<<1:1,
-						 X:7, Rest/binary>>,
-					       N, Acc, F@_1, TrUserData)
+'d_field_grpc.testing.EchoStatus_message'(<<1:1, X:7,
+					    Rest/binary>>,
+					  N, Acc, F@_1, F@_2, TrUserData)
     when N < 57 ->
-    'skip_length_delimited_grpc.testing.BoolValue'(Rest,
-						   N + 7, X bsl N + Acc, F@_1,
-						   TrUserData);
-'skip_length_delimited_grpc.testing.BoolValue'(<<0:1,
-						 X:7, Rest/binary>>,
-					       N, Acc, F@_1, TrUserData) ->
+    'd_field_grpc.testing.EchoStatus_message'(Rest, N + 7,
+					      X bsl N + Acc, F@_1, F@_2,
+					      TrUserData);
+'d_field_grpc.testing.EchoStatus_message'(<<0:1, X:7,
+					    Rest/binary>>,
+					  N, Acc, F@_1, _, TrUserData) ->
+    {NewFValue, RestF} = begin
+			   Len = X bsl N + Acc,
+			   <<Bytes:Len/binary, Rest2/binary>> = Rest,
+			   {binary:copy(Bytes), Rest2}
+			 end,
+    'dfp_read_field_def_grpc.testing.EchoStatus'(RestF, 0,
+						 0, F@_1, NewFValue,
+						 TrUserData).
+
+'skip_varint_grpc.testing.EchoStatus'(<<1:1, _:7,
+					Rest/binary>>,
+				      Z1, Z2, F@_1, F@_2, TrUserData) ->
+    'skip_varint_grpc.testing.EchoStatus'(Rest, Z1, Z2,
+					  F@_1, F@_2, TrUserData);
+'skip_varint_grpc.testing.EchoStatus'(<<0:1, _:7,
+					Rest/binary>>,
+				      Z1, Z2, F@_1, F@_2, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest, Z1,
+						 Z2, F@_1, F@_2, TrUserData).
+
+'skip_length_delimited_grpc.testing.EchoStatus'(<<1:1,
+						  X:7, Rest/binary>>,
+						N, Acc, F@_1, F@_2, TrUserData)
+    when N < 57 ->
+    'skip_length_delimited_grpc.testing.EchoStatus'(Rest,
+						    N + 7, X bsl N + Acc, F@_1,
+						    F@_2, TrUserData);
+'skip_length_delimited_grpc.testing.EchoStatus'(<<0:1,
+						  X:7, Rest/binary>>,
+						N, Acc, F@_1, F@_2,
+						TrUserData) ->
     Length = X bsl N + Acc,
     <<_:Length/binary, Rest2/binary>> = Rest,
-    'dfp_read_field_def_grpc.testing.BoolValue'(Rest2, 0, 0,
-						F@_1, TrUserData).
+    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest2, 0,
+						 0, F@_1, F@_2, TrUserData).
 
-'skip_group_grpc.testing.BoolValue'(Bin, FNum, Z2, F@_1,
-				    TrUserData) ->
+'skip_group_grpc.testing.EchoStatus'(Bin, FNum, Z2,
+				     F@_1, F@_2, TrUserData) ->
     {_, Rest} = read_group(Bin, FNum),
-    'dfp_read_field_def_grpc.testing.BoolValue'(Rest, 0, Z2,
-						F@_1, TrUserData).
+    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest, 0,
+						 Z2, F@_1, F@_2, TrUserData).
 
-'skip_32_grpc.testing.BoolValue'(<<_:32, Rest/binary>>,
-				 Z1, Z2, F@_1, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.BoolValue'(Rest, Z1,
-						Z2, F@_1, TrUserData).
+'skip_32_grpc.testing.EchoStatus'(<<_:32, Rest/binary>>,
+				  Z1, Z2, F@_1, F@_2, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest, Z1,
+						 Z2, F@_1, F@_2, TrUserData).
 
-'skip_64_grpc.testing.BoolValue'(<<_:64, Rest/binary>>,
-				 Z1, Z2, F@_1, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.BoolValue'(Rest, Z1,
-						Z2, F@_1, TrUserData).
+'skip_64_grpc.testing.EchoStatus'(<<_:64, Rest/binary>>,
+				  Z1, Z2, F@_1, F@_2, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest, Z1,
+						 Z2, F@_1, F@_2, TrUserData).
 
 'd_msg_grpc.testing.Payload'(Bin, TrUserData) ->
     'dfp_read_field_def_grpc.testing.Payload'(Bin, 0, 0,
@@ -1195,421 +1238,122 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
     'dfp_read_field_def_grpc.testing.Payload'(Rest, Z1, Z2,
 					      F@_1, F@_2, TrUserData).
 
-'d_msg_grpc.testing.StreamingInputCallRequest'(Bin,
-					       TrUserData) ->
-    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Bin,
-								0, 0,
-								id(undefined,
-								   TrUserData),
-								id(undefined,
-								   TrUserData),
-								TrUserData).
+'d_msg_grpc.testing.BoolValue'(Bin, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.BoolValue'(Bin, 0, 0,
+						id(false, TrUserData),
+						TrUserData).
 
-'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(<<10,
-							      Rest/binary>>,
-							    Z1, Z2, F@_1, F@_2,
-							    TrUserData) ->
-    'd_field_grpc.testing.StreamingInputCallRequest_payload'(Rest,
-							     Z1, Z2, F@_1, F@_2,
-							     TrUserData);
-'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(<<18,
-							      Rest/binary>>,
-							    Z1, Z2, F@_1, F@_2,
-							    TrUserData) ->
-    'd_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(Rest,
-								       Z1, Z2,
-								       F@_1,
-								       F@_2,
-								       TrUserData);
-'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(<<>>,
-							    0, 0, F@_1, F@_2,
-							    _) ->
-    S1 = #{},
-    S2 = if F@_1 == '$undef' -> S1;
-	    true -> S1#{payload => F@_1}
-	 end,
-    if F@_2 == '$undef' -> S2;
-       true -> S2#{expect_compressed => F@_2}
-    end;
-'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Other,
-							    Z1, Z2, F@_1, F@_2,
-							    TrUserData) ->
-    'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(Other,
-							       Z1, Z2, F@_1,
-							       F@_2,
-							       TrUserData).
-
-'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(<<1:1,
-							     X:7, Rest/binary>>,
-							   N, Acc, F@_1, F@_2,
-							   TrUserData)
-    when N < 32 - 7 ->
-    'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
-							       N + 7,
-							       X bsl N + Acc,
-							       F@_1, F@_2,
-							       TrUserData);
-'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(<<0:1,
-							     X:7, Rest/binary>>,
-							   N, Acc, F@_1, F@_2,
-							   TrUserData) ->
-    Key = X bsl N + Acc,
-    case Key of
-      10 ->
-	  'd_field_grpc.testing.StreamingInputCallRequest_payload'(Rest,
-								   0, 0, F@_1,
-								   F@_2,
-								   TrUserData);
-      18 ->
-	  'd_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(Rest,
-									     0,
-									     0,
-									     F@_1,
-									     F@_2,
-									     TrUserData);
-      _ ->
-	  case Key band 7 of
-	    0 ->
-		'skip_varint_grpc.testing.StreamingInputCallRequest'(Rest,
-								     0, 0, F@_1,
-								     F@_2,
-								     TrUserData);
-	    1 ->
-		'skip_64_grpc.testing.StreamingInputCallRequest'(Rest,
-								 0, 0, F@_1,
-								 F@_2,
-								 TrUserData);
-	    2 ->
-		'skip_length_delimited_grpc.testing.StreamingInputCallRequest'(Rest,
-									       0,
-									       0,
-									       F@_1,
-									       F@_2,
-									       TrUserData);
-	    3 ->
-		'skip_group_grpc.testing.StreamingInputCallRequest'(Rest,
-								    Key bsr 3,
-								    0, F@_1,
-								    F@_2,
-								    TrUserData);
-	    5 ->
-		'skip_32_grpc.testing.StreamingInputCallRequest'(Rest,
-								 0, 0, F@_1,
-								 F@_2,
-								 TrUserData)
-	  end
-    end;
-'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(<<>>,
-							   0, 0, F@_1, F@_2,
-							   _) ->
-    S1 = #{},
-    S2 = if F@_1 == '$undef' -> S1;
-	    true -> S1#{payload => F@_1}
-	 end,
-    if F@_2 == '$undef' -> S2;
-       true -> S2#{expect_compressed => F@_2}
-    end.
-
-'d_field_grpc.testing.StreamingInputCallRequest_payload'(<<1:1,
-							   X:7, Rest/binary>>,
-							 N, Acc, F@_1, F@_2,
-							 TrUserData)
-    when N < 57 ->
-    'd_field_grpc.testing.StreamingInputCallRequest_payload'(Rest,
-							     N + 7,
-							     X bsl N + Acc,
-							     F@_1, F@_2,
-							     TrUserData);
-'d_field_grpc.testing.StreamingInputCallRequest_payload'(<<0:1,
-							   X:7, Rest/binary>>,
-							 N, Acc, Prev, F@_2,
-							 TrUserData) ->
-    {NewFValue, RestF} = begin
-			   Len = X bsl N + Acc,
-			   <<Bs:Len/binary, Rest2/binary>> = Rest,
-			   {id('d_msg_grpc.testing.Payload'(Bs, TrUserData),
-			       TrUserData),
-			    Rest2}
-			 end,
-    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(RestF,
-								0, 0,
-								if Prev ==
-								     '$undef' ->
-								       NewFValue;
-								   true ->
-								       'merge_msg_grpc.testing.Payload'(Prev,
-													NewFValue,
-													TrUserData)
-								end,
-								F@_2,
-								TrUserData).
-
-'d_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(<<1:1,
-								     X:7,
-								     Rest/binary>>,
-								   N, Acc, F@_1,
-								   F@_2,
-								   TrUserData)
-    when N < 57 ->
-    'd_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(Rest,
-								       N + 7,
-								       X bsl N +
-									 Acc,
-								       F@_1,
-								       F@_2,
-								       TrUserData);
-'d_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(<<0:1,
-								     X:7,
-								     Rest/binary>>,
-								   N, Acc, F@_1,
-								   Prev,
-								   TrUserData) ->
-    {NewFValue, RestF} = begin
-			   Len = X bsl N + Acc,
-			   <<Bs:Len/binary, Rest2/binary>> = Rest,
-			   {id('d_msg_grpc.testing.BoolValue'(Bs, TrUserData),
-			       TrUserData),
-			    Rest2}
-			 end,
-    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(RestF,
-								0, 0, F@_1,
-								if Prev ==
-								     '$undef' ->
-								       NewFValue;
-								   true ->
-								       'merge_msg_grpc.testing.BoolValue'(Prev,
-													  NewFValue,
-													  TrUserData)
-								end,
-								TrUserData).
-
-'skip_varint_grpc.testing.StreamingInputCallRequest'(<<1:1,
-						       _:7, Rest/binary>>,
-						     Z1, Z2, F@_1, F@_2,
-						     TrUserData) ->
-    'skip_varint_grpc.testing.StreamingInputCallRequest'(Rest,
-							 Z1, Z2, F@_1, F@_2,
-							 TrUserData);
-'skip_varint_grpc.testing.StreamingInputCallRequest'(<<0:1,
-						       _:7, Rest/binary>>,
-						     Z1, Z2, F@_1, F@_2,
-						     TrUserData) ->
-    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
-								Z1, Z2, F@_1,
-								F@_2,
-								TrUserData).
-
-'skip_length_delimited_grpc.testing.StreamingInputCallRequest'(<<1:1,
-								 X:7,
-								 Rest/binary>>,
-							       N, Acc, F@_1,
-							       F@_2, TrUserData)
-    when N < 57 ->
-    'skip_length_delimited_grpc.testing.StreamingInputCallRequest'(Rest,
-								   N + 7,
-								   X bsl N +
-								     Acc,
-								   F@_1, F@_2,
-								   TrUserData);
-'skip_length_delimited_grpc.testing.StreamingInputCallRequest'(<<0:1,
-								 X:7,
-								 Rest/binary>>,
-							       N, Acc, F@_1,
-							       F@_2,
-							       TrUserData) ->
-    Length = X bsl N + Acc,
-    <<_:Length/binary, Rest2/binary>> = Rest,
-    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest2,
-								0, 0, F@_1,
-								F@_2,
-								TrUserData).
-
-'skip_group_grpc.testing.StreamingInputCallRequest'(Bin,
-						    FNum, Z2, F@_1, F@_2,
-						    TrUserData) ->
-    {_, Rest} = read_group(Bin, FNum),
-    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
-								0, Z2, F@_1,
-								F@_2,
-								TrUserData).
-
-'skip_32_grpc.testing.StreamingInputCallRequest'(<<_:32,
-						   Rest/binary>>,
-						 Z1, Z2, F@_1, F@_2,
-						 TrUserData) ->
-    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
-								Z1, Z2, F@_1,
-								F@_2,
-								TrUserData).
-
-'skip_64_grpc.testing.StreamingInputCallRequest'(<<_:64,
-						   Rest/binary>>,
-						 Z1, Z2, F@_1, F@_2,
-						 TrUserData) ->
-    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
-								Z1, Z2, F@_1,
-								F@_2,
-								TrUserData).
-
-'d_msg_grpc.testing.EchoStatus'(Bin, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.EchoStatus'(Bin, 0, 0,
-						 id(0, TrUserData),
-						 id([], TrUserData),
-						 TrUserData).
-
-'dfp_read_field_def_grpc.testing.EchoStatus'(<<8,
-					       Rest/binary>>,
-					     Z1, Z2, F@_1, F@_2, TrUserData) ->
-    'd_field_grpc.testing.EchoStatus_code'(Rest, Z1, Z2,
-					   F@_1, F@_2, TrUserData);
-'dfp_read_field_def_grpc.testing.EchoStatus'(<<18,
-					       Rest/binary>>,
-					     Z1, Z2, F@_1, F@_2, TrUserData) ->
-    'd_field_grpc.testing.EchoStatus_message'(Rest, Z1, Z2,
-					      F@_1, F@_2, TrUserData);
-'dfp_read_field_def_grpc.testing.EchoStatus'(<<>>, 0, 0,
-					     F@_1, F@_2, _) ->
-    S1 = #{},
-    S2 = if F@_1 == '$undef' -> S1;
-	    true -> S1#{code => F@_1}
-	 end,
-    if F@_2 == '$undef' -> S2;
-       true -> S2#{message => F@_2}
-    end;
-'dfp_read_field_def_grpc.testing.EchoStatus'(Other, Z1,
-					     Z2, F@_1, F@_2, TrUserData) ->
-    'dg_read_field_def_grpc.testing.EchoStatus'(Other, Z1,
-						Z2, F@_1, F@_2, TrUserData).
-
-'dg_read_field_def_grpc.testing.EchoStatus'(<<1:1, X:7,
+'dfp_read_field_def_grpc.testing.BoolValue'(<<8,
 					      Rest/binary>>,
-					    N, Acc, F@_1, F@_2, TrUserData)
+					    Z1, Z2, F@_1, TrUserData) ->
+    'd_field_grpc.testing.BoolValue_value'(Rest, Z1, Z2,
+					   F@_1, TrUserData);
+'dfp_read_field_def_grpc.testing.BoolValue'(<<>>, 0, 0,
+					    F@_1, _) ->
+    S1 = #{},
+    if F@_1 == '$undef' -> S1;
+       true -> S1#{value => F@_1}
+    end;
+'dfp_read_field_def_grpc.testing.BoolValue'(Other, Z1,
+					    Z2, F@_1, TrUserData) ->
+    'dg_read_field_def_grpc.testing.BoolValue'(Other, Z1,
+					       Z2, F@_1, TrUserData).
+
+'dg_read_field_def_grpc.testing.BoolValue'(<<1:1, X:7,
+					     Rest/binary>>,
+					   N, Acc, F@_1, TrUserData)
     when N < 32 - 7 ->
-    'dg_read_field_def_grpc.testing.EchoStatus'(Rest, N + 7,
-						X bsl N + Acc, F@_1, F@_2,
-						TrUserData);
-'dg_read_field_def_grpc.testing.EchoStatus'(<<0:1, X:7,
-					      Rest/binary>>,
-					    N, Acc, F@_1, F@_2, TrUserData) ->
+    'dg_read_field_def_grpc.testing.BoolValue'(Rest, N + 7,
+					       X bsl N + Acc, F@_1, TrUserData);
+'dg_read_field_def_grpc.testing.BoolValue'(<<0:1, X:7,
+					     Rest/binary>>,
+					   N, Acc, F@_1, TrUserData) ->
     Key = X bsl N + Acc,
     case Key of
       8 ->
-	  'd_field_grpc.testing.EchoStatus_code'(Rest, 0, 0, F@_1,
-						 F@_2, TrUserData);
-      18 ->
-	  'd_field_grpc.testing.EchoStatus_message'(Rest, 0, 0,
-						    F@_1, F@_2, TrUserData);
+	  'd_field_grpc.testing.BoolValue_value'(Rest, 0, 0, F@_1,
+						 TrUserData);
       _ ->
 	  case Key band 7 of
 	    0 ->
-		'skip_varint_grpc.testing.EchoStatus'(Rest, 0, 0, F@_1,
-						      F@_2, TrUserData);
+		'skip_varint_grpc.testing.BoolValue'(Rest, 0, 0, F@_1,
+						     TrUserData);
 	    1 ->
-		'skip_64_grpc.testing.EchoStatus'(Rest, 0, 0, F@_1,
-						  F@_2, TrUserData);
+		'skip_64_grpc.testing.BoolValue'(Rest, 0, 0, F@_1,
+						 TrUserData);
 	    2 ->
-		'skip_length_delimited_grpc.testing.EchoStatus'(Rest, 0,
-								0, F@_1, F@_2,
-								TrUserData);
+		'skip_length_delimited_grpc.testing.BoolValue'(Rest, 0,
+							       0, F@_1,
+							       TrUserData);
 	    3 ->
-		'skip_group_grpc.testing.EchoStatus'(Rest, Key bsr 3, 0,
-						     F@_1, F@_2, TrUserData);
+		'skip_group_grpc.testing.BoolValue'(Rest, Key bsr 3, 0,
+						    F@_1, TrUserData);
 	    5 ->
-		'skip_32_grpc.testing.EchoStatus'(Rest, 0, 0, F@_1,
-						  F@_2, TrUserData)
+		'skip_32_grpc.testing.BoolValue'(Rest, 0, 0, F@_1,
+						 TrUserData)
 	  end
     end;
-'dg_read_field_def_grpc.testing.EchoStatus'(<<>>, 0, 0,
-					    F@_1, F@_2, _) ->
+'dg_read_field_def_grpc.testing.BoolValue'(<<>>, 0, 0,
+					   F@_1, _) ->
     S1 = #{},
-    S2 = if F@_1 == '$undef' -> S1;
-	    true -> S1#{code => F@_1}
-	 end,
-    if F@_2 == '$undef' -> S2;
-       true -> S2#{message => F@_2}
+    if F@_1 == '$undef' -> S1;
+       true -> S1#{value => F@_1}
     end.
 
-'d_field_grpc.testing.EchoStatus_code'(<<1:1, X:7,
+'d_field_grpc.testing.BoolValue_value'(<<1:1, X:7,
 					 Rest/binary>>,
-				       N, Acc, F@_1, F@_2, TrUserData)
+				       N, Acc, F@_1, TrUserData)
     when N < 57 ->
-    'd_field_grpc.testing.EchoStatus_code'(Rest, N + 7,
-					   X bsl N + Acc, F@_1, F@_2,
-					   TrUserData);
-'d_field_grpc.testing.EchoStatus_code'(<<0:1, X:7,
+    'd_field_grpc.testing.BoolValue_value'(Rest, N + 7,
+					   X bsl N + Acc, F@_1, TrUserData);
+'d_field_grpc.testing.BoolValue_value'(<<0:1, X:7,
 					 Rest/binary>>,
-				       N, Acc, _, F@_2, TrUserData) ->
-    {NewFValue, RestF} = {begin
-			    <<Res:32/signed-native>> = <<(X bsl N +
-							    Acc):32/unsigned-native>>,
-			    Res
-			  end,
-			  Rest},
-    'dfp_read_field_def_grpc.testing.EchoStatus'(RestF, 0,
-						 0, NewFValue, F@_2,
-						 TrUserData).
+				       N, Acc, _, TrUserData) ->
+    {NewFValue, RestF} = {X bsl N + Acc =/= 0, Rest},
+    'dfp_read_field_def_grpc.testing.BoolValue'(RestF, 0, 0,
+						NewFValue, TrUserData).
 
-'d_field_grpc.testing.EchoStatus_message'(<<1:1, X:7,
-					    Rest/binary>>,
-					  N, Acc, F@_1, F@_2, TrUserData)
+'skip_varint_grpc.testing.BoolValue'(<<1:1, _:7,
+				       Rest/binary>>,
+				     Z1, Z2, F@_1, TrUserData) ->
+    'skip_varint_grpc.testing.BoolValue'(Rest, Z1, Z2, F@_1,
+					 TrUserData);
+'skip_varint_grpc.testing.BoolValue'(<<0:1, _:7,
+				       Rest/binary>>,
+				     Z1, Z2, F@_1, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.BoolValue'(Rest, Z1,
+						Z2, F@_1, TrUserData).
+
+'skip_length_delimited_grpc.testing.BoolValue'(<<1:1,
+						 X:7, Rest/binary>>,
+					       N, Acc, F@_1, TrUserData)
     when N < 57 ->
-    'd_field_grpc.testing.EchoStatus_message'(Rest, N + 7,
-					      X bsl N + Acc, F@_1, F@_2,
-					      TrUserData);
-'d_field_grpc.testing.EchoStatus_message'(<<0:1, X:7,
-					    Rest/binary>>,
-					  N, Acc, F@_1, _, TrUserData) ->
-    {NewFValue, RestF} = begin
-			   Len = X bsl N + Acc,
-			   <<Utf8:Len/binary, Rest2/binary>> = Rest,
-			   {unicode:characters_to_list(Utf8, unicode), Rest2}
-			 end,
-    'dfp_read_field_def_grpc.testing.EchoStatus'(RestF, 0,
-						 0, F@_1, NewFValue,
-						 TrUserData).
-
-'skip_varint_grpc.testing.EchoStatus'(<<1:1, _:7,
-					Rest/binary>>,
-				      Z1, Z2, F@_1, F@_2, TrUserData) ->
-    'skip_varint_grpc.testing.EchoStatus'(Rest, Z1, Z2,
-					  F@_1, F@_2, TrUserData);
-'skip_varint_grpc.testing.EchoStatus'(<<0:1, _:7,
-					Rest/binary>>,
-				      Z1, Z2, F@_1, F@_2, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest, Z1,
-						 Z2, F@_1, F@_2, TrUserData).
-
-'skip_length_delimited_grpc.testing.EchoStatus'(<<1:1,
-						  X:7, Rest/binary>>,
-						N, Acc, F@_1, F@_2, TrUserData)
-    when N < 57 ->
-    'skip_length_delimited_grpc.testing.EchoStatus'(Rest,
-						    N + 7, X bsl N + Acc, F@_1,
-						    F@_2, TrUserData);
-'skip_length_delimited_grpc.testing.EchoStatus'(<<0:1,
-						  X:7, Rest/binary>>,
-						N, Acc, F@_1, F@_2,
-						TrUserData) ->
+    'skip_length_delimited_grpc.testing.BoolValue'(Rest,
+						   N + 7, X bsl N + Acc, F@_1,
+						   TrUserData);
+'skip_length_delimited_grpc.testing.BoolValue'(<<0:1,
+						 X:7, Rest/binary>>,
+					       N, Acc, F@_1, TrUserData) ->
     Length = X bsl N + Acc,
     <<_:Length/binary, Rest2/binary>> = Rest,
-    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest2, 0,
-						 0, F@_1, F@_2, TrUserData).
+    'dfp_read_field_def_grpc.testing.BoolValue'(Rest2, 0, 0,
+						F@_1, TrUserData).
 
-'skip_group_grpc.testing.EchoStatus'(Bin, FNum, Z2,
-				     F@_1, F@_2, TrUserData) ->
+'skip_group_grpc.testing.BoolValue'(Bin, FNum, Z2, F@_1,
+				    TrUserData) ->
     {_, Rest} = read_group(Bin, FNum),
-    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest, 0,
-						 Z2, F@_1, F@_2, TrUserData).
+    'dfp_read_field_def_grpc.testing.BoolValue'(Rest, 0, Z2,
+						F@_1, TrUserData).
 
-'skip_32_grpc.testing.EchoStatus'(<<_:32, Rest/binary>>,
-				  Z1, Z2, F@_1, F@_2, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest, Z1,
-						 Z2, F@_1, F@_2, TrUserData).
+'skip_32_grpc.testing.BoolValue'(<<_:32, Rest/binary>>,
+				 Z1, Z2, F@_1, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.BoolValue'(Rest, Z1,
+						Z2, F@_1, TrUserData).
 
-'skip_64_grpc.testing.EchoStatus'(<<_:64, Rest/binary>>,
-				  Z1, Z2, F@_1, F@_2, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.EchoStatus'(Rest, Z1,
-						 Z2, F@_1, F@_2, TrUserData).
+'skip_64_grpc.testing.BoolValue'(<<_:64, Rest/binary>>,
+				 Z1, Z2, F@_1, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.BoolValue'(Rest, Z1,
+						Z2, F@_1, TrUserData).
 
 'd_msg_grpc.testing.ResponseParameters'(Bin,
 					TrUserData) ->
@@ -2302,6 +2046,686 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 								 F@_4,
 								 TrUserData).
 
+'d_msg_grpc.testing.StreamingInputCallResponse'(Bin,
+						TrUserData) ->
+    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Bin,
+								 0, 0,
+								 id(0,
+								    TrUserData),
+								 TrUserData).
+
+'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(<<8,
+							       Rest/binary>>,
+							     Z1, Z2, F@_1,
+							     TrUserData) ->
+    'd_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(Rest,
+									      Z1,
+									      Z2,
+									      F@_1,
+									      TrUserData);
+'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(<<>>,
+							     0, 0, F@_1, _) ->
+    S1 = #{},
+    if F@_1 == '$undef' -> S1;
+       true -> S1#{aggregated_payload_size => F@_1}
+    end;
+'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Other,
+							     Z1, Z2, F@_1,
+							     TrUserData) ->
+    'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(Other,
+								Z1, Z2, F@_1,
+								TrUserData).
+
+'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(<<1:1,
+							      X:7,
+							      Rest/binary>>,
+							    N, Acc, F@_1,
+							    TrUserData)
+    when N < 32 - 7 ->
+    'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
+								N + 7,
+								X bsl N + Acc,
+								F@_1,
+								TrUserData);
+'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(<<0:1,
+							      X:7,
+							      Rest/binary>>,
+							    N, Acc, F@_1,
+							    TrUserData) ->
+    Key = X bsl N + Acc,
+    case Key of
+      8 ->
+	  'd_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(Rest,
+										    0,
+										    0,
+										    F@_1,
+										    TrUserData);
+      _ ->
+	  case Key band 7 of
+	    0 ->
+		'skip_varint_grpc.testing.StreamingInputCallResponse'(Rest,
+								      0, 0,
+								      F@_1,
+								      TrUserData);
+	    1 ->
+		'skip_64_grpc.testing.StreamingInputCallResponse'(Rest,
+								  0, 0, F@_1,
+								  TrUserData);
+	    2 ->
+		'skip_length_delimited_grpc.testing.StreamingInputCallResponse'(Rest,
+										0,
+										0,
+										F@_1,
+										TrUserData);
+	    3 ->
+		'skip_group_grpc.testing.StreamingInputCallResponse'(Rest,
+								     Key bsr 3,
+								     0, F@_1,
+								     TrUserData);
+	    5 ->
+		'skip_32_grpc.testing.StreamingInputCallResponse'(Rest,
+								  0, 0, F@_1,
+								  TrUserData)
+	  end
+    end;
+'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(<<>>,
+							    0, 0, F@_1, _) ->
+    S1 = #{},
+    if F@_1 == '$undef' -> S1;
+       true -> S1#{aggregated_payload_size => F@_1}
+    end.
+
+'d_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(<<1:1,
+									    X:7,
+									    Rest/binary>>,
+									  N,
+									  Acc,
+									  F@_1,
+									  TrUserData)
+    when N < 57 ->
+    'd_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(Rest,
+									      N
+										+
+										7,
+									      X
+										bsl
+										N
+										+
+										Acc,
+									      F@_1,
+									      TrUserData);
+'d_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(<<0:1,
+									    X:7,
+									    Rest/binary>>,
+									  N,
+									  Acc,
+									  _,
+									  TrUserData) ->
+    {NewFValue, RestF} = {begin
+			    <<Res:32/signed-native>> = <<(X bsl N +
+							    Acc):32/unsigned-native>>,
+			    Res
+			  end,
+			  Rest},
+    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(RestF,
+								 0, 0,
+								 NewFValue,
+								 TrUserData).
+
+'skip_varint_grpc.testing.StreamingInputCallResponse'(<<1:1,
+							_:7, Rest/binary>>,
+						      Z1, Z2, F@_1,
+						      TrUserData) ->
+    'skip_varint_grpc.testing.StreamingInputCallResponse'(Rest,
+							  Z1, Z2, F@_1,
+							  TrUserData);
+'skip_varint_grpc.testing.StreamingInputCallResponse'(<<0:1,
+							_:7, Rest/binary>>,
+						      Z1, Z2, F@_1,
+						      TrUserData) ->
+    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
+								 Z1, Z2, F@_1,
+								 TrUserData).
+
+'skip_length_delimited_grpc.testing.StreamingInputCallResponse'(<<1:1,
+								  X:7,
+								  Rest/binary>>,
+								N, Acc, F@_1,
+								TrUserData)
+    when N < 57 ->
+    'skip_length_delimited_grpc.testing.StreamingInputCallResponse'(Rest,
+								    N + 7,
+								    X bsl N +
+								      Acc,
+								    F@_1,
+								    TrUserData);
+'skip_length_delimited_grpc.testing.StreamingInputCallResponse'(<<0:1,
+								  X:7,
+								  Rest/binary>>,
+								N, Acc, F@_1,
+								TrUserData) ->
+    Length = X bsl N + Acc,
+    <<_:Length/binary, Rest2/binary>> = Rest,
+    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest2,
+								 0, 0, F@_1,
+								 TrUserData).
+
+'skip_group_grpc.testing.StreamingInputCallResponse'(Bin,
+						     FNum, Z2, F@_1,
+						     TrUserData) ->
+    {_, Rest} = read_group(Bin, FNum),
+    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
+								 0, Z2, F@_1,
+								 TrUserData).
+
+'skip_32_grpc.testing.StreamingInputCallResponse'(<<_:32,
+						    Rest/binary>>,
+						  Z1, Z2, F@_1, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
+								 Z1, Z2, F@_1,
+								 TrUserData).
+
+'skip_64_grpc.testing.StreamingInputCallResponse'(<<_:64,
+						    Rest/binary>>,
+						  Z1, Z2, F@_1, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
+								 Z1, Z2, F@_1,
+								 TrUserData).
+
+'d_msg_grpc.testing.SimpleResponse'(Bin, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(Bin, 0,
+						     0,
+						     id(undefined, TrUserData),
+						     id(<<>>, TrUserData),
+						     id(<<>>, TrUserData),
+						     TrUserData).
+
+'dfp_read_field_def_grpc.testing.SimpleResponse'(<<10,
+						   Rest/binary>>,
+						 Z1, Z2, F@_1, F@_2, F@_3,
+						 TrUserData) ->
+    'd_field_grpc.testing.SimpleResponse_payload'(Rest, Z1,
+						  Z2, F@_1, F@_2, F@_3,
+						  TrUserData);
+'dfp_read_field_def_grpc.testing.SimpleResponse'(<<18,
+						   Rest/binary>>,
+						 Z1, Z2, F@_1, F@_2, F@_3,
+						 TrUserData) ->
+    'd_field_grpc.testing.SimpleResponse_username'(Rest, Z1,
+						   Z2, F@_1, F@_2, F@_3,
+						   TrUserData);
+'dfp_read_field_def_grpc.testing.SimpleResponse'(<<26,
+						   Rest/binary>>,
+						 Z1, Z2, F@_1, F@_2, F@_3,
+						 TrUserData) ->
+    'd_field_grpc.testing.SimpleResponse_oauth_scope'(Rest,
+						      Z1, Z2, F@_1, F@_2, F@_3,
+						      TrUserData);
+'dfp_read_field_def_grpc.testing.SimpleResponse'(<<>>,
+						 0, 0, F@_1, F@_2, F@_3, _) ->
+    S1 = #{},
+    S2 = if F@_1 == '$undef' -> S1;
+	    true -> S1#{payload => F@_1}
+	 end,
+    S3 = if F@_2 == '$undef' -> S2;
+	    true -> S2#{username => F@_2}
+	 end,
+    if F@_3 == '$undef' -> S3;
+       true -> S3#{oauth_scope => F@_3}
+    end;
+'dfp_read_field_def_grpc.testing.SimpleResponse'(Other,
+						 Z1, Z2, F@_1, F@_2, F@_3,
+						 TrUserData) ->
+    'dg_read_field_def_grpc.testing.SimpleResponse'(Other,
+						    Z1, Z2, F@_1, F@_2, F@_3,
+						    TrUserData).
+
+'dg_read_field_def_grpc.testing.SimpleResponse'(<<1:1,
+						  X:7, Rest/binary>>,
+						N, Acc, F@_1, F@_2, F@_3,
+						TrUserData)
+    when N < 32 - 7 ->
+    'dg_read_field_def_grpc.testing.SimpleResponse'(Rest,
+						    N + 7, X bsl N + Acc, F@_1,
+						    F@_2, F@_3, TrUserData);
+'dg_read_field_def_grpc.testing.SimpleResponse'(<<0:1,
+						  X:7, Rest/binary>>,
+						N, Acc, F@_1, F@_2, F@_3,
+						TrUserData) ->
+    Key = X bsl N + Acc,
+    case Key of
+      10 ->
+	  'd_field_grpc.testing.SimpleResponse_payload'(Rest, 0,
+							0, F@_1, F@_2, F@_3,
+							TrUserData);
+      18 ->
+	  'd_field_grpc.testing.SimpleResponse_username'(Rest, 0,
+							 0, F@_1, F@_2, F@_3,
+							 TrUserData);
+      26 ->
+	  'd_field_grpc.testing.SimpleResponse_oauth_scope'(Rest,
+							    0, 0, F@_1, F@_2,
+							    F@_3, TrUserData);
+      _ ->
+	  case Key band 7 of
+	    0 ->
+		'skip_varint_grpc.testing.SimpleResponse'(Rest, 0, 0,
+							  F@_1, F@_2, F@_3,
+							  TrUserData);
+	    1 ->
+		'skip_64_grpc.testing.SimpleResponse'(Rest, 0, 0, F@_1,
+						      F@_2, F@_3, TrUserData);
+	    2 ->
+		'skip_length_delimited_grpc.testing.SimpleResponse'(Rest,
+								    0, 0, F@_1,
+								    F@_2, F@_3,
+								    TrUserData);
+	    3 ->
+		'skip_group_grpc.testing.SimpleResponse'(Rest,
+							 Key bsr 3, 0, F@_1,
+							 F@_2, F@_3,
+							 TrUserData);
+	    5 ->
+		'skip_32_grpc.testing.SimpleResponse'(Rest, 0, 0, F@_1,
+						      F@_2, F@_3, TrUserData)
+	  end
+    end;
+'dg_read_field_def_grpc.testing.SimpleResponse'(<<>>, 0,
+						0, F@_1, F@_2, F@_3, _) ->
+    S1 = #{},
+    S2 = if F@_1 == '$undef' -> S1;
+	    true -> S1#{payload => F@_1}
+	 end,
+    S3 = if F@_2 == '$undef' -> S2;
+	    true -> S2#{username => F@_2}
+	 end,
+    if F@_3 == '$undef' -> S3;
+       true -> S3#{oauth_scope => F@_3}
+    end.
+
+'d_field_grpc.testing.SimpleResponse_payload'(<<1:1,
+						X:7, Rest/binary>>,
+					      N, Acc, F@_1, F@_2, F@_3,
+					      TrUserData)
+    when N < 57 ->
+    'd_field_grpc.testing.SimpleResponse_payload'(Rest,
+						  N + 7, X bsl N + Acc, F@_1,
+						  F@_2, F@_3, TrUserData);
+'d_field_grpc.testing.SimpleResponse_payload'(<<0:1,
+						X:7, Rest/binary>>,
+					      N, Acc, Prev, F@_2, F@_3,
+					      TrUserData) ->
+    {NewFValue, RestF} = begin
+			   Len = X bsl N + Acc,
+			   <<Bs:Len/binary, Rest2/binary>> = Rest,
+			   {id('d_msg_grpc.testing.Payload'(Bs, TrUserData),
+			       TrUserData),
+			    Rest2}
+			 end,
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(RestF,
+						     0, 0,
+						     if Prev == '$undef' ->
+							    NewFValue;
+							true ->
+							    'merge_msg_grpc.testing.Payload'(Prev,
+											     NewFValue,
+											     TrUserData)
+						     end,
+						     F@_2, F@_3, TrUserData).
+
+'d_field_grpc.testing.SimpleResponse_username'(<<1:1,
+						 X:7, Rest/binary>>,
+					       N, Acc, F@_1, F@_2, F@_3,
+					       TrUserData)
+    when N < 57 ->
+    'd_field_grpc.testing.SimpleResponse_username'(Rest,
+						   N + 7, X bsl N + Acc, F@_1,
+						   F@_2, F@_3, TrUserData);
+'d_field_grpc.testing.SimpleResponse_username'(<<0:1,
+						 X:7, Rest/binary>>,
+					       N, Acc, F@_1, _, F@_3,
+					       TrUserData) ->
+    {NewFValue, RestF} = begin
+			   Len = X bsl N + Acc,
+			   <<Bytes:Len/binary, Rest2/binary>> = Rest,
+			   {binary:copy(Bytes), Rest2}
+			 end,
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(RestF,
+						     0, 0, F@_1, NewFValue,
+						     F@_3, TrUserData).
+
+'d_field_grpc.testing.SimpleResponse_oauth_scope'(<<1:1,
+						    X:7, Rest/binary>>,
+						  N, Acc, F@_1, F@_2, F@_3,
+						  TrUserData)
+    when N < 57 ->
+    'd_field_grpc.testing.SimpleResponse_oauth_scope'(Rest,
+						      N + 7, X bsl N + Acc,
+						      F@_1, F@_2, F@_3,
+						      TrUserData);
+'d_field_grpc.testing.SimpleResponse_oauth_scope'(<<0:1,
+						    X:7, Rest/binary>>,
+						  N, Acc, F@_1, F@_2, _,
+						  TrUserData) ->
+    {NewFValue, RestF} = begin
+			   Len = X bsl N + Acc,
+			   <<Bytes:Len/binary, Rest2/binary>> = Rest,
+			   {binary:copy(Bytes), Rest2}
+			 end,
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(RestF,
+						     0, 0, F@_1, F@_2,
+						     NewFValue, TrUserData).
+
+'skip_varint_grpc.testing.SimpleResponse'(<<1:1, _:7,
+					    Rest/binary>>,
+					  Z1, Z2, F@_1, F@_2, F@_3,
+					  TrUserData) ->
+    'skip_varint_grpc.testing.SimpleResponse'(Rest, Z1, Z2,
+					      F@_1, F@_2, F@_3, TrUserData);
+'skip_varint_grpc.testing.SimpleResponse'(<<0:1, _:7,
+					    Rest/binary>>,
+					  Z1, Z2, F@_1, F@_2, F@_3,
+					  TrUserData) ->
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest,
+						     Z1, Z2, F@_1, F@_2, F@_3,
+						     TrUserData).
+
+'skip_length_delimited_grpc.testing.SimpleResponse'(<<1:1,
+						      X:7, Rest/binary>>,
+						    N, Acc, F@_1, F@_2, F@_3,
+						    TrUserData)
+    when N < 57 ->
+    'skip_length_delimited_grpc.testing.SimpleResponse'(Rest,
+							N + 7, X bsl N + Acc,
+							F@_1, F@_2, F@_3,
+							TrUserData);
+'skip_length_delimited_grpc.testing.SimpleResponse'(<<0:1,
+						      X:7, Rest/binary>>,
+						    N, Acc, F@_1, F@_2, F@_3,
+						    TrUserData) ->
+    Length = X bsl N + Acc,
+    <<_:Length/binary, Rest2/binary>> = Rest,
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest2,
+						     0, 0, F@_1, F@_2, F@_3,
+						     TrUserData).
+
+'skip_group_grpc.testing.SimpleResponse'(Bin, FNum, Z2,
+					 F@_1, F@_2, F@_3, TrUserData) ->
+    {_, Rest} = read_group(Bin, FNum),
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest,
+						     0, Z2, F@_1, F@_2, F@_3,
+						     TrUserData).
+
+'skip_32_grpc.testing.SimpleResponse'(<<_:32,
+					Rest/binary>>,
+				      Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest,
+						     Z1, Z2, F@_1, F@_2, F@_3,
+						     TrUserData).
+
+'skip_64_grpc.testing.SimpleResponse'(<<_:64,
+					Rest/binary>>,
+				      Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest,
+						     Z1, Z2, F@_1, F@_2, F@_3,
+						     TrUserData).
+
+'d_msg_grpc.testing.StreamingInputCallRequest'(Bin,
+					       TrUserData) ->
+    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Bin,
+								0, 0,
+								id(undefined,
+								   TrUserData),
+								id(undefined,
+								   TrUserData),
+								TrUserData).
+
+'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(<<10,
+							      Rest/binary>>,
+							    Z1, Z2, F@_1, F@_2,
+							    TrUserData) ->
+    'd_field_grpc.testing.StreamingInputCallRequest_payload'(Rest,
+							     Z1, Z2, F@_1, F@_2,
+							     TrUserData);
+'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(<<18,
+							      Rest/binary>>,
+							    Z1, Z2, F@_1, F@_2,
+							    TrUserData) ->
+    'd_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(Rest,
+								       Z1, Z2,
+								       F@_1,
+								       F@_2,
+								       TrUserData);
+'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(<<>>,
+							    0, 0, F@_1, F@_2,
+							    _) ->
+    S1 = #{},
+    S2 = if F@_1 == '$undef' -> S1;
+	    true -> S1#{payload => F@_1}
+	 end,
+    if F@_2 == '$undef' -> S2;
+       true -> S2#{expect_compressed => F@_2}
+    end;
+'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Other,
+							    Z1, Z2, F@_1, F@_2,
+							    TrUserData) ->
+    'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(Other,
+							       Z1, Z2, F@_1,
+							       F@_2,
+							       TrUserData).
+
+'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(<<1:1,
+							     X:7, Rest/binary>>,
+							   N, Acc, F@_1, F@_2,
+							   TrUserData)
+    when N < 32 - 7 ->
+    'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
+							       N + 7,
+							       X bsl N + Acc,
+							       F@_1, F@_2,
+							       TrUserData);
+'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(<<0:1,
+							     X:7, Rest/binary>>,
+							   N, Acc, F@_1, F@_2,
+							   TrUserData) ->
+    Key = X bsl N + Acc,
+    case Key of
+      10 ->
+	  'd_field_grpc.testing.StreamingInputCallRequest_payload'(Rest,
+								   0, 0, F@_1,
+								   F@_2,
+								   TrUserData);
+      18 ->
+	  'd_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(Rest,
+									     0,
+									     0,
+									     F@_1,
+									     F@_2,
+									     TrUserData);
+      _ ->
+	  case Key band 7 of
+	    0 ->
+		'skip_varint_grpc.testing.StreamingInputCallRequest'(Rest,
+								     0, 0, F@_1,
+								     F@_2,
+								     TrUserData);
+	    1 ->
+		'skip_64_grpc.testing.StreamingInputCallRequest'(Rest,
+								 0, 0, F@_1,
+								 F@_2,
+								 TrUserData);
+	    2 ->
+		'skip_length_delimited_grpc.testing.StreamingInputCallRequest'(Rest,
+									       0,
+									       0,
+									       F@_1,
+									       F@_2,
+									       TrUserData);
+	    3 ->
+		'skip_group_grpc.testing.StreamingInputCallRequest'(Rest,
+								    Key bsr 3,
+								    0, F@_1,
+								    F@_2,
+								    TrUserData);
+	    5 ->
+		'skip_32_grpc.testing.StreamingInputCallRequest'(Rest,
+								 0, 0, F@_1,
+								 F@_2,
+								 TrUserData)
+	  end
+    end;
+'dg_read_field_def_grpc.testing.StreamingInputCallRequest'(<<>>,
+							   0, 0, F@_1, F@_2,
+							   _) ->
+    S1 = #{},
+    S2 = if F@_1 == '$undef' -> S1;
+	    true -> S1#{payload => F@_1}
+	 end,
+    if F@_2 == '$undef' -> S2;
+       true -> S2#{expect_compressed => F@_2}
+    end.
+
+'d_field_grpc.testing.StreamingInputCallRequest_payload'(<<1:1,
+							   X:7, Rest/binary>>,
+							 N, Acc, F@_1, F@_2,
+							 TrUserData)
+    when N < 57 ->
+    'd_field_grpc.testing.StreamingInputCallRequest_payload'(Rest,
+							     N + 7,
+							     X bsl N + Acc,
+							     F@_1, F@_2,
+							     TrUserData);
+'d_field_grpc.testing.StreamingInputCallRequest_payload'(<<0:1,
+							   X:7, Rest/binary>>,
+							 N, Acc, Prev, F@_2,
+							 TrUserData) ->
+    {NewFValue, RestF} = begin
+			   Len = X bsl N + Acc,
+			   <<Bs:Len/binary, Rest2/binary>> = Rest,
+			   {id('d_msg_grpc.testing.Payload'(Bs, TrUserData),
+			       TrUserData),
+			    Rest2}
+			 end,
+    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(RestF,
+								0, 0,
+								if Prev ==
+								     '$undef' ->
+								       NewFValue;
+								   true ->
+								       'merge_msg_grpc.testing.Payload'(Prev,
+													NewFValue,
+													TrUserData)
+								end,
+								F@_2,
+								TrUserData).
+
+'d_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(<<1:1,
+								     X:7,
+								     Rest/binary>>,
+								   N, Acc, F@_1,
+								   F@_2,
+								   TrUserData)
+    when N < 57 ->
+    'd_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(Rest,
+								       N + 7,
+								       X bsl N +
+									 Acc,
+								       F@_1,
+								       F@_2,
+								       TrUserData);
+'d_field_grpc.testing.StreamingInputCallRequest_expect_compressed'(<<0:1,
+								     X:7,
+								     Rest/binary>>,
+								   N, Acc, F@_1,
+								   Prev,
+								   TrUserData) ->
+    {NewFValue, RestF} = begin
+			   Len = X bsl N + Acc,
+			   <<Bs:Len/binary, Rest2/binary>> = Rest,
+			   {id('d_msg_grpc.testing.BoolValue'(Bs, TrUserData),
+			       TrUserData),
+			    Rest2}
+			 end,
+    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(RestF,
+								0, 0, F@_1,
+								if Prev ==
+								     '$undef' ->
+								       NewFValue;
+								   true ->
+								       'merge_msg_grpc.testing.BoolValue'(Prev,
+													  NewFValue,
+													  TrUserData)
+								end,
+								TrUserData).
+
+'skip_varint_grpc.testing.StreamingInputCallRequest'(<<1:1,
+						       _:7, Rest/binary>>,
+						     Z1, Z2, F@_1, F@_2,
+						     TrUserData) ->
+    'skip_varint_grpc.testing.StreamingInputCallRequest'(Rest,
+							 Z1, Z2, F@_1, F@_2,
+							 TrUserData);
+'skip_varint_grpc.testing.StreamingInputCallRequest'(<<0:1,
+						       _:7, Rest/binary>>,
+						     Z1, Z2, F@_1, F@_2,
+						     TrUserData) ->
+    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
+								Z1, Z2, F@_1,
+								F@_2,
+								TrUserData).
+
+'skip_length_delimited_grpc.testing.StreamingInputCallRequest'(<<1:1,
+								 X:7,
+								 Rest/binary>>,
+							       N, Acc, F@_1,
+							       F@_2, TrUserData)
+    when N < 57 ->
+    'skip_length_delimited_grpc.testing.StreamingInputCallRequest'(Rest,
+								   N + 7,
+								   X bsl N +
+								     Acc,
+								   F@_1, F@_2,
+								   TrUserData);
+'skip_length_delimited_grpc.testing.StreamingInputCallRequest'(<<0:1,
+								 X:7,
+								 Rest/binary>>,
+							       N, Acc, F@_1,
+							       F@_2,
+							       TrUserData) ->
+    Length = X bsl N + Acc,
+    <<_:Length/binary, Rest2/binary>> = Rest,
+    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest2,
+								0, 0, F@_1,
+								F@_2,
+								TrUserData).
+
+'skip_group_grpc.testing.StreamingInputCallRequest'(Bin,
+						    FNum, Z2, F@_1, F@_2,
+						    TrUserData) ->
+    {_, Rest} = read_group(Bin, FNum),
+    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
+								0, Z2, F@_1,
+								F@_2,
+								TrUserData).
+
+'skip_32_grpc.testing.StreamingInputCallRequest'(<<_:32,
+						   Rest/binary>>,
+						 Z1, Z2, F@_1, F@_2,
+						 TrUserData) ->
+    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
+								Z1, Z2, F@_1,
+								F@_2,
+								TrUserData).
+
+'skip_64_grpc.testing.StreamingInputCallRequest'(<<_:64,
+						   Rest/binary>>,
+						 Z1, Z2, F@_1, F@_2,
+						 TrUserData) ->
+    'dfp_read_field_def_grpc.testing.StreamingInputCallRequest'(Rest,
+								Z1, Z2, F@_1,
+								F@_2,
+								TrUserData).
+
 'd_msg_grpc.testing.SimpleRequest'(Bin, TrUserData) ->
     'dfp_read_field_def_grpc.testing.SimpleRequest'(Bin, 0,
 						    0,
@@ -2870,430 +3294,6 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 						    F@_4, F@_5, F@_6, F@_7,
 						    F@_8, TrUserData).
 
-'d_msg_grpc.testing.SimpleResponse'(Bin, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(Bin, 0,
-						     0,
-						     id(undefined, TrUserData),
-						     id([], TrUserData),
-						     id([], TrUserData),
-						     TrUserData).
-
-'dfp_read_field_def_grpc.testing.SimpleResponse'(<<10,
-						   Rest/binary>>,
-						 Z1, Z2, F@_1, F@_2, F@_3,
-						 TrUserData) ->
-    'd_field_grpc.testing.SimpleResponse_payload'(Rest, Z1,
-						  Z2, F@_1, F@_2, F@_3,
-						  TrUserData);
-'dfp_read_field_def_grpc.testing.SimpleResponse'(<<18,
-						   Rest/binary>>,
-						 Z1, Z2, F@_1, F@_2, F@_3,
-						 TrUserData) ->
-    'd_field_grpc.testing.SimpleResponse_username'(Rest, Z1,
-						   Z2, F@_1, F@_2, F@_3,
-						   TrUserData);
-'dfp_read_field_def_grpc.testing.SimpleResponse'(<<26,
-						   Rest/binary>>,
-						 Z1, Z2, F@_1, F@_2, F@_3,
-						 TrUserData) ->
-    'd_field_grpc.testing.SimpleResponse_oauth_scope'(Rest,
-						      Z1, Z2, F@_1, F@_2, F@_3,
-						      TrUserData);
-'dfp_read_field_def_grpc.testing.SimpleResponse'(<<>>,
-						 0, 0, F@_1, F@_2, F@_3, _) ->
-    S1 = #{},
-    S2 = if F@_1 == '$undef' -> S1;
-	    true -> S1#{payload => F@_1}
-	 end,
-    S3 = if F@_2 == '$undef' -> S2;
-	    true -> S2#{username => F@_2}
-	 end,
-    if F@_3 == '$undef' -> S3;
-       true -> S3#{oauth_scope => F@_3}
-    end;
-'dfp_read_field_def_grpc.testing.SimpleResponse'(Other,
-						 Z1, Z2, F@_1, F@_2, F@_3,
-						 TrUserData) ->
-    'dg_read_field_def_grpc.testing.SimpleResponse'(Other,
-						    Z1, Z2, F@_1, F@_2, F@_3,
-						    TrUserData).
-
-'dg_read_field_def_grpc.testing.SimpleResponse'(<<1:1,
-						  X:7, Rest/binary>>,
-						N, Acc, F@_1, F@_2, F@_3,
-						TrUserData)
-    when N < 32 - 7 ->
-    'dg_read_field_def_grpc.testing.SimpleResponse'(Rest,
-						    N + 7, X bsl N + Acc, F@_1,
-						    F@_2, F@_3, TrUserData);
-'dg_read_field_def_grpc.testing.SimpleResponse'(<<0:1,
-						  X:7, Rest/binary>>,
-						N, Acc, F@_1, F@_2, F@_3,
-						TrUserData) ->
-    Key = X bsl N + Acc,
-    case Key of
-      10 ->
-	  'd_field_grpc.testing.SimpleResponse_payload'(Rest, 0,
-							0, F@_1, F@_2, F@_3,
-							TrUserData);
-      18 ->
-	  'd_field_grpc.testing.SimpleResponse_username'(Rest, 0,
-							 0, F@_1, F@_2, F@_3,
-							 TrUserData);
-      26 ->
-	  'd_field_grpc.testing.SimpleResponse_oauth_scope'(Rest,
-							    0, 0, F@_1, F@_2,
-							    F@_3, TrUserData);
-      _ ->
-	  case Key band 7 of
-	    0 ->
-		'skip_varint_grpc.testing.SimpleResponse'(Rest, 0, 0,
-							  F@_1, F@_2, F@_3,
-							  TrUserData);
-	    1 ->
-		'skip_64_grpc.testing.SimpleResponse'(Rest, 0, 0, F@_1,
-						      F@_2, F@_3, TrUserData);
-	    2 ->
-		'skip_length_delimited_grpc.testing.SimpleResponse'(Rest,
-								    0, 0, F@_1,
-								    F@_2, F@_3,
-								    TrUserData);
-	    3 ->
-		'skip_group_grpc.testing.SimpleResponse'(Rest,
-							 Key bsr 3, 0, F@_1,
-							 F@_2, F@_3,
-							 TrUserData);
-	    5 ->
-		'skip_32_grpc.testing.SimpleResponse'(Rest, 0, 0, F@_1,
-						      F@_2, F@_3, TrUserData)
-	  end
-    end;
-'dg_read_field_def_grpc.testing.SimpleResponse'(<<>>, 0,
-						0, F@_1, F@_2, F@_3, _) ->
-    S1 = #{},
-    S2 = if F@_1 == '$undef' -> S1;
-	    true -> S1#{payload => F@_1}
-	 end,
-    S3 = if F@_2 == '$undef' -> S2;
-	    true -> S2#{username => F@_2}
-	 end,
-    if F@_3 == '$undef' -> S3;
-       true -> S3#{oauth_scope => F@_3}
-    end.
-
-'d_field_grpc.testing.SimpleResponse_payload'(<<1:1,
-						X:7, Rest/binary>>,
-					      N, Acc, F@_1, F@_2, F@_3,
-					      TrUserData)
-    when N < 57 ->
-    'd_field_grpc.testing.SimpleResponse_payload'(Rest,
-						  N + 7, X bsl N + Acc, F@_1,
-						  F@_2, F@_3, TrUserData);
-'d_field_grpc.testing.SimpleResponse_payload'(<<0:1,
-						X:7, Rest/binary>>,
-					      N, Acc, Prev, F@_2, F@_3,
-					      TrUserData) ->
-    {NewFValue, RestF} = begin
-			   Len = X bsl N + Acc,
-			   <<Bs:Len/binary, Rest2/binary>> = Rest,
-			   {id('d_msg_grpc.testing.Payload'(Bs, TrUserData),
-			       TrUserData),
-			    Rest2}
-			 end,
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(RestF,
-						     0, 0,
-						     if Prev == '$undef' ->
-							    NewFValue;
-							true ->
-							    'merge_msg_grpc.testing.Payload'(Prev,
-											     NewFValue,
-											     TrUserData)
-						     end,
-						     F@_2, F@_3, TrUserData).
-
-'d_field_grpc.testing.SimpleResponse_username'(<<1:1,
-						 X:7, Rest/binary>>,
-					       N, Acc, F@_1, F@_2, F@_3,
-					       TrUserData)
-    when N < 57 ->
-    'd_field_grpc.testing.SimpleResponse_username'(Rest,
-						   N + 7, X bsl N + Acc, F@_1,
-						   F@_2, F@_3, TrUserData);
-'d_field_grpc.testing.SimpleResponse_username'(<<0:1,
-						 X:7, Rest/binary>>,
-					       N, Acc, F@_1, _, F@_3,
-					       TrUserData) ->
-    {NewFValue, RestF} = begin
-			   Len = X bsl N + Acc,
-			   <<Utf8:Len/binary, Rest2/binary>> = Rest,
-			   {unicode:characters_to_list(Utf8, unicode), Rest2}
-			 end,
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(RestF,
-						     0, 0, F@_1, NewFValue,
-						     F@_3, TrUserData).
-
-'d_field_grpc.testing.SimpleResponse_oauth_scope'(<<1:1,
-						    X:7, Rest/binary>>,
-						  N, Acc, F@_1, F@_2, F@_3,
-						  TrUserData)
-    when N < 57 ->
-    'd_field_grpc.testing.SimpleResponse_oauth_scope'(Rest,
-						      N + 7, X bsl N + Acc,
-						      F@_1, F@_2, F@_3,
-						      TrUserData);
-'d_field_grpc.testing.SimpleResponse_oauth_scope'(<<0:1,
-						    X:7, Rest/binary>>,
-						  N, Acc, F@_1, F@_2, _,
-						  TrUserData) ->
-    {NewFValue, RestF} = begin
-			   Len = X bsl N + Acc,
-			   <<Utf8:Len/binary, Rest2/binary>> = Rest,
-			   {unicode:characters_to_list(Utf8, unicode), Rest2}
-			 end,
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(RestF,
-						     0, 0, F@_1, F@_2,
-						     NewFValue, TrUserData).
-
-'skip_varint_grpc.testing.SimpleResponse'(<<1:1, _:7,
-					    Rest/binary>>,
-					  Z1, Z2, F@_1, F@_2, F@_3,
-					  TrUserData) ->
-    'skip_varint_grpc.testing.SimpleResponse'(Rest, Z1, Z2,
-					      F@_1, F@_2, F@_3, TrUserData);
-'skip_varint_grpc.testing.SimpleResponse'(<<0:1, _:7,
-					    Rest/binary>>,
-					  Z1, Z2, F@_1, F@_2, F@_3,
-					  TrUserData) ->
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest,
-						     Z1, Z2, F@_1, F@_2, F@_3,
-						     TrUserData).
-
-'skip_length_delimited_grpc.testing.SimpleResponse'(<<1:1,
-						      X:7, Rest/binary>>,
-						    N, Acc, F@_1, F@_2, F@_3,
-						    TrUserData)
-    when N < 57 ->
-    'skip_length_delimited_grpc.testing.SimpleResponse'(Rest,
-							N + 7, X bsl N + Acc,
-							F@_1, F@_2, F@_3,
-							TrUserData);
-'skip_length_delimited_grpc.testing.SimpleResponse'(<<0:1,
-						      X:7, Rest/binary>>,
-						    N, Acc, F@_1, F@_2, F@_3,
-						    TrUserData) ->
-    Length = X bsl N + Acc,
-    <<_:Length/binary, Rest2/binary>> = Rest,
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest2,
-						     0, 0, F@_1, F@_2, F@_3,
-						     TrUserData).
-
-'skip_group_grpc.testing.SimpleResponse'(Bin, FNum, Z2,
-					 F@_1, F@_2, F@_3, TrUserData) ->
-    {_, Rest} = read_group(Bin, FNum),
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest,
-						     0, Z2, F@_1, F@_2, F@_3,
-						     TrUserData).
-
-'skip_32_grpc.testing.SimpleResponse'(<<_:32,
-					Rest/binary>>,
-				      Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest,
-						     Z1, Z2, F@_1, F@_2, F@_3,
-						     TrUserData).
-
-'skip_64_grpc.testing.SimpleResponse'(<<_:64,
-					Rest/binary>>,
-				      Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.SimpleResponse'(Rest,
-						     Z1, Z2, F@_1, F@_2, F@_3,
-						     TrUserData).
-
-'d_msg_grpc.testing.StreamingInputCallResponse'(Bin,
-						TrUserData) ->
-    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Bin,
-								 0, 0,
-								 id(0,
-								    TrUserData),
-								 TrUserData).
-
-'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(<<8,
-							       Rest/binary>>,
-							     Z1, Z2, F@_1,
-							     TrUserData) ->
-    'd_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(Rest,
-									      Z1,
-									      Z2,
-									      F@_1,
-									      TrUserData);
-'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(<<>>,
-							     0, 0, F@_1, _) ->
-    S1 = #{},
-    if F@_1 == '$undef' -> S1;
-       true -> S1#{aggregated_payload_size => F@_1}
-    end;
-'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Other,
-							     Z1, Z2, F@_1,
-							     TrUserData) ->
-    'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(Other,
-								Z1, Z2, F@_1,
-								TrUserData).
-
-'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(<<1:1,
-							      X:7,
-							      Rest/binary>>,
-							    N, Acc, F@_1,
-							    TrUserData)
-    when N < 32 - 7 ->
-    'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
-								N + 7,
-								X bsl N + Acc,
-								F@_1,
-								TrUserData);
-'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(<<0:1,
-							      X:7,
-							      Rest/binary>>,
-							    N, Acc, F@_1,
-							    TrUserData) ->
-    Key = X bsl N + Acc,
-    case Key of
-      8 ->
-	  'd_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(Rest,
-										    0,
-										    0,
-										    F@_1,
-										    TrUserData);
-      _ ->
-	  case Key band 7 of
-	    0 ->
-		'skip_varint_grpc.testing.StreamingInputCallResponse'(Rest,
-								      0, 0,
-								      F@_1,
-								      TrUserData);
-	    1 ->
-		'skip_64_grpc.testing.StreamingInputCallResponse'(Rest,
-								  0, 0, F@_1,
-								  TrUserData);
-	    2 ->
-		'skip_length_delimited_grpc.testing.StreamingInputCallResponse'(Rest,
-										0,
-										0,
-										F@_1,
-										TrUserData);
-	    3 ->
-		'skip_group_grpc.testing.StreamingInputCallResponse'(Rest,
-								     Key bsr 3,
-								     0, F@_1,
-								     TrUserData);
-	    5 ->
-		'skip_32_grpc.testing.StreamingInputCallResponse'(Rest,
-								  0, 0, F@_1,
-								  TrUserData)
-	  end
-    end;
-'dg_read_field_def_grpc.testing.StreamingInputCallResponse'(<<>>,
-							    0, 0, F@_1, _) ->
-    S1 = #{},
-    if F@_1 == '$undef' -> S1;
-       true -> S1#{aggregated_payload_size => F@_1}
-    end.
-
-'d_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(<<1:1,
-									    X:7,
-									    Rest/binary>>,
-									  N,
-									  Acc,
-									  F@_1,
-									  TrUserData)
-    when N < 57 ->
-    'd_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(Rest,
-									      N
-										+
-										7,
-									      X
-										bsl
-										N
-										+
-										Acc,
-									      F@_1,
-									      TrUserData);
-'d_field_grpc.testing.StreamingInputCallResponse_aggregated_payload_size'(<<0:1,
-									    X:7,
-									    Rest/binary>>,
-									  N,
-									  Acc,
-									  _,
-									  TrUserData) ->
-    {NewFValue, RestF} = {begin
-			    <<Res:32/signed-native>> = <<(X bsl N +
-							    Acc):32/unsigned-native>>,
-			    Res
-			  end,
-			  Rest},
-    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(RestF,
-								 0, 0,
-								 NewFValue,
-								 TrUserData).
-
-'skip_varint_grpc.testing.StreamingInputCallResponse'(<<1:1,
-							_:7, Rest/binary>>,
-						      Z1, Z2, F@_1,
-						      TrUserData) ->
-    'skip_varint_grpc.testing.StreamingInputCallResponse'(Rest,
-							  Z1, Z2, F@_1,
-							  TrUserData);
-'skip_varint_grpc.testing.StreamingInputCallResponse'(<<0:1,
-							_:7, Rest/binary>>,
-						      Z1, Z2, F@_1,
-						      TrUserData) ->
-    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
-								 Z1, Z2, F@_1,
-								 TrUserData).
-
-'skip_length_delimited_grpc.testing.StreamingInputCallResponse'(<<1:1,
-								  X:7,
-								  Rest/binary>>,
-								N, Acc, F@_1,
-								TrUserData)
-    when N < 57 ->
-    'skip_length_delimited_grpc.testing.StreamingInputCallResponse'(Rest,
-								    N + 7,
-								    X bsl N +
-								      Acc,
-								    F@_1,
-								    TrUserData);
-'skip_length_delimited_grpc.testing.StreamingInputCallResponse'(<<0:1,
-								  X:7,
-								  Rest/binary>>,
-								N, Acc, F@_1,
-								TrUserData) ->
-    Length = X bsl N + Acc,
-    <<_:Length/binary, Rest2/binary>> = Rest,
-    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest2,
-								 0, 0, F@_1,
-								 TrUserData).
-
-'skip_group_grpc.testing.StreamingInputCallResponse'(Bin,
-						     FNum, Z2, F@_1,
-						     TrUserData) ->
-    {_, Rest} = read_group(Bin, FNum),
-    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
-								 0, Z2, F@_1,
-								 TrUserData).
-
-'skip_32_grpc.testing.StreamingInputCallResponse'(<<_:32,
-						    Rest/binary>>,
-						  Z1, Z2, F@_1, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
-								 Z1, Z2, F@_1,
-								 TrUserData).
-
-'skip_64_grpc.testing.StreamingInputCallResponse'(<<_:64,
-						    Rest/binary>>,
-						  Z1, Z2, F@_1, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.StreamingInputCallResponse'(Rest,
-								 Z1, Z2, F@_1,
-								 TrUserData).
-
 'd_msg_grpc.testing.ReconnectInfo'(Bin, TrUserData) ->
     'dfp_read_field_def_grpc.testing.ReconnectInfo'(Bin, 0,
 						    0, id(false, TrUserData),
@@ -3518,146 +3518,6 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 						    Z1, Z2, F@_1, F@_2,
 						    TrUserData).
 
-'d_msg_grpc.testing.ReconnectParams'(Bin, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.ReconnectParams'(Bin,
-						      0, 0, id(0, TrUserData),
-						      TrUserData).
-
-'dfp_read_field_def_grpc.testing.ReconnectParams'(<<8,
-						    Rest/binary>>,
-						  Z1, Z2, F@_1, TrUserData) ->
-    'd_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(Rest,
-								    Z1, Z2,
-								    F@_1,
-								    TrUserData);
-'dfp_read_field_def_grpc.testing.ReconnectParams'(<<>>,
-						  0, 0, F@_1, _) ->
-    S1 = #{},
-    if F@_1 == '$undef' -> S1;
-       true -> S1#{max_reconnect_backoff_ms => F@_1}
-    end;
-'dfp_read_field_def_grpc.testing.ReconnectParams'(Other,
-						  Z1, Z2, F@_1, TrUserData) ->
-    'dg_read_field_def_grpc.testing.ReconnectParams'(Other,
-						     Z1, Z2, F@_1, TrUserData).
-
-'dg_read_field_def_grpc.testing.ReconnectParams'(<<1:1,
-						   X:7, Rest/binary>>,
-						 N, Acc, F@_1, TrUserData)
-    when N < 32 - 7 ->
-    'dg_read_field_def_grpc.testing.ReconnectParams'(Rest,
-						     N + 7, X bsl N + Acc, F@_1,
-						     TrUserData);
-'dg_read_field_def_grpc.testing.ReconnectParams'(<<0:1,
-						   X:7, Rest/binary>>,
-						 N, Acc, F@_1, TrUserData) ->
-    Key = X bsl N + Acc,
-    case Key of
-      8 ->
-	  'd_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(Rest,
-									  0, 0,
-									  F@_1,
-									  TrUserData);
-      _ ->
-	  case Key band 7 of
-	    0 ->
-		'skip_varint_grpc.testing.ReconnectParams'(Rest, 0, 0,
-							   F@_1, TrUserData);
-	    1 ->
-		'skip_64_grpc.testing.ReconnectParams'(Rest, 0, 0, F@_1,
-						       TrUserData);
-	    2 ->
-		'skip_length_delimited_grpc.testing.ReconnectParams'(Rest,
-								     0, 0, F@_1,
-								     TrUserData);
-	    3 ->
-		'skip_group_grpc.testing.ReconnectParams'(Rest,
-							  Key bsr 3, 0, F@_1,
-							  TrUserData);
-	    5 ->
-		'skip_32_grpc.testing.ReconnectParams'(Rest, 0, 0, F@_1,
-						       TrUserData)
-	  end
-    end;
-'dg_read_field_def_grpc.testing.ReconnectParams'(<<>>,
-						 0, 0, F@_1, _) ->
-    S1 = #{},
-    if F@_1 == '$undef' -> S1;
-       true -> S1#{max_reconnect_backoff_ms => F@_1}
-    end.
-
-'d_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(<<1:1,
-								  X:7,
-								  Rest/binary>>,
-								N, Acc, F@_1,
-								TrUserData)
-    when N < 57 ->
-    'd_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(Rest,
-								    N + 7,
-								    X bsl N +
-								      Acc,
-								    F@_1,
-								    TrUserData);
-'d_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(<<0:1,
-								  X:7,
-								  Rest/binary>>,
-								N, Acc, _,
-								TrUserData) ->
-    {NewFValue, RestF} = {begin
-			    <<Res:32/signed-native>> = <<(X bsl N +
-							    Acc):32/unsigned-native>>,
-			    Res
-			  end,
-			  Rest},
-    'dfp_read_field_def_grpc.testing.ReconnectParams'(RestF,
-						      0, 0, NewFValue,
-						      TrUserData).
-
-'skip_varint_grpc.testing.ReconnectParams'(<<1:1, _:7,
-					     Rest/binary>>,
-					   Z1, Z2, F@_1, TrUserData) ->
-    'skip_varint_grpc.testing.ReconnectParams'(Rest, Z1, Z2,
-					       F@_1, TrUserData);
-'skip_varint_grpc.testing.ReconnectParams'(<<0:1, _:7,
-					     Rest/binary>>,
-					   Z1, Z2, F@_1, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest,
-						      Z1, Z2, F@_1, TrUserData).
-
-'skip_length_delimited_grpc.testing.ReconnectParams'(<<1:1,
-						       X:7, Rest/binary>>,
-						     N, Acc, F@_1, TrUserData)
-    when N < 57 ->
-    'skip_length_delimited_grpc.testing.ReconnectParams'(Rest,
-							 N + 7, X bsl N + Acc,
-							 F@_1, TrUserData);
-'skip_length_delimited_grpc.testing.ReconnectParams'(<<0:1,
-						       X:7, Rest/binary>>,
-						     N, Acc, F@_1,
-						     TrUserData) ->
-    Length = X bsl N + Acc,
-    <<_:Length/binary, Rest2/binary>> = Rest,
-    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest2,
-						      0, 0, F@_1, TrUserData).
-
-'skip_group_grpc.testing.ReconnectParams'(Bin, FNum, Z2,
-					  F@_1, TrUserData) ->
-    {_, Rest} = read_group(Bin, FNum),
-    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest,
-						      0, Z2, F@_1, TrUserData).
-
-'skip_32_grpc.testing.ReconnectParams'(<<_:32,
-					 Rest/binary>>,
-				       Z1, Z2, F@_1, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest,
-						      Z1, Z2, F@_1, TrUserData).
-
-'skip_64_grpc.testing.ReconnectParams'(<<_:64,
-					 Rest/binary>>,
-				       Z1, Z2, F@_1, TrUserData) ->
-    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest,
-						      Z1, Z2, F@_1, TrUserData).
-
 'd_msg_grpc.testing.StreamingOutputCallResponse'(Bin,
 						 TrUserData) ->
     'dfp_read_field_def_grpc.testing.StreamingOutputCallResponse'(Bin,
@@ -3836,6 +3696,146 @@ decode_msg(Bin, MsgName, Opts) when is_binary(Bin) ->
 								  Z1, Z2, F@_1,
 								  TrUserData).
 
+'d_msg_grpc.testing.ReconnectParams'(Bin, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.ReconnectParams'(Bin,
+						      0, 0, id(0, TrUserData),
+						      TrUserData).
+
+'dfp_read_field_def_grpc.testing.ReconnectParams'(<<8,
+						    Rest/binary>>,
+						  Z1, Z2, F@_1, TrUserData) ->
+    'd_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(Rest,
+								    Z1, Z2,
+								    F@_1,
+								    TrUserData);
+'dfp_read_field_def_grpc.testing.ReconnectParams'(<<>>,
+						  0, 0, F@_1, _) ->
+    S1 = #{},
+    if F@_1 == '$undef' -> S1;
+       true -> S1#{max_reconnect_backoff_ms => F@_1}
+    end;
+'dfp_read_field_def_grpc.testing.ReconnectParams'(Other,
+						  Z1, Z2, F@_1, TrUserData) ->
+    'dg_read_field_def_grpc.testing.ReconnectParams'(Other,
+						     Z1, Z2, F@_1, TrUserData).
+
+'dg_read_field_def_grpc.testing.ReconnectParams'(<<1:1,
+						   X:7, Rest/binary>>,
+						 N, Acc, F@_1, TrUserData)
+    when N < 32 - 7 ->
+    'dg_read_field_def_grpc.testing.ReconnectParams'(Rest,
+						     N + 7, X bsl N + Acc, F@_1,
+						     TrUserData);
+'dg_read_field_def_grpc.testing.ReconnectParams'(<<0:1,
+						   X:7, Rest/binary>>,
+						 N, Acc, F@_1, TrUserData) ->
+    Key = X bsl N + Acc,
+    case Key of
+      8 ->
+	  'd_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(Rest,
+									  0, 0,
+									  F@_1,
+									  TrUserData);
+      _ ->
+	  case Key band 7 of
+	    0 ->
+		'skip_varint_grpc.testing.ReconnectParams'(Rest, 0, 0,
+							   F@_1, TrUserData);
+	    1 ->
+		'skip_64_grpc.testing.ReconnectParams'(Rest, 0, 0, F@_1,
+						       TrUserData);
+	    2 ->
+		'skip_length_delimited_grpc.testing.ReconnectParams'(Rest,
+								     0, 0, F@_1,
+								     TrUserData);
+	    3 ->
+		'skip_group_grpc.testing.ReconnectParams'(Rest,
+							  Key bsr 3, 0, F@_1,
+							  TrUserData);
+	    5 ->
+		'skip_32_grpc.testing.ReconnectParams'(Rest, 0, 0, F@_1,
+						       TrUserData)
+	  end
+    end;
+'dg_read_field_def_grpc.testing.ReconnectParams'(<<>>,
+						 0, 0, F@_1, _) ->
+    S1 = #{},
+    if F@_1 == '$undef' -> S1;
+       true -> S1#{max_reconnect_backoff_ms => F@_1}
+    end.
+
+'d_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(<<1:1,
+								  X:7,
+								  Rest/binary>>,
+								N, Acc, F@_1,
+								TrUserData)
+    when N < 57 ->
+    'd_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(Rest,
+								    N + 7,
+								    X bsl N +
+								      Acc,
+								    F@_1,
+								    TrUserData);
+'d_field_grpc.testing.ReconnectParams_max_reconnect_backoff_ms'(<<0:1,
+								  X:7,
+								  Rest/binary>>,
+								N, Acc, _,
+								TrUserData) ->
+    {NewFValue, RestF} = {begin
+			    <<Res:32/signed-native>> = <<(X bsl N +
+							    Acc):32/unsigned-native>>,
+			    Res
+			  end,
+			  Rest},
+    'dfp_read_field_def_grpc.testing.ReconnectParams'(RestF,
+						      0, 0, NewFValue,
+						      TrUserData).
+
+'skip_varint_grpc.testing.ReconnectParams'(<<1:1, _:7,
+					     Rest/binary>>,
+					   Z1, Z2, F@_1, TrUserData) ->
+    'skip_varint_grpc.testing.ReconnectParams'(Rest, Z1, Z2,
+					       F@_1, TrUserData);
+'skip_varint_grpc.testing.ReconnectParams'(<<0:1, _:7,
+					     Rest/binary>>,
+					   Z1, Z2, F@_1, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest,
+						      Z1, Z2, F@_1, TrUserData).
+
+'skip_length_delimited_grpc.testing.ReconnectParams'(<<1:1,
+						       X:7, Rest/binary>>,
+						     N, Acc, F@_1, TrUserData)
+    when N < 57 ->
+    'skip_length_delimited_grpc.testing.ReconnectParams'(Rest,
+							 N + 7, X bsl N + Acc,
+							 F@_1, TrUserData);
+'skip_length_delimited_grpc.testing.ReconnectParams'(<<0:1,
+						       X:7, Rest/binary>>,
+						     N, Acc, F@_1,
+						     TrUserData) ->
+    Length = X bsl N + Acc,
+    <<_:Length/binary, Rest2/binary>> = Rest,
+    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest2,
+						      0, 0, F@_1, TrUserData).
+
+'skip_group_grpc.testing.ReconnectParams'(Bin, FNum, Z2,
+					  F@_1, TrUserData) ->
+    {_, Rest} = read_group(Bin, FNum),
+    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest,
+						      0, Z2, F@_1, TrUserData).
+
+'skip_32_grpc.testing.ReconnectParams'(<<_:32,
+					 Rest/binary>>,
+				       Z1, Z2, F@_1, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest,
+						      Z1, Z2, F@_1, TrUserData).
+
+'skip_64_grpc.testing.ReconnectParams'(<<_:64,
+					 Rest/binary>>,
+				       Z1, Z2, F@_1, TrUserData) ->
+    'dfp_read_field_def_grpc.testing.ReconnectParams'(Rest,
+						      Z1, Z2, F@_1, TrUserData).
+
 'd_msg_grpc.testing.Empty'(Bin, TrUserData) ->
     'dfp_read_field_def_grpc.testing.Empty'(Bin, 0, 0,
 					    TrUserData).
@@ -3984,92 +3984,43 @@ merge_msgs(Prev, New, MsgName) ->
 merge_msgs(Prev, New, MsgName, Opts) ->
     TrUserData = proplists:get_value(user_data, Opts),
     case MsgName of
-      'grpc.testing.BoolValue' ->
-	  'merge_msg_grpc.testing.BoolValue'(Prev, New,
-					     TrUserData);
-      'grpc.testing.Payload' ->
-	  'merge_msg_grpc.testing.Payload'(Prev, New, TrUserData);
-      'grpc.testing.StreamingInputCallRequest' ->
-	  'merge_msg_grpc.testing.StreamingInputCallRequest'(Prev,
-							     New, TrUserData);
       'grpc.testing.EchoStatus' ->
 	  'merge_msg_grpc.testing.EchoStatus'(Prev, New,
 					      TrUserData);
+      'grpc.testing.Payload' ->
+	  'merge_msg_grpc.testing.Payload'(Prev, New, TrUserData);
+      'grpc.testing.BoolValue' ->
+	  'merge_msg_grpc.testing.BoolValue'(Prev, New,
+					     TrUserData);
       'grpc.testing.ResponseParameters' ->
 	  'merge_msg_grpc.testing.ResponseParameters'(Prev, New,
 						      TrUserData);
       'grpc.testing.StreamingOutputCallRequest' ->
 	  'merge_msg_grpc.testing.StreamingOutputCallRequest'(Prev,
 							      New, TrUserData);
-      'grpc.testing.SimpleRequest' ->
-	  'merge_msg_grpc.testing.SimpleRequest'(Prev, New,
-						 TrUserData);
-      'grpc.testing.SimpleResponse' ->
-	  'merge_msg_grpc.testing.SimpleResponse'(Prev, New,
-						  TrUserData);
       'grpc.testing.StreamingInputCallResponse' ->
 	  'merge_msg_grpc.testing.StreamingInputCallResponse'(Prev,
 							      New, TrUserData);
+      'grpc.testing.SimpleResponse' ->
+	  'merge_msg_grpc.testing.SimpleResponse'(Prev, New,
+						  TrUserData);
+      'grpc.testing.StreamingInputCallRequest' ->
+	  'merge_msg_grpc.testing.StreamingInputCallRequest'(Prev,
+							     New, TrUserData);
+      'grpc.testing.SimpleRequest' ->
+	  'merge_msg_grpc.testing.SimpleRequest'(Prev, New,
+						 TrUserData);
       'grpc.testing.ReconnectInfo' ->
 	  'merge_msg_grpc.testing.ReconnectInfo'(Prev, New,
 						 TrUserData);
-      'grpc.testing.ReconnectParams' ->
-	  'merge_msg_grpc.testing.ReconnectParams'(Prev, New,
-						   TrUserData);
       'grpc.testing.StreamingOutputCallResponse' ->
 	  'merge_msg_grpc.testing.StreamingOutputCallResponse'(Prev,
 							       New, TrUserData);
+      'grpc.testing.ReconnectParams' ->
+	  'merge_msg_grpc.testing.ReconnectParams'(Prev, New,
+						   TrUserData);
       'grpc.testing.Empty' ->
 	  'merge_msg_grpc.testing.Empty'(Prev, New, TrUserData)
-    end.
-
-'merge_msg_grpc.testing.BoolValue'(PMsg, NMsg, _) ->
-    S1 = #{},
-    case {PMsg, NMsg} of
-      {_, #{value := NFvalue}} -> S1#{value => NFvalue};
-      {#{value := PFvalue}, _} -> S1#{value => PFvalue};
-      _ -> S1
-    end.
-
-'merge_msg_grpc.testing.Payload'(PMsg, NMsg, _) ->
-    S1 = #{},
-    S2 = case {PMsg, NMsg} of
-	   {_, #{type := NFtype}} -> S1#{type => NFtype};
-	   {#{type := PFtype}, _} -> S1#{type => PFtype};
-	   _ -> S1
-	 end,
-    case {PMsg, NMsg} of
-      {_, #{body := NFbody}} -> S2#{body => NFbody};
-      {#{body := PFbody}, _} -> S2#{body => PFbody};
-      _ -> S2
-    end.
-
-'merge_msg_grpc.testing.StreamingInputCallRequest'(PMsg,
-						   NMsg, TrUserData) ->
-    S1 = #{},
-    S2 = case {PMsg, NMsg} of
-	   {#{payload := PFpayload}, #{payload := NFpayload}} ->
-	       S1#{payload =>
-		       'merge_msg_grpc.testing.Payload'(PFpayload, NFpayload,
-							TrUserData)};
-	   {_, #{payload := NFpayload}} ->
-	       S1#{payload => NFpayload};
-	   {#{payload := PFpayload}, _} ->
-	       S1#{payload => PFpayload};
-	   {_, _} -> S1
-	 end,
-    case {PMsg, NMsg} of
-      {#{expect_compressed := PFexpect_compressed},
-       #{expect_compressed := NFexpect_compressed}} ->
-	  S2#{expect_compressed =>
-		  'merge_msg_grpc.testing.BoolValue'(PFexpect_compressed,
-						     NFexpect_compressed,
-						     TrUserData)};
-      {_, #{expect_compressed := NFexpect_compressed}} ->
-	  S2#{expect_compressed => NFexpect_compressed};
-      {#{expect_compressed := PFexpect_compressed}, _} ->
-	  S2#{expect_compressed => PFexpect_compressed};
-      {_, _} -> S2
     end.
 
 'merge_msg_grpc.testing.EchoStatus'(PMsg, NMsg, _) ->
@@ -4085,6 +4036,27 @@ merge_msgs(Prev, New, MsgName, Opts) ->
       {#{message := PFmessage}, _} ->
 	  S2#{message => PFmessage};
       _ -> S2
+    end.
+
+'merge_msg_grpc.testing.Payload'(PMsg, NMsg, _) ->
+    S1 = #{},
+    S2 = case {PMsg, NMsg} of
+	   {_, #{type := NFtype}} -> S1#{type => NFtype};
+	   {#{type := PFtype}, _} -> S1#{type => PFtype};
+	   _ -> S1
+	 end,
+    case {PMsg, NMsg} of
+      {_, #{body := NFbody}} -> S2#{body => NFbody};
+      {#{body := PFbody}, _} -> S2#{body => PFbody};
+      _ -> S2
+    end.
+
+'merge_msg_grpc.testing.BoolValue'(PMsg, NMsg, _) ->
+    S1 = #{},
+    case {PMsg, NMsg} of
+      {_, #{value := NFvalue}} -> S1#{value => NFvalue};
+      {#{value := PFvalue}, _} -> S1#{value => PFvalue};
+      _ -> S1
     end.
 
 'merge_msg_grpc.testing.ResponseParameters'(PMsg, NMsg,
@@ -4160,6 +4132,80 @@ merge_msgs(Prev, New, MsgName, Opts) ->
       {#{response_status := PFresponse_status}, _} ->
 	  S4#{response_status => PFresponse_status};
       {_, _} -> S4
+    end.
+
+'merge_msg_grpc.testing.StreamingInputCallResponse'(PMsg,
+						    NMsg, _) ->
+    S1 = #{},
+    case {PMsg, NMsg} of
+      {_,
+       #{aggregated_payload_size :=
+	     NFaggregated_payload_size}} ->
+	  S1#{aggregated_payload_size =>
+		  NFaggregated_payload_size};
+      {#{aggregated_payload_size :=
+	     PFaggregated_payload_size},
+       _} ->
+	  S1#{aggregated_payload_size =>
+		  PFaggregated_payload_size};
+      _ -> S1
+    end.
+
+'merge_msg_grpc.testing.SimpleResponse'(PMsg, NMsg,
+					TrUserData) ->
+    S1 = #{},
+    S2 = case {PMsg, NMsg} of
+	   {#{payload := PFpayload}, #{payload := NFpayload}} ->
+	       S1#{payload =>
+		       'merge_msg_grpc.testing.Payload'(PFpayload, NFpayload,
+							TrUserData)};
+	   {_, #{payload := NFpayload}} ->
+	       S1#{payload => NFpayload};
+	   {#{payload := PFpayload}, _} ->
+	       S1#{payload => PFpayload};
+	   {_, _} -> S1
+	 end,
+    S3 = case {PMsg, NMsg} of
+	   {_, #{username := NFusername}} ->
+	       S2#{username => NFusername};
+	   {#{username := PFusername}, _} ->
+	       S2#{username => PFusername};
+	   _ -> S2
+	 end,
+    case {PMsg, NMsg} of
+      {_, #{oauth_scope := NFoauth_scope}} ->
+	  S3#{oauth_scope => NFoauth_scope};
+      {#{oauth_scope := PFoauth_scope}, _} ->
+	  S3#{oauth_scope => PFoauth_scope};
+      _ -> S3
+    end.
+
+'merge_msg_grpc.testing.StreamingInputCallRequest'(PMsg,
+						   NMsg, TrUserData) ->
+    S1 = #{},
+    S2 = case {PMsg, NMsg} of
+	   {#{payload := PFpayload}, #{payload := NFpayload}} ->
+	       S1#{payload =>
+		       'merge_msg_grpc.testing.Payload'(PFpayload, NFpayload,
+							TrUserData)};
+	   {_, #{payload := NFpayload}} ->
+	       S1#{payload => NFpayload};
+	   {#{payload := PFpayload}, _} ->
+	       S1#{payload => PFpayload};
+	   {_, _} -> S1
+	 end,
+    case {PMsg, NMsg} of
+      {#{expect_compressed := PFexpect_compressed},
+       #{expect_compressed := NFexpect_compressed}} ->
+	  S2#{expect_compressed =>
+		  'merge_msg_grpc.testing.BoolValue'(PFexpect_compressed,
+						     NFexpect_compressed,
+						     TrUserData)};
+      {_, #{expect_compressed := NFexpect_compressed}} ->
+	  S2#{expect_compressed => NFexpect_compressed};
+      {#{expect_compressed := PFexpect_compressed}, _} ->
+	  S2#{expect_compressed => PFexpect_compressed};
+      {_, _} -> S2
     end.
 
 'merge_msg_grpc.testing.SimpleRequest'(PMsg, NMsg,
@@ -4244,52 +4290,6 @@ merge_msgs(Prev, New, MsgName, Opts) ->
       {_, _} -> S8
     end.
 
-'merge_msg_grpc.testing.SimpleResponse'(PMsg, NMsg,
-					TrUserData) ->
-    S1 = #{},
-    S2 = case {PMsg, NMsg} of
-	   {#{payload := PFpayload}, #{payload := NFpayload}} ->
-	       S1#{payload =>
-		       'merge_msg_grpc.testing.Payload'(PFpayload, NFpayload,
-							TrUserData)};
-	   {_, #{payload := NFpayload}} ->
-	       S1#{payload => NFpayload};
-	   {#{payload := PFpayload}, _} ->
-	       S1#{payload => PFpayload};
-	   {_, _} -> S1
-	 end,
-    S3 = case {PMsg, NMsg} of
-	   {_, #{username := NFusername}} ->
-	       S2#{username => NFusername};
-	   {#{username := PFusername}, _} ->
-	       S2#{username => PFusername};
-	   _ -> S2
-	 end,
-    case {PMsg, NMsg} of
-      {_, #{oauth_scope := NFoauth_scope}} ->
-	  S3#{oauth_scope => NFoauth_scope};
-      {#{oauth_scope := PFoauth_scope}, _} ->
-	  S3#{oauth_scope => PFoauth_scope};
-      _ -> S3
-    end.
-
-'merge_msg_grpc.testing.StreamingInputCallResponse'(PMsg,
-						    NMsg, _) ->
-    S1 = #{},
-    case {PMsg, NMsg} of
-      {_,
-       #{aggregated_payload_size :=
-	     NFaggregated_payload_size}} ->
-	  S1#{aggregated_payload_size =>
-		  NFaggregated_payload_size};
-      {#{aggregated_payload_size :=
-	     PFaggregated_payload_size},
-       _} ->
-	  S1#{aggregated_payload_size =>
-		  PFaggregated_payload_size};
-      _ -> S1
-    end.
-
 'merge_msg_grpc.testing.ReconnectInfo'(PMsg, NMsg,
 				       TrUserData) ->
     S1 = #{},
@@ -4310,6 +4310,21 @@ merge_msgs(Prev, New, MsgName, Opts) ->
       {_, _} -> S2
     end.
 
+'merge_msg_grpc.testing.StreamingOutputCallResponse'(PMsg,
+						     NMsg, TrUserData) ->
+    S1 = #{},
+    case {PMsg, NMsg} of
+      {#{payload := PFpayload}, #{payload := NFpayload}} ->
+	  S1#{payload =>
+		  'merge_msg_grpc.testing.Payload'(PFpayload, NFpayload,
+						   TrUserData)};
+      {_, #{payload := NFpayload}} ->
+	  S1#{payload => NFpayload};
+      {#{payload := PFpayload}, _} ->
+	  S1#{payload => PFpayload};
+      {_, _} -> S1
+    end.
+
 'merge_msg_grpc.testing.ReconnectParams'(PMsg, NMsg,
 					 _) ->
     S1 = #{},
@@ -4327,21 +4342,6 @@ merge_msgs(Prev, New, MsgName, Opts) ->
       _ -> S1
     end.
 
-'merge_msg_grpc.testing.StreamingOutputCallResponse'(PMsg,
-						     NMsg, TrUserData) ->
-    S1 = #{},
-    case {PMsg, NMsg} of
-      {#{payload := PFpayload}, #{payload := NFpayload}} ->
-	  S1#{payload =>
-		  'merge_msg_grpc.testing.Payload'(PFpayload, NFpayload,
-						   TrUserData)};
-      {_, #{payload := NFpayload}} ->
-	  S1#{payload => NFpayload};
-      {#{payload := PFpayload}, _} ->
-	  S1#{payload => PFpayload};
-      {_, _} -> S1
-    end.
-
 'merge_msg_grpc.testing.Empty'(_Prev, New,
 			       _TrUserData) ->
     New.
@@ -4353,21 +4353,17 @@ verify_msg(Msg, MsgName) ->
 verify_msg(Msg, MsgName, Opts) ->
     TrUserData = proplists:get_value(user_data, Opts),
     case MsgName of
-      'grpc.testing.BoolValue' ->
-	  'v_msg_grpc.testing.BoolValue'(Msg,
-					 ['grpc.testing.BoolValue'],
-					 TrUserData);
-      'grpc.testing.Payload' ->
-	  'v_msg_grpc.testing.Payload'(Msg,
-				       ['grpc.testing.Payload'], TrUserData);
-      'grpc.testing.StreamingInputCallRequest' ->
-	  'v_msg_grpc.testing.StreamingInputCallRequest'(Msg,
-							 ['grpc.testing.StreamingInputCallRequest'],
-							 TrUserData);
       'grpc.testing.EchoStatus' ->
 	  'v_msg_grpc.testing.EchoStatus'(Msg,
 					  ['grpc.testing.EchoStatus'],
 					  TrUserData);
+      'grpc.testing.Payload' ->
+	  'v_msg_grpc.testing.Payload'(Msg,
+				       ['grpc.testing.Payload'], TrUserData);
+      'grpc.testing.BoolValue' ->
+	  'v_msg_grpc.testing.BoolValue'(Msg,
+					 ['grpc.testing.BoolValue'],
+					 TrUserData);
       'grpc.testing.ResponseParameters' ->
 	  'v_msg_grpc.testing.ResponseParameters'(Msg,
 						  ['grpc.testing.ResponseParameters'],
@@ -4376,30 +4372,34 @@ verify_msg(Msg, MsgName, Opts) ->
 	  'v_msg_grpc.testing.StreamingOutputCallRequest'(Msg,
 							  ['grpc.testing.StreamingOutputCallRequest'],
 							  TrUserData);
-      'grpc.testing.SimpleRequest' ->
-	  'v_msg_grpc.testing.SimpleRequest'(Msg,
-					     ['grpc.testing.SimpleRequest'],
-					     TrUserData);
-      'grpc.testing.SimpleResponse' ->
-	  'v_msg_grpc.testing.SimpleResponse'(Msg,
-					      ['grpc.testing.SimpleResponse'],
-					      TrUserData);
       'grpc.testing.StreamingInputCallResponse' ->
 	  'v_msg_grpc.testing.StreamingInputCallResponse'(Msg,
 							  ['grpc.testing.StreamingInputCallResponse'],
 							  TrUserData);
+      'grpc.testing.SimpleResponse' ->
+	  'v_msg_grpc.testing.SimpleResponse'(Msg,
+					      ['grpc.testing.SimpleResponse'],
+					      TrUserData);
+      'grpc.testing.StreamingInputCallRequest' ->
+	  'v_msg_grpc.testing.StreamingInputCallRequest'(Msg,
+							 ['grpc.testing.StreamingInputCallRequest'],
+							 TrUserData);
+      'grpc.testing.SimpleRequest' ->
+	  'v_msg_grpc.testing.SimpleRequest'(Msg,
+					     ['grpc.testing.SimpleRequest'],
+					     TrUserData);
       'grpc.testing.ReconnectInfo' ->
 	  'v_msg_grpc.testing.ReconnectInfo'(Msg,
 					     ['grpc.testing.ReconnectInfo'],
 					     TrUserData);
-      'grpc.testing.ReconnectParams' ->
-	  'v_msg_grpc.testing.ReconnectParams'(Msg,
-					       ['grpc.testing.ReconnectParams'],
-					       TrUserData);
       'grpc.testing.StreamingOutputCallResponse' ->
 	  'v_msg_grpc.testing.StreamingOutputCallResponse'(Msg,
 							   ['grpc.testing.StreamingOutputCallResponse'],
 							   TrUserData);
+      'grpc.testing.ReconnectParams' ->
+	  'v_msg_grpc.testing.ReconnectParams'(Msg,
+					       ['grpc.testing.ReconnectParams'],
+					       TrUserData);
       'grpc.testing.Empty' ->
 	  'v_msg_grpc.testing.Empty'(Msg, ['grpc.testing.Empty'],
 				     TrUserData);
@@ -4407,25 +4407,30 @@ verify_msg(Msg, MsgName, Opts) ->
     end.
 
 
--dialyzer({nowarn_function,'v_msg_grpc.testing.BoolValue'/3}).
-'v_msg_grpc.testing.BoolValue'(#{} = M, Path, _) ->
+-dialyzer({nowarn_function,'v_msg_grpc.testing.EchoStatus'/3}).
+'v_msg_grpc.testing.EchoStatus'(#{} = M, Path, _) ->
     case M of
-      #{value := F1} -> v_type_bool(F1, [value | Path]);
+      #{code := F1} -> v_type_int32(F1, [code | Path]);
       _ -> ok
     end,
-    lists:foreach(fun (value) -> ok;
+    case M of
+      #{message := F2} -> v_type_string(F2, [message | Path]);
+      _ -> ok
+    end,
+    lists:foreach(fun (code) -> ok;
+		      (message) -> ok;
 		      (OtherKey) ->
 			  mk_type_error({extraneous_key, OtherKey}, M, Path)
 		  end,
 		  maps:keys(M)),
     ok;
-'v_msg_grpc.testing.BoolValue'(M, Path, _TrUserData)
+'v_msg_grpc.testing.EchoStatus'(M, Path, _TrUserData)
     when is_map(M) ->
     mk_type_error({missing_fields, [] -- maps:keys(M),
-		   'grpc.testing.BoolValue'},
+		   'grpc.testing.EchoStatus'},
 		  M, Path);
-'v_msg_grpc.testing.BoolValue'(X, Path, _TrUserData) ->
-    mk_type_error({expected_msg, 'grpc.testing.BoolValue'},
+'v_msg_grpc.testing.EchoStatus'(X, Path, _TrUserData) ->
+    mk_type_error({expected_msg, 'grpc.testing.EchoStatus'},
 		  X, Path).
 
 -dialyzer({nowarn_function,'v_msg_grpc.testing.Payload'/3}).
@@ -4455,65 +4460,25 @@ verify_msg(Msg, MsgName, Opts) ->
     mk_type_error({expected_msg, 'grpc.testing.Payload'}, X,
 		  Path).
 
--dialyzer({nowarn_function,'v_msg_grpc.testing.StreamingInputCallRequest'/3}).
-'v_msg_grpc.testing.StreamingInputCallRequest'(#{} = M,
-					       Path, TrUserData) ->
+-dialyzer({nowarn_function,'v_msg_grpc.testing.BoolValue'/3}).
+'v_msg_grpc.testing.BoolValue'(#{} = M, Path, _) ->
     case M of
-      #{payload := F1} ->
-	  'v_msg_grpc.testing.Payload'(F1, [payload | Path],
-				       TrUserData);
+      #{value := F1} -> v_type_bool(F1, [value | Path]);
       _ -> ok
     end,
-    case M of
-      #{expect_compressed := F2} ->
-	  'v_msg_grpc.testing.BoolValue'(F2,
-					 [expect_compressed | Path],
-					 TrUserData);
-      _ -> ok
-    end,
-    lists:foreach(fun (payload) -> ok;
-		      (expect_compressed) -> ok;
+    lists:foreach(fun (value) -> ok;
 		      (OtherKey) ->
 			  mk_type_error({extraneous_key, OtherKey}, M, Path)
 		  end,
 		  maps:keys(M)),
     ok;
-'v_msg_grpc.testing.StreamingInputCallRequest'(M, Path,
-					       _TrUserData)
+'v_msg_grpc.testing.BoolValue'(M, Path, _TrUserData)
     when is_map(M) ->
     mk_type_error({missing_fields, [] -- maps:keys(M),
-		   'grpc.testing.StreamingInputCallRequest'},
+		   'grpc.testing.BoolValue'},
 		  M, Path);
-'v_msg_grpc.testing.StreamingInputCallRequest'(X, Path,
-					       _TrUserData) ->
-    mk_type_error({expected_msg,
-		   'grpc.testing.StreamingInputCallRequest'},
-		  X, Path).
-
--dialyzer({nowarn_function,'v_msg_grpc.testing.EchoStatus'/3}).
-'v_msg_grpc.testing.EchoStatus'(#{} = M, Path, _) ->
-    case M of
-      #{code := F1} -> v_type_int32(F1, [code | Path]);
-      _ -> ok
-    end,
-    case M of
-      #{message := F2} -> v_type_string(F2, [message | Path]);
-      _ -> ok
-    end,
-    lists:foreach(fun (code) -> ok;
-		      (message) -> ok;
-		      (OtherKey) ->
-			  mk_type_error({extraneous_key, OtherKey}, M, Path)
-		  end,
-		  maps:keys(M)),
-    ok;
-'v_msg_grpc.testing.EchoStatus'(M, Path, _TrUserData)
-    when is_map(M) ->
-    mk_type_error({missing_fields, [] -- maps:keys(M),
-		   'grpc.testing.EchoStatus'},
-		  M, Path);
-'v_msg_grpc.testing.EchoStatus'(X, Path, _TrUserData) ->
-    mk_type_error({expected_msg, 'grpc.testing.EchoStatus'},
+'v_msg_grpc.testing.BoolValue'(X, Path, _TrUserData) ->
+    mk_type_error({expected_msg, 'grpc.testing.BoolValue'},
 		  X, Path).
 
 -dialyzer({nowarn_function,'v_msg_grpc.testing.ResponseParameters'/3}).
@@ -4612,6 +4577,106 @@ verify_msg(Msg, MsgName, Opts) ->
 		   'grpc.testing.StreamingOutputCallRequest'},
 		  X, Path).
 
+-dialyzer({nowarn_function,'v_msg_grpc.testing.StreamingInputCallResponse'/3}).
+'v_msg_grpc.testing.StreamingInputCallResponse'(#{} = M,
+						Path, _) ->
+    case M of
+      #{aggregated_payload_size := F1} ->
+	  v_type_int32(F1, [aggregated_payload_size | Path]);
+      _ -> ok
+    end,
+    lists:foreach(fun (aggregated_payload_size) -> ok;
+		      (OtherKey) ->
+			  mk_type_error({extraneous_key, OtherKey}, M, Path)
+		  end,
+		  maps:keys(M)),
+    ok;
+'v_msg_grpc.testing.StreamingInputCallResponse'(M, Path,
+						_TrUserData)
+    when is_map(M) ->
+    mk_type_error({missing_fields, [] -- maps:keys(M),
+		   'grpc.testing.StreamingInputCallResponse'},
+		  M, Path);
+'v_msg_grpc.testing.StreamingInputCallResponse'(X, Path,
+						_TrUserData) ->
+    mk_type_error({expected_msg,
+		   'grpc.testing.StreamingInputCallResponse'},
+		  X, Path).
+
+-dialyzer({nowarn_function,'v_msg_grpc.testing.SimpleResponse'/3}).
+'v_msg_grpc.testing.SimpleResponse'(#{} = M, Path,
+				    TrUserData) ->
+    case M of
+      #{payload := F1} ->
+	  'v_msg_grpc.testing.Payload'(F1, [payload | Path],
+				       TrUserData);
+      _ -> ok
+    end,
+    case M of
+      #{username := F2} ->
+	  v_type_string(F2, [username | Path]);
+      _ -> ok
+    end,
+    case M of
+      #{oauth_scope := F3} ->
+	  v_type_string(F3, [oauth_scope | Path]);
+      _ -> ok
+    end,
+    lists:foreach(fun (payload) -> ok;
+		      (username) -> ok;
+		      (oauth_scope) -> ok;
+		      (OtherKey) ->
+			  mk_type_error({extraneous_key, OtherKey}, M, Path)
+		  end,
+		  maps:keys(M)),
+    ok;
+'v_msg_grpc.testing.SimpleResponse'(M, Path,
+				    _TrUserData)
+    when is_map(M) ->
+    mk_type_error({missing_fields, [] -- maps:keys(M),
+		   'grpc.testing.SimpleResponse'},
+		  M, Path);
+'v_msg_grpc.testing.SimpleResponse'(X, Path,
+				    _TrUserData) ->
+    mk_type_error({expected_msg,
+		   'grpc.testing.SimpleResponse'},
+		  X, Path).
+
+-dialyzer({nowarn_function,'v_msg_grpc.testing.StreamingInputCallRequest'/3}).
+'v_msg_grpc.testing.StreamingInputCallRequest'(#{} = M,
+					       Path, TrUserData) ->
+    case M of
+      #{payload := F1} ->
+	  'v_msg_grpc.testing.Payload'(F1, [payload | Path],
+				       TrUserData);
+      _ -> ok
+    end,
+    case M of
+      #{expect_compressed := F2} ->
+	  'v_msg_grpc.testing.BoolValue'(F2,
+					 [expect_compressed | Path],
+					 TrUserData);
+      _ -> ok
+    end,
+    lists:foreach(fun (payload) -> ok;
+		      (expect_compressed) -> ok;
+		      (OtherKey) ->
+			  mk_type_error({extraneous_key, OtherKey}, M, Path)
+		  end,
+		  maps:keys(M)),
+    ok;
+'v_msg_grpc.testing.StreamingInputCallRequest'(M, Path,
+					       _TrUserData)
+    when is_map(M) ->
+    mk_type_error({missing_fields, [] -- maps:keys(M),
+		   'grpc.testing.StreamingInputCallRequest'},
+		  M, Path);
+'v_msg_grpc.testing.StreamingInputCallRequest'(X, Path,
+					       _TrUserData) ->
+    mk_type_error({expected_msg,
+		   'grpc.testing.StreamingInputCallRequest'},
+		  X, Path).
+
 -dialyzer({nowarn_function,'v_msg_grpc.testing.SimpleRequest'/3}).
 'v_msg_grpc.testing.SimpleRequest'(#{} = M, Path,
 				   TrUserData) ->
@@ -4686,71 +4751,6 @@ verify_msg(Msg, MsgName, Opts) ->
 		   'grpc.testing.SimpleRequest'},
 		  X, Path).
 
--dialyzer({nowarn_function,'v_msg_grpc.testing.SimpleResponse'/3}).
-'v_msg_grpc.testing.SimpleResponse'(#{} = M, Path,
-				    TrUserData) ->
-    case M of
-      #{payload := F1} ->
-	  'v_msg_grpc.testing.Payload'(F1, [payload | Path],
-				       TrUserData);
-      _ -> ok
-    end,
-    case M of
-      #{username := F2} ->
-	  v_type_string(F2, [username | Path]);
-      _ -> ok
-    end,
-    case M of
-      #{oauth_scope := F3} ->
-	  v_type_string(F3, [oauth_scope | Path]);
-      _ -> ok
-    end,
-    lists:foreach(fun (payload) -> ok;
-		      (username) -> ok;
-		      (oauth_scope) -> ok;
-		      (OtherKey) ->
-			  mk_type_error({extraneous_key, OtherKey}, M, Path)
-		  end,
-		  maps:keys(M)),
-    ok;
-'v_msg_grpc.testing.SimpleResponse'(M, Path,
-				    _TrUserData)
-    when is_map(M) ->
-    mk_type_error({missing_fields, [] -- maps:keys(M),
-		   'grpc.testing.SimpleResponse'},
-		  M, Path);
-'v_msg_grpc.testing.SimpleResponse'(X, Path,
-				    _TrUserData) ->
-    mk_type_error({expected_msg,
-		   'grpc.testing.SimpleResponse'},
-		  X, Path).
-
--dialyzer({nowarn_function,'v_msg_grpc.testing.StreamingInputCallResponse'/3}).
-'v_msg_grpc.testing.StreamingInputCallResponse'(#{} = M,
-						Path, _) ->
-    case M of
-      #{aggregated_payload_size := F1} ->
-	  v_type_int32(F1, [aggregated_payload_size | Path]);
-      _ -> ok
-    end,
-    lists:foreach(fun (aggregated_payload_size) -> ok;
-		      (OtherKey) ->
-			  mk_type_error({extraneous_key, OtherKey}, M, Path)
-		  end,
-		  maps:keys(M)),
-    ok;
-'v_msg_grpc.testing.StreamingInputCallResponse'(M, Path,
-						_TrUserData)
-    when is_map(M) ->
-    mk_type_error({missing_fields, [] -- maps:keys(M),
-		   'grpc.testing.StreamingInputCallResponse'},
-		  M, Path);
-'v_msg_grpc.testing.StreamingInputCallResponse'(X, Path,
-						_TrUserData) ->
-    mk_type_error({expected_msg,
-		   'grpc.testing.StreamingInputCallResponse'},
-		  X, Path).
-
 -dialyzer({nowarn_function,'v_msg_grpc.testing.ReconnectInfo'/3}).
 'v_msg_grpc.testing.ReconnectInfo'(#{} = M, Path, _) ->
     case M of
@@ -4787,32 +4787,6 @@ verify_msg(Msg, MsgName, Opts) ->
 		   'grpc.testing.ReconnectInfo'},
 		  X, Path).
 
--dialyzer({nowarn_function,'v_msg_grpc.testing.ReconnectParams'/3}).
-'v_msg_grpc.testing.ReconnectParams'(#{} = M, Path,
-				     _) ->
-    case M of
-      #{max_reconnect_backoff_ms := F1} ->
-	  v_type_int32(F1, [max_reconnect_backoff_ms | Path]);
-      _ -> ok
-    end,
-    lists:foreach(fun (max_reconnect_backoff_ms) -> ok;
-		      (OtherKey) ->
-			  mk_type_error({extraneous_key, OtherKey}, M, Path)
-		  end,
-		  maps:keys(M)),
-    ok;
-'v_msg_grpc.testing.ReconnectParams'(M, Path,
-				     _TrUserData)
-    when is_map(M) ->
-    mk_type_error({missing_fields, [] -- maps:keys(M),
-		   'grpc.testing.ReconnectParams'},
-		  M, Path);
-'v_msg_grpc.testing.ReconnectParams'(X, Path,
-				     _TrUserData) ->
-    mk_type_error({expected_msg,
-		   'grpc.testing.ReconnectParams'},
-		  X, Path).
-
 -dialyzer({nowarn_function,'v_msg_grpc.testing.StreamingOutputCallResponse'/3}).
 'v_msg_grpc.testing.StreamingOutputCallResponse'(#{} =
 						     M,
@@ -4839,6 +4813,32 @@ verify_msg(Msg, MsgName, Opts) ->
 						 Path, _TrUserData) ->
     mk_type_error({expected_msg,
 		   'grpc.testing.StreamingOutputCallResponse'},
+		  X, Path).
+
+-dialyzer({nowarn_function,'v_msg_grpc.testing.ReconnectParams'/3}).
+'v_msg_grpc.testing.ReconnectParams'(#{} = M, Path,
+				     _) ->
+    case M of
+      #{max_reconnect_backoff_ms := F1} ->
+	  v_type_int32(F1, [max_reconnect_backoff_ms | Path]);
+      _ -> ok
+    end,
+    lists:foreach(fun (max_reconnect_backoff_ms) -> ok;
+		      (OtherKey) ->
+			  mk_type_error({extraneous_key, OtherKey}, M, Path)
+		  end,
+		  maps:keys(M)),
+    ok;
+'v_msg_grpc.testing.ReconnectParams'(M, Path,
+				     _TrUserData)
+    when is_map(M) ->
+    mk_type_error({missing_fields, [] -- maps:keys(M),
+		   'grpc.testing.ReconnectParams'},
+		  M, Path);
+'v_msg_grpc.testing.ReconnectParams'(X, Path,
+				     _TrUserData) ->
+    mk_type_error({expected_msg,
+		   'grpc.testing.ReconnectParams'},
 		  X, Path).
 
 -dialyzer({nowarn_function,'v_msg_grpc.testing.Empty'/3}).
@@ -4946,8 +4946,10 @@ cons(Elem, Acc, _TrUserData) -> [Elem | Acc].
 get_msg_defs() ->
     [{{enum, 'grpc.testing.PayloadType'},
       [{'COMPRESSABLE', 0}]},
-     {{msg, 'grpc.testing.BoolValue'},
-      [#{name => value, fnum => 1, rnum => 2, type => bool,
+     {{msg, 'grpc.testing.EchoStatus'},
+      [#{name => code, fnum => 1, rnum => 2, type => int32,
+	 occurrence => optional, opts => []},
+       #{name => message, fnum => 2, rnum => 3, type => string,
 	 occurrence => optional, opts => []}]},
      {{msg, 'grpc.testing.Payload'},
       [#{name => type, fnum => 1, rnum => 2,
@@ -4955,17 +4957,8 @@ get_msg_defs() ->
 	 occurrence => optional, opts => []},
        #{name => body, fnum => 2, rnum => 3, type => bytes,
 	 occurrence => optional, opts => []}]},
-     {{msg, 'grpc.testing.StreamingInputCallRequest'},
-      [#{name => payload, fnum => 1, rnum => 2,
-	 type => {msg, 'grpc.testing.Payload'},
-	 occurrence => optional, opts => []},
-       #{name => expect_compressed, fnum => 2, rnum => 3,
-	 type => {msg, 'grpc.testing.BoolValue'},
-	 occurrence => optional, opts => []}]},
-     {{msg, 'grpc.testing.EchoStatus'},
-      [#{name => code, fnum => 1, rnum => 2, type => int32,
-	 occurrence => optional, opts => []},
-       #{name => message, fnum => 2, rnum => 3, type => string,
+     {{msg, 'grpc.testing.BoolValue'},
+      [#{name => value, fnum => 1, rnum => 2, type => bool,
 	 occurrence => optional, opts => []}]},
      {{msg, 'grpc.testing.ResponseParameters'},
       [#{name => size, fnum => 1, rnum => 2, type => int32,
@@ -4987,6 +4980,25 @@ get_msg_defs() ->
 	 occurrence => optional, opts => []},
        #{name => response_status, fnum => 7, rnum => 5,
 	 type => {msg, 'grpc.testing.EchoStatus'},
+	 occurrence => optional, opts => []}]},
+     {{msg, 'grpc.testing.StreamingInputCallResponse'},
+      [#{name => aggregated_payload_size, fnum => 1,
+	 rnum => 2, type => int32, occurrence => optional,
+	 opts => []}]},
+     {{msg, 'grpc.testing.SimpleResponse'},
+      [#{name => payload, fnum => 1, rnum => 2,
+	 type => {msg, 'grpc.testing.Payload'},
+	 occurrence => optional, opts => []},
+       #{name => username, fnum => 2, rnum => 3,
+	 type => string, occurrence => optional, opts => []},
+       #{name => oauth_scope, fnum => 3, rnum => 4,
+	 type => string, occurrence => optional, opts => []}]},
+     {{msg, 'grpc.testing.StreamingInputCallRequest'},
+      [#{name => payload, fnum => 1, rnum => 2,
+	 type => {msg, 'grpc.testing.Payload'},
+	 occurrence => optional, opts => []},
+       #{name => expect_compressed, fnum => 2, rnum => 3,
+	 type => {msg, 'grpc.testing.BoolValue'},
 	 occurrence => optional, opts => []}]},
      {{msg, 'grpc.testing.SimpleRequest'},
       [#{name => response_type, fnum => 1, rnum => 2,
@@ -5010,66 +5022,52 @@ get_msg_defs() ->
        #{name => expect_compressed, fnum => 8, rnum => 9,
 	 type => {msg, 'grpc.testing.BoolValue'},
 	 occurrence => optional, opts => []}]},
-     {{msg, 'grpc.testing.SimpleResponse'},
-      [#{name => payload, fnum => 1, rnum => 2,
-	 type => {msg, 'grpc.testing.Payload'},
-	 occurrence => optional, opts => []},
-       #{name => username, fnum => 2, rnum => 3,
-	 type => string, occurrence => optional, opts => []},
-       #{name => oauth_scope, fnum => 3, rnum => 4,
-	 type => string, occurrence => optional, opts => []}]},
-     {{msg, 'grpc.testing.StreamingInputCallResponse'},
-      [#{name => aggregated_payload_size, fnum => 1,
-	 rnum => 2, type => int32, occurrence => optional,
-	 opts => []}]},
      {{msg, 'grpc.testing.ReconnectInfo'},
       [#{name => passed, fnum => 1, rnum => 2, type => bool,
 	 occurrence => optional, opts => []},
        #{name => backoff_ms, fnum => 2, rnum => 3,
 	 type => int32, occurrence => repeated,
 	 opts => [packed]}]},
-     {{msg, 'grpc.testing.ReconnectParams'},
-      [#{name => max_reconnect_backoff_ms, fnum => 1,
-	 rnum => 2, type => int32, occurrence => optional,
-	 opts => []}]},
      {{msg, 'grpc.testing.StreamingOutputCallResponse'},
       [#{name => payload, fnum => 1, rnum => 2,
 	 type => {msg, 'grpc.testing.Payload'},
 	 occurrence => optional, opts => []}]},
+     {{msg, 'grpc.testing.ReconnectParams'},
+      [#{name => max_reconnect_backoff_ms, fnum => 1,
+	 rnum => 2, type => int32, occurrence => optional,
+	 opts => []}]},
      {{msg, 'grpc.testing.Empty'}, []}].
 
 
 get_msg_names() ->
-    ['grpc.testing.BoolValue', 'grpc.testing.Payload',
-     'grpc.testing.StreamingInputCallRequest',
-     'grpc.testing.EchoStatus',
+    ['grpc.testing.EchoStatus', 'grpc.testing.Payload',
+     'grpc.testing.BoolValue',
      'grpc.testing.ResponseParameters',
      'grpc.testing.StreamingOutputCallRequest',
-     'grpc.testing.SimpleRequest',
-     'grpc.testing.SimpleResponse',
      'grpc.testing.StreamingInputCallResponse',
+     'grpc.testing.SimpleResponse',
+     'grpc.testing.StreamingInputCallRequest',
+     'grpc.testing.SimpleRequest',
      'grpc.testing.ReconnectInfo',
-     'grpc.testing.ReconnectParams',
      'grpc.testing.StreamingOutputCallResponse',
-     'grpc.testing.Empty'].
+     'grpc.testing.ReconnectParams', 'grpc.testing.Empty'].
 
 
 get_group_names() -> [].
 
 
 get_msg_or_group_names() ->
-    ['grpc.testing.BoolValue', 'grpc.testing.Payload',
-     'grpc.testing.StreamingInputCallRequest',
-     'grpc.testing.EchoStatus',
+    ['grpc.testing.EchoStatus', 'grpc.testing.Payload',
+     'grpc.testing.BoolValue',
      'grpc.testing.ResponseParameters',
      'grpc.testing.StreamingOutputCallRequest',
-     'grpc.testing.SimpleRequest',
-     'grpc.testing.SimpleResponse',
      'grpc.testing.StreamingInputCallResponse',
+     'grpc.testing.SimpleResponse',
+     'grpc.testing.StreamingInputCallRequest',
+     'grpc.testing.SimpleRequest',
      'grpc.testing.ReconnectInfo',
-     'grpc.testing.ReconnectParams',
      'grpc.testing.StreamingOutputCallResponse',
-     'grpc.testing.Empty'].
+     'grpc.testing.ReconnectParams', 'grpc.testing.Empty'].
 
 
 get_enum_names() -> ['grpc.testing.PayloadType'].
@@ -5089,8 +5087,10 @@ fetch_enum_def(EnumName) ->
     end.
 
 
-find_msg_def('grpc.testing.BoolValue') ->
-    [#{name => value, fnum => 1, rnum => 2, type => bool,
+find_msg_def('grpc.testing.EchoStatus') ->
+    [#{name => code, fnum => 1, rnum => 2, type => int32,
+       occurrence => optional, opts => []},
+     #{name => message, fnum => 2, rnum => 3, type => string,
        occurrence => optional, opts => []}];
 find_msg_def('grpc.testing.Payload') ->
     [#{name => type, fnum => 1, rnum => 2,
@@ -5098,17 +5098,8 @@ find_msg_def('grpc.testing.Payload') ->
        occurrence => optional, opts => []},
      #{name => body, fnum => 2, rnum => 3, type => bytes,
        occurrence => optional, opts => []}];
-find_msg_def('grpc.testing.StreamingInputCallRequest') ->
-    [#{name => payload, fnum => 1, rnum => 2,
-       type => {msg, 'grpc.testing.Payload'},
-       occurrence => optional, opts => []},
-     #{name => expect_compressed, fnum => 2, rnum => 3,
-       type => {msg, 'grpc.testing.BoolValue'},
-       occurrence => optional, opts => []}];
-find_msg_def('grpc.testing.EchoStatus') ->
-    [#{name => code, fnum => 1, rnum => 2, type => int32,
-       occurrence => optional, opts => []},
-     #{name => message, fnum => 2, rnum => 3, type => string,
+find_msg_def('grpc.testing.BoolValue') ->
+    [#{name => value, fnum => 1, rnum => 2, type => bool,
        occurrence => optional, opts => []}];
 find_msg_def('grpc.testing.ResponseParameters') ->
     [#{name => size, fnum => 1, rnum => 2, type => int32,
@@ -5130,6 +5121,25 @@ find_msg_def('grpc.testing.StreamingOutputCallRequest') ->
        occurrence => optional, opts => []},
      #{name => response_status, fnum => 7, rnum => 5,
        type => {msg, 'grpc.testing.EchoStatus'},
+       occurrence => optional, opts => []}];
+find_msg_def('grpc.testing.StreamingInputCallResponse') ->
+    [#{name => aggregated_payload_size, fnum => 1,
+       rnum => 2, type => int32, occurrence => optional,
+       opts => []}];
+find_msg_def('grpc.testing.SimpleResponse') ->
+    [#{name => payload, fnum => 1, rnum => 2,
+       type => {msg, 'grpc.testing.Payload'},
+       occurrence => optional, opts => []},
+     #{name => username, fnum => 2, rnum => 3,
+       type => string, occurrence => optional, opts => []},
+     #{name => oauth_scope, fnum => 3, rnum => 4,
+       type => string, occurrence => optional, opts => []}];
+find_msg_def('grpc.testing.StreamingInputCallRequest') ->
+    [#{name => payload, fnum => 1, rnum => 2,
+       type => {msg, 'grpc.testing.Payload'},
+       occurrence => optional, opts => []},
+     #{name => expect_compressed, fnum => 2, rnum => 3,
+       type => {msg, 'grpc.testing.BoolValue'},
        occurrence => optional, opts => []}];
 find_msg_def('grpc.testing.SimpleRequest') ->
     [#{name => response_type, fnum => 1, rnum => 2,
@@ -5153,32 +5163,20 @@ find_msg_def('grpc.testing.SimpleRequest') ->
      #{name => expect_compressed, fnum => 8, rnum => 9,
        type => {msg, 'grpc.testing.BoolValue'},
        occurrence => optional, opts => []}];
-find_msg_def('grpc.testing.SimpleResponse') ->
-    [#{name => payload, fnum => 1, rnum => 2,
-       type => {msg, 'grpc.testing.Payload'},
-       occurrence => optional, opts => []},
-     #{name => username, fnum => 2, rnum => 3,
-       type => string, occurrence => optional, opts => []},
-     #{name => oauth_scope, fnum => 3, rnum => 4,
-       type => string, occurrence => optional, opts => []}];
-find_msg_def('grpc.testing.StreamingInputCallResponse') ->
-    [#{name => aggregated_payload_size, fnum => 1,
-       rnum => 2, type => int32, occurrence => optional,
-       opts => []}];
 find_msg_def('grpc.testing.ReconnectInfo') ->
     [#{name => passed, fnum => 1, rnum => 2, type => bool,
        occurrence => optional, opts => []},
      #{name => backoff_ms, fnum => 2, rnum => 3,
        type => int32, occurrence => repeated,
        opts => [packed]}];
-find_msg_def('grpc.testing.ReconnectParams') ->
-    [#{name => max_reconnect_backoff_ms, fnum => 1,
-       rnum => 2, type => int32, occurrence => optional,
-       opts => []}];
 find_msg_def('grpc.testing.StreamingOutputCallResponse') ->
     [#{name => payload, fnum => 1, rnum => 2,
        type => {msg, 'grpc.testing.Payload'},
        occurrence => optional, opts => []}];
+find_msg_def('grpc.testing.ReconnectParams') ->
+    [#{name => max_reconnect_backoff_ms, fnum => 1,
+       rnum => 2, type => int32, occurrence => optional,
+       opts => []}];
 find_msg_def('grpc.testing.Empty') -> [];
 find_msg_def(_) -> error.
 

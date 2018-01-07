@@ -147,6 +147,32 @@ route_chat(Ref, Data, GrpcStream) ->
     end.
 ```
 
+#### Interceptors
+
+##### Unary Interceptor
+
+A unary interceptor can be any function that accepts a context, decoded request body, server info map and the method function:
+
+```erlang
+some_unary_interceptor(Ctx, Request, ServerInfo, Fun) ->
+    %% do some interception stuff
+    Fun(Ctx, Request).
+```
+
+The interceptor is configured in the `grpc_opts` set in the environment or passed to the supervisor `start_child` function. An example from the test suite sets `grpc_opts` in the application environment:
+
+```erlang
+#{service_protos => [route_guide_pb],
+  unary_interceptor => fun(Ctx, Req, _, Method) ->
+                         Method(Ctx, #{latitude => 30,
+                                       longitude => 90})
+                       end}
+```
+
+##### Streaming Interceptor
+
+##### Middleware
+
 #### Metadata
 
 Metadata is sent in headers and trailers.
