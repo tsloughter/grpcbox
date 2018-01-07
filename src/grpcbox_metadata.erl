@@ -45,10 +45,10 @@ pairs(List) ->
 -spec join([t()]) -> t().
 join(Metadatas) ->
     lists:foldl(fun(Map, Acc) ->
-                    map:foldl(fun({Key, Value}, Acc1) ->
+                    maps:fold(fun(Key, Value, Acc1) ->
                                   update(Key, Value, Acc1)
                               end, Acc, Map)
-                end, Metadatas).
+                end, #{}, Metadatas).
 
 -spec from_incoming_ctx(ctx:t()) -> t().
 from_incoming_ctx(Ctx) ->

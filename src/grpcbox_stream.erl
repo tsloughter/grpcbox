@@ -35,12 +35,12 @@
                 ctx                :: ctx:ctx(),
                 req_headers=[]     :: list(),
                 full_method        :: binary() | undefined,
-                input_ref          :: reference(),
-                callback_pid       :: pid(),
+                input_ref          :: reference() | undefined,
+                callback_pid       :: pid() | undefined,
                 connection_pid     :: pid(),
                 request_encoding   :: gzip | undefined,
                 response_encoding  :: gzip | undefined,
-                content_type       :: proto | json,
+                content_type       :: proto | json | undefined,
                 resp_headers=[]    :: list(),
                 resp_trailers=[]   :: list(),
                 headers_sent=false :: boolean(),
@@ -48,7 +48,7 @@
                 unary_interceptor  :: fun() | undefined,
                 stream_interceptor :: fun() | undefined,
                 stream_id          :: stream_id(),
-                method             :: #method{}}).
+                method             :: #method{} | undefined}).
 
 -opaque t() :: #state{}.
 
@@ -392,7 +392,7 @@ split_frame(<<0, Length:32, Encoded:Length/binary, Rest/binary>>, Encoding, Acc)
     split_frame(Rest, Encoding, [Encoded | Acc]);
 split_frame(<<1, Length:32, Compressed:Length/binary, Rest/binary>>, Encoding, Acc) ->
     Encoded = case Encoding of
-                  <<"gzip">> ->
+                  gzip ->
                       try zlib:gunzip(Compressed)
                       catch
                           error:data_error ->
@@ -433,7 +433,6 @@ timeout_to_duration(T, <<"u">>) ->
     erlang:convert_time_unit(T, microsecond, nanosecond);
 timeout_to_duration(T, <<"n">>) ->
     timer:seconds(T).
-
 
 parse_options(<<"grpc-timeout">>, Headers) ->
     case proplists:get_value(<<"grpc-timeout">>, Headers, infinity) of

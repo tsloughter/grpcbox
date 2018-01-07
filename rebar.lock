@@ -4,7 +4,7 @@
   {git,"https://github.com/tsloughter/chatterbox.git",
        {ref,"cf8447475877bfd87ea0a6c48108b06366bf1a3c"}},
   0},
- {<<"ctx">>,{pkg,<<"ctx">>,<<"0.2.0">>},0},
+ {<<"ctx">>,{pkg,<<"ctx">>,<<"0.3.0">>},0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},2},
  {<<"gpb">>,{pkg,<<"gpb">>,<<"4.0.2">>},0},
  {<<"grpc_lib">>,{pkg,<<"grpc_lib">>,<<"0.1.0">>},0},
@@ -13,7 +13,7 @@
 [
 {pkg_hash,[
  {<<"acceptor_pool">>, <<"679D741DF87FC13599B1AEF2DF8F78F1F880449A6BEFAB7C44FB6FAE0E92A2DE">>},
- {<<"ctx">>, <<"52D927742961E915E48CF504BE1A72ACC1097F8A07DFB3FA64EADFE230BFBDEF">>},
+ {<<"ctx">>, <<"99E686176F4919371D2652094FB9B301BC1B73D905CBE11F120A899A20A4B83F">>},
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
  {<<"gpb">>, <<"43CF080145BC5A8DFD4BB53FA3FD638469E0B3F0ADC1D283B26D7D934FC67267">>},
  {<<"grpc_lib">>, <<"8BA1C69A59B948D1AF18473EF7A201F92B8851FB96126200AB32CE8D70A9A45B">>},
