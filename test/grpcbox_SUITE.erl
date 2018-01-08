@@ -18,11 +18,12 @@ init_per_suite(Config) ->
 
     Proto = filename:join(DataDir, "route_guide.proto"),
     {ok, Mod, Code} = gpb_compile:file(Proto, [binary,
+                                               {rename,{msg_name,snake_case}},
+                                               {rename,{msg_fqname,base_name}},
+                                               use_packages, maps, type_specs,
+                                               strings_as_binaries,
                                                {i, DataDir},
-                                               {strings_as_binaries, true},
-                                               {module_name_suffix, "_pb"},
-                                               use_packages,
-                                               maps]),
+                                               {module_name_suffix, "_pb"}]),
     code:load_binary(Mod, Proto, Code),
     grpc_client:compile(Proto, [{strings_as_binaries, true}]),
     Config.

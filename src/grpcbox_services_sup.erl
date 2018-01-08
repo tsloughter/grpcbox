@@ -80,6 +80,9 @@ get_authfun(true, Options) ->
 get_authfun(_, _) ->
     undefined.
 
+%% grpc requests are of the form `<pkg>.<Service>/<Method>` in camelcase. For this reason we
+%% have gpb keep the service definitions in their original form and convert to snake case here
+%% to know what module:function to call for each.
 load_services([]) ->
     ok;
 load_services([ServicePbModule | Rest]) ->
@@ -103,6 +106,7 @@ load_services([ServicePbModule | Rest]) ->
                                                                 output={Output, OutputStream},
                                                                 opts=Opts});
                           false ->
+                              %% TODO: error? log? insert into ets as unimplemented?
                               unimplemented_method
                       end
                   end || #{name := Name,
@@ -113,6 +117,7 @@ load_services([ServicePbModule | Rest]) ->
                            opts := Opts} <- Methods]
          catch
              _:_ ->
+                 %% TODO: error? log? insert into ets as unimplemented?
                  unimplemented_service
          end
      end || ServiceName <- ServiceNames],

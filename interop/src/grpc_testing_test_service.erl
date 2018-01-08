@@ -16,13 +16,13 @@
 -define(INITIAL_METADATA_VALUE, <<"test_initial_metadata_value">>).
 -define(TRAILING_METADATA_VALUE, <<"\x0a\x0b\x0a\x0b\x0a\x0b">>).
 
--spec empty_call(ctx:ctx(), test_pb:'grpc.testing.Empty'()) ->
-                        {ok, test_pb:'grpc.testing.Empty'()} | grpcbox_stream:grpc_error_response().
+-spec empty_call(ctx:ctx(), test_pb:empty()) ->
+                        {ok, test_pb:empty()} | grpcbox_stream:grpc_error_response().
 empty_call(Ctx, _Empty) ->
     {ok, #{}, Ctx}.
 
--spec unary_call(ctx:ctx(), test_pb:'grpc.testing.SimpleRequest'()) ->
-                        {ok, test_pb:'grpc.testing.SimpleResponse'()} | grpcbox_stream:grpc_error_response().
+-spec unary_call(ctx:ctx(), test_pb:simple_request()) ->
+                        {ok, test_pb:simple_response()} | grpcbox_stream:grpc_error_response().
 unary_call(Ctx, Request=#{response_size := Size}) ->
     case maps:get(response_status, Request, #{}) of
         #{code := Code,
@@ -46,12 +46,12 @@ unary_call(Ctx, Request=#{response_size := Size}) ->
                   }, Ctx1}
     end.
 
--spec cacheable_unary_call(ctx:ctx(), test_pb:'grpc.testing.SimpleRequest'()) ->
-    {ok, test_pb:'grpc.testing.SimpleResponse'()} | grpcbox_stream:grpc_error_response().
+-spec cacheable_unary_call(ctx:ctx(), test_pb:simple_request()) ->
+    {ok, test_pb:simple_response()} | grpcbox_stream:grpc_error_response().
 cacheable_unary_call(Ctx, _SimpleRequest) ->
     {ok, #{}, Ctx}.
 
--spec streaming_output_call(test_pb:'grpc.testing.StreamingOutputCallRequest'(), grpcbox_stream:t()) ->
+-spec streaming_output_call(test_pb:streaming_output_call_request(), grpcbox_stream:t()) ->
                                    ok | grpcbox_stream:grpc_error_response().
 streaming_output_call(#{response_type := ResponseType,
                         response_parameters := ResponseParameters,
@@ -69,7 +69,7 @@ streaming_output_call(#{response_type := ResponseType,
     ok.
 
 -spec streaming_input_call(reference(), grpcbox_stream:t()) ->
-                                  {ok, test_pb:'grpc.testing.StreamingInputCallResponse'()} |
+                                  {ok, test_pb:streaming_input_call_response()} |
                                   grpcbox_stream:grpc_error_response().
 streaming_input_call(Ref, GrpcStream) ->
     streaming_input_call(Ref, #{aggregated_payload_size => 0}, GrpcStream).
