@@ -4,7 +4,7 @@
  {<<"ctx">>,{pkg,<<"ctx">>,<<"0.3.0">>},0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},2},
  {<<"gpb">>,{pkg,<<"gpb">>,<<"4.1.1">>},0},
- {<<"grpc_lib">>,{pkg,<<"grpc_lib">>,<<"0.1.0">>},0},
+ {<<"grpc_lib">>,{pkg,<<"grpc_lib">>,<<"0.1.2">>},0},
  {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.2.3">>},1},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.2.4">>},1}]}.
 [
@@ -14,7 +14,7 @@
  {<<"ctx">>, <<"99E686176F4919371D2652094FB9B301BC1B73D905CBE11F120A899A20A4B83F">>},
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
  {<<"gpb">>, <<"98C5879E45F974150B4C64EBF630401CBB813D5E1F5E6649FA51A901D36FAB87">>},
- {<<"grpc_lib">>, <<"8BA1C69A59B948D1AF18473EF7A201F92B8851FB96126200AB32CE8D70A9A45B">>},
+ {<<"grpc_lib">>, <<"F5CBF5F836AA26AB347783FCC4C0A4A3D27D95311E56AAFEC956691BE1570D2E">>},
  {<<"hpack">>, <<"17670F83FF984AE6CD74B1C456EDDE906D27FF013740EE4D9EFAA4F1BF999633">>},
  {<<"lager">>, <<"A6DEB74DAE7927F46BD13255268308EF03EB206EC784A94EAF7C1C0F3B811615">>}]}
 ].
