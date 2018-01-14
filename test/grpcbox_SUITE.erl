@@ -5,12 +5,14 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-include_lib("opencensus/include/opencensus.hrl").
+
 groups() ->
     [{ssl, [], [unary_authenticated]},
      {tcp, [], [unary_no_auth, multiple_servers]}].
 
 all() ->
-    [{group, ssl}, {group, tcp}, unary_interceptor, chain_interceptor].
+    [{group, ssl}, {group, tcp}, unary_interceptor, chain_interceptor, trace_interceptor].
 
 init_per_suite(Config) ->
     DataDir = ?config(data_dir, Config),
@@ -76,6 +78,16 @@ init_per_testcase(chain_interceptor, Config) ->
     application:ensure_all_started(grpcbox),
     ?assertMatch({ok, _}, grpcbox_sup:start_child()),
     Config;
+init_per_testcase(trace_interceptor, Config) ->
+    application:ensure_all_started(opencensus),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
+                                              unary_interceptor =>
+                                                  grpcbox_chain_interceptor:unary([fun grpcbox_trace:unary/4,
+                                                                                   fun ?MODULE:trace_to_trailer/4])}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    Config;
 init_per_testcase(_, Config) ->
     Config.
 
@@ -85,6 +97,12 @@ end_per_testcase(unary_interceptor, _Config) ->
     application:stop(grpcbox),
     ok;
 end_per_testcase(chain_interceptor, _Config) ->
+    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
+                                                   port => 8080})),
+    application:stop(grpcbox),
+    ok;
+end_per_testcase(trace_interceptor, _Config) ->
+    application:stop(opencensus),
     ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
                                                    port => 8080})),
     application:stop(grpcbox),
@@ -140,6 +158,19 @@ chain_interceptor(_Config) ->
                    <<"x-grpc-interceptor-three">> := <<"three">>,
                    <<"x-grpc-interceptor-two">> := <<"two">>}, Trailers).
 
+trace_interceptor(_Config) ->
+    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
+
+    %% our test interceptor replaces the point with lat 30 and long 90
+    Point = #{latitude => 409146138, longitude => -746188906},
+    Span = opencensus:start_span(<<"grpc-client-call">>, opencensus:start_trace()),
+    {ok, Context} = oc_trace_context_binary:encode(opencensus:context(Span)),
+    Metadata = #{<<"grpc-trace-bin">> => Context},
+    {ok, #{trailers := Trailers}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature',
+                                                      route_guide, [{metadata, Metadata}]),
+    BinTraceId = integer_to_binary(Span#span.trace_id),
+    ?assertMatch(#{<<"x-grpc-trace-id">> := BinTraceId}, Trailers).
+
 cert_dir(Config) ->
     DataDir = ?config(data_dir, Config),
     filename:join(DataDir, "certificates").
@@ -150,19 +181,23 @@ cert(Config, FileName) ->
     R.
 
 one(Ctx, Message, _ServerInfo, Handler) ->
-    ct:pal("interceptor one~n"),
     Trailer = grpcbox_metadata:pairs([{<<"x-grpc-interceptor-one">>, <<"one">>}]),
     Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
     Handler(Ctx1, Message).
 
 two(Ctx, Message, _ServerInfo, Handler) ->
-    ct:pal("interceptor two~n"),
     Trailer = grpcbox_metadata:pairs([{<<"x-grpc-interceptor-two">>, <<"two">>}]),
     Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
     Handler(Ctx1, Message).
 
 three(Ctx, Message, _ServerInfo, Handler) ->
-    ct:pal("interceptor three~n"),
     Trailer = grpcbox_metadata:pairs([{<<"x-grpc-interceptor-three">>, <<"three">>}]),
+    Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
+    Handler(Ctx1, Message).
+
+trace_to_trailer(Ctx, Message, _ServerInfo, Handler) ->
+    Span = ctx:get(Ctx, active_span),
+    BinTraceId = integer_to_binary(Span#span.trace_id),
+    Trailer = grpcbox_metadata:pairs([{<<"x-grpc-trace-id">>, BinTraceId}]),
     Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
     Handler(Ctx1, Message).

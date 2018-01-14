@@ -180,8 +180,31 @@ There is a provided interceptor `grpcbox_chain_interceptor` which accepts a list
   unary_interceptor =>
     grpcbox_chain_interceptor:unary([fun ?MODULE:one/4,
                                      fun ?MODULE:two/4,
-                                     fun ?MODULE:three/4])})
+                                     fun ?MODULE:three/4])}
 ```
+
+#### Tracing and Statistics
+
+The provided interceptor `grpcbox_trace` supports the [OpenCensus](http://opencensus.io/) wire protocol using [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erlang). It will use the `trace_id`, `span_id` and any options or tags from the trace context.
+
+Configure as an interceptor:
+
+```erlang
+#{service_protos => [route_guide_pb],
+  unary_interceptor => {grpcbox_trace, unary}}
+```
+
+Or as a middleware in the chain interceptor:
+
+```erlang
+#{service_protos => [route_guide_pb],
+  unary_interceptor =>
+    grpcbox_chain_interceptor:unary([..., 
+                                     fun grpcbox_trace:unary/4, 
+                                     ...])}
+```
+
+See [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erlang) for details on configuring reporters.
 
 #### Metadata
 
