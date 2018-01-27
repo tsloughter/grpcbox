@@ -66,7 +66,7 @@ rpc ListFeatures(Rectangle) returns (stream Feature) {}
 In this case the callback still receives a map argument but also a `grpcbox_stream` argument:
 
 ```erlang
--callback list_features(route_guide_pb:'grpcbox.Rectangle'(), grpcbox_stream:t()) ->
+-callback list_features(route_guide_pb:rectangle(), grpcbox_stream:t()) ->
     ok | {error, term()}.
 ```
 
@@ -95,10 +95,10 @@ In this case the callback receives a `reference()` instead of a direct value fro
 
 ```erlang
 -callback record_route(reference(), grpcbox_stream:t()) ->
-    {ok, route_guide_pb:'grpcbox.RouteSummary'()} | {error, term()}.
+    {ok, route_guide_pb:route_summary()} | {error, term()}.
 ```
 
-The process the callback is running in will receive the individual messages on the stream as tuples `{reference(), route_guide_pb:'grpcbox.Point'()}`. The end of the stream is sent as the message `{reference(), eos}` at which point the function can return the response:
+The process the callback is running in will receive the individual messages on the stream as tuples `{reference(), route_guide_pb:point()}`. The end of the stream is sent as the message `{reference(), eos}` at which point the function can return the response:
 
 ```erlang
 record_route(Ref, GrpcStream) ->
