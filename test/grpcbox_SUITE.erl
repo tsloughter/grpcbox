@@ -12,7 +12,9 @@ groups() ->
      {tcp, [], [unary_no_auth, multiple_servers]}].
 
 all() ->
-    [{group, ssl}, {group, tcp}, unary_interceptor, chain_interceptor, trace_interceptor].
+    [{group, ssl}, {group, tcp},
+     unary_interceptor, chain_interceptor, trace_interceptor,
+     stream_interceptor].
 
 init_per_suite(Config) ->
     DataDir = ?config(data_dir, Config),
@@ -88,6 +90,19 @@ init_per_testcase(trace_interceptor, Config) ->
     application:ensure_all_started(grpcbox),
     ?assertMatch({ok, _}, grpcbox_sup:start_child()),
     Config;
+init_per_testcase(stream_interceptor, Config) ->
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
+                                              stream_interceptor =>
+                                                  fun(Ref, Stream, _ServerInfo, Handler) ->
+                                                          grpcbox_stream:add_trailers([{<<"x-grpc-stream-interceptor">>,
+                                                                                        <<"true">>}],
+                                                                                  Stream),
+                                                      Handler(Ref, Stream)
+                                                  end}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    Config;
 init_per_testcase(_, Config) ->
     Config.
 
@@ -150,18 +165,16 @@ unary_interceptor(_Config) ->
 
 chain_interceptor(_Config) ->
     {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
-
-    %% our test interceptor replaces the point with lat 30 and long 90
     Point = #{latitude => 409146138, longitude => -746188906},
     {ok, #{trailers := Trailers}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
     ?assertMatch(#{<<"x-grpc-interceptor-one">> := <<"one">>,
                    <<"x-grpc-interceptor-three">> := <<"three">>,
                    <<"x-grpc-interceptor-two">> := <<"two">>}, Trailers).
 
+%% include a trace context and test that it works by having a second interceptor add
+%% the trace id from the context as a response trailer.
 trace_interceptor(_Config) ->
     {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
-
-    %% our test interceptor replaces the point with lat 30 and long 90
     Point = #{latitude => 409146138, longitude => -746188906},
     Span = opencensus:start_span(<<"grpc-client-call">>, opencensus:start_trace()),
     {ok, Context} = oc_trace_context_binary:encode(opencensus:context(Span)),
@@ -170,6 +183,18 @@ trace_interceptor(_Config) ->
                                                       route_guide, [{metadata, Metadata}]),
     BinTraceId = integer_to_binary(Span#span.trace_id),
     ?assertMatch(#{<<"x-grpc-trace-id">> := BinTraceId}, Trailers).
+
+stream_interceptor(_Config) ->
+    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
+    {ok, Stream} = grpc_client:new_stream(Connection, 'RouteGuide', 'ListFeatures', route_guide),
+    grpc_client:send_last(Stream, #{hi => #{latitude => 1, longitude => 2},
+                               lo => #{latitude => 3, longitude => 5}}),
+    ?assertMatch({headers, #{<<":status">> := <<"200">>}}, grpc_client:rcv(Stream)),
+    ?assertMatch({data, #{name := <<"Tour Eiffel">>}}, grpc_client:rcv(Stream)),
+    ?assertMatch({data, #{name := <<"Louvre">>}}, grpc_client:rcv(Stream)),
+    ?assertMatch({headers, #{<<"x-grpc-stream-interceptor">> := <<"true">>}}, grpc_client:rcv(Stream)).
+
+%%
 
 cert_dir(Config) ->
     DataDir = ?config(data_dir, Config),

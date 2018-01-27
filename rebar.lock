@@ -1,19 +1,21 @@
 {"1.1.0",
 [{<<"acceptor_pool">>,{pkg,<<"acceptor_pool">>,<<"1.0.0-rc.0">>},0},
- {<<"chatterbox">>,{pkg,<<"ts_chatterbox">>,<<"0.6.2">>},0},
+ {<<"chatterbox">>,
+  {git,"https://github.com/tsloughter/chatterbox.git",
+       {ref,"f0ff71ab9a723c5d3c22d0c806c2b70509ba188c"}},
+  0},
  {<<"ctx">>,{pkg,<<"ctx">>,<<"0.3.0">>},0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},2},
- {<<"gpb">>,{pkg,<<"gpb">>,<<"4.1.1">>},0},
+ {<<"gpb">>,{pkg,<<"gpb">>,<<"4.1.2">>},0},
  {<<"grpc_lib">>,{pkg,<<"grpc_lib">>,<<"0.1.2">>},0},
  {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.2.3">>},1},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.2.4">>},1}]}.
 [
 {pkg_hash,[
  {<<"acceptor_pool">>, <<"679D741DF87FC13599B1AEF2DF8F78F1F880449A6BEFAB7C44FB6FAE0E92A2DE">>},
- {<<"chatterbox">>, <<"4392404EA66B7B05FF4775E87FCDC68000513B4D084E20B32BB8CE4C7E06D75B">>},
  {<<"ctx">>, <<"99E686176F4919371D2652094FB9B301BC1B73D905CBE11F120A899A20A4B83F">>},
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
- {<<"gpb">>, <<"98C5879E45F974150B4C64EBF630401CBB813D5E1F5E6649FA51A901D36FAB87">>},
+ {<<"gpb">>, <<"01CFF625D6F339674E1BB651D8FD252F8FB0D3A702698F07552139D12A23565B">>},
  {<<"grpc_lib">>, <<"F5CBF5F836AA26AB347783FCC4C0A4A3D27D95311E56AAFEC956691BE1570D2E">>},
  {<<"hpack">>, <<"17670F83FF984AE6CD74B1C456EDDE906D27FF013740EE4D9EFAA4F1BF999633">>},
  {<<"lager">>, <<"A6DEB74DAE7927F46BD13255268308EF03EB206EC784A94EAF7C1C0F3B811615">>}]}

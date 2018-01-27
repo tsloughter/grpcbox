@@ -13,7 +13,10 @@
          set_trailers/2,
          code_to_status/1,
          error/2,
+         ctx/1,
+         ctx/2,
          handle_streams/2,
+         handle_call/2,
          handle_info/2]).
 
 -export([init/3,
@@ -326,6 +329,17 @@ code_to_status(16) -> ?GRPC_STATUS_UNAUTHENTICATED.
 
 error(Status, Message) ->
     exit(?GRPC_ERROR(Status, Message)).
+
+ctx(#state{handler=Pid}) ->
+    h2_stream:call(Pid, ctx).
+
+ctx(#state{handler=Pid}, Ctx) ->
+    h2_stream:call(Pid, {ctx, Ctx}).
+
+handle_call(ctx, State=#state{ctx=Ctx}) ->
+    {ok, Ctx, State};
+handle_call({ctx, Ctx}, State) ->
+    {ok, ok, State#state{ctx=Ctx}}.
 
 handle_info({add_headers, Headers}, State) ->
     update_headers(Headers, State);

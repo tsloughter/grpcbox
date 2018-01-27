@@ -1,6 +1,7 @@
 -module(grpcbox_trace).
 
--export([unary/4]).
+-export([unary/4,
+         stream/4]).
 
 unary(Ctx, Message, _ServerInfo=#{full_method := FullMethod}, Handler) ->
     {ok, TraceContext} = trace_context_from_ctx(Ctx),
@@ -8,6 +9,17 @@ unary(Ctx, Message, _ServerInfo=#{full_method := FullMethod}, Handler) ->
     try
 
         Handler(ctx:set(Ctx, active_span, Span), Message)
+    after
+        opencensus:finish_span(Span)
+    end.
+
+stream(Ref, Stream, _ServerInfo=#{full_method := FullMethod}, Handler) ->
+    Ctx = grpcbox_stream:ctx(Stream),
+    {ok, TraceContext} = trace_context_from_ctx(Ctx),
+    Span = opencensus:start_span(FullMethod, opencensus:start_trace(TraceContext)),
+    try
+        grpcbox_stream:ctx(Stream, ctx:set(Ctx, active_span, Span)),
+        Handler(Ref, Stream)
     after
         opencensus:finish_span(Span)
     end.
