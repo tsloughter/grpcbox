@@ -74,8 +74,7 @@ init(ConnPid, StreamId, [Socket, AuthFun, UnaryInterceptor, StreamInterceptor]) 
                 socket=Socket,
                 handler=self()}}.
 
-on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
-                                                 socket=Socket}) ->
+on_receive_request_headers(Headers, State) ->
     %% proplists:get_value(<<":method">>, Headers) =:= <<"POST">>,
     RequestEncoding = parse_options(<<"grpc-encoding">>, Headers),
     ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
@@ -103,42 +102,46 @@ on_receive_request_headers(Headers, State=#state{auth_fun=AuthFun,
                    | response_encoding(ResponseEncoding)],
 
     FullPath = proplists:get_value(<<":path">>, Headers),
-    case string:lexemes(FullPath, "/") of
-        [Service, Method] ->
-            case ets:lookup(?SERVICES_TAB, {Service, Method}) of
-                [M=#method{input={_, InputStreaming}}] ->
-                    State1 = State#state{resp_headers=RespHeaders,
-                                         req_headers=Headers,
-                                         full_method=FullPath,
-                                         request_encoding=RequestEncoding,
-                                         response_encoding=ResponseEncoding,
-                                         content_type=ContentType,
-                                         ctx=Ctx,
-                                         method=M},
-                    case authenticate(sock:peercert(Socket), AuthFun) of
-                        {true, _Identity} ->
-                            case InputStreaming of
-                                true ->
-                                    Ref = make_ref(),
-                                    Pid = proc_lib:spawn_link(?MODULE, handle_streams,
-                                                              [Ref, State1#state{handler=self()}]),
-                                    {ok, State1#state{input_ref=Ref,
-                                                      callback_pid=Pid}};
-                                _ ->
-                                    {ok, State1}
-                            end;
-                        _ ->
-                            end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State1)
-                    end;
+    handle_service_lookup(Ctx, string:lexemes(FullPath, "/"),
+                          State#state{resp_headers=RespHeaders,
+                                      req_headers=Headers,
+                                      full_method=FullPath,
+                                      request_encoding=RequestEncoding,
+                                      response_encoding=ResponseEncoding,
+                                      content_type=ContentType}).
+
+handle_service_lookup(Ctx, [Service, Method], State) ->
+    case ets:lookup(?SERVICES_TAB, {Service, Method}) of
+        [M=#method{}] ->
+            State1 = State#state{ctx=Ctx,
+                                 method=M},
+            handle_auth(Ctx, State1);
+        _ ->
+            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State)
+    end;
+handle_service_lookup(_, _, State) ->
+    State1 = State#state{resp_headers=[{<<":status">>, <<"200">>},
+                                       {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]},
+    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State1),
+    {ok, State1}.
+
+handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
+                               socket=Socket,
+                               method=#method{input={_, InputStreaming}}}) ->
+    case authenticate(sock:peercert(Socket), AuthFun) of
+        {true, _Identity} ->
+            case InputStreaming of
+                true ->
+                    Ref = make_ref(),
+                    Pid = proc_lib:spawn_link(?MODULE, handle_streams,
+                                              [Ref, State#state{handler=self()}]),
+                    {ok, State#state{input_ref=Ref,
+                                     callback_pid=Pid}};
                 _ ->
-                    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>,
-                               State#state{resp_headers=RespHeaders})
+                    {ok, State}
             end;
         _ ->
-            State1 = State#state{resp_headers=[{<<":status">>, <<"200">>},
-                                               {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]},
-            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State1),
-            {ok, State1}
+            end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State)
     end.
 
 authenticate(_, undefined) ->
@@ -193,51 +196,11 @@ from_ctx(Ctx) ->
     ctx:get(Ctx, ctx_stream_key).
 
 on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
-                                          input_ref=Ref,
-                                          callback_pid=Pid,
-                                          unary_interceptor=UnaryInterceptor,
-                                          ctx=Ctx,
-                                          buffer=Buffer,
-                                          full_method=FullMethod,
-                                          method=#method{module=Module,
-                                                         function=Function,
-                                                         proto=Proto,
-                                                         input={Input, InputStream},
-                                                         output={_Output, OutputStream}}})->
+                                          buffer=Buffer})->
     try
         {NewBuffer, Messages} = split_frame(<<Buffer/binary, Bin/binary>>, Encoding),
         State1 = lists:foldl(fun(EncodedMessage, StateAcc) ->
-                                     try Proto:decode_msg(EncodedMessage, Input) of
-                                         Message ->
-                                             case {InputStream, OutputStream} of
-                                                 {true, _} ->
-                                                     Pid ! {Ref, Message},
-                                                     StateAcc;
-                                                 {false, true} ->
-                                                     _ = proc_lib:spawn_link(?MODULE, handle_streams,
-                                                                             [Message, StateAcc#state{handler=self()}]),
-                                                     StateAcc;
-                                                 {false, false} ->
-                                                     Ctx1 = ctx_with_stream(Ctx, StateAcc),
-                                                     case (case UnaryInterceptor of
-                                                               undefined -> Module:Function(Ctx1, Message);
-                                                               _ ->
-                                                                   ServerInfo = #{full_method => FullMethod,
-                                                                                  service => Module},
-                                                                   UnaryInterceptor(Ctx1, Message, ServerInfo,
-                                                                                    fun Module:Function/2)
-                                                           end) of
-                                                         {ok, Response, Ctx2} ->
-                                                             StateAcc1 = from_ctx(Ctx2),
-                                                             send(false, Response, StateAcc1);
-                                                         E={grpc_error, _} ->
-                                                             throw(E)
-                                                     end
-                                             end
-                                     catch
-                                         error:{gpb_error, _} ->
-                                             ?THROW(?GRPC_STATUS_INTERNAL, <<"Error parsing request protocol buffer">>)
-                                     end
+                                     handle_message(EncodedMessage, StateAcc)
                              end, State, Messages),
         {ok, State1#state{buffer=NewBuffer}}
     catch
@@ -245,6 +208,53 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
             end_stream(Status, Message, State);
         _C:_T ->
             end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State)
+    end.
+
+handle_message(EncodedMessage, State=#state{input_ref=Ref,
+                                            ctx=Ctx,
+                                            callback_pid=Pid,
+                                            method=#method{proto=Proto,
+                                                           input={Input, InputStream},
+                                                           output={_Output, OutputStream}}}) ->
+    try Proto:decode_msg(EncodedMessage, Input) of
+        Message ->
+            case {InputStream, OutputStream} of
+                {true, _} ->
+                    Pid ! {Ref, Message},
+                    State;
+                {false, true} ->
+                    _ = proc_lib:spawn_link(?MODULE, handle_streams,
+                                            [Message, State#state{handler=self()}]),
+                    State;
+                {false, false} ->
+                    handle_unary(Ctx, Message, State)
+            end
+    catch
+        error:{gpb_error, _} ->
+            ?THROW(?GRPC_STATUS_INTERNAL, <<"Error parsing request protocol buffer">>)
+    end.
+
+handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
+                                        full_method=FullMethod,
+                                        method=#method{module=Module,
+                                                       function=Function,
+                                                       proto=Proto,
+                                                       input={Input, InputStream},
+                                                       output={_Output, OutputStream}}}) ->
+    Ctx1 = ctx_with_stream(Ctx, State),
+    case (case UnaryInterceptor of
+              undefined -> Module:Function(Ctx1, Message);
+              _ ->
+                  ServerInfo = #{full_method => FullMethod,
+                                 service => Module},
+                  UnaryInterceptor(Ctx1, Message, ServerInfo,
+                                   fun Module:Function/2)
+          end) of
+        {ok, Response, Ctx2} ->
+            State1 = from_ctx(Ctx2),
+            send(false, Response, State1);
+        E={grpc_error, _} ->
+            throw(E)
     end.
 
 on_request_end_stream(State=#state{input_ref=Ref,
