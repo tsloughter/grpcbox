@@ -224,7 +224,8 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
                                                                _ ->
                                                                    ServerInfo = #{full_method => FullMethod,
                                                                                   service => Module},
-                                                                   UnaryInterceptor(Ctx1, Message, ServerInfo, fun Module:Function/2)
+                                                                   UnaryInterceptor(Ctx1, Message, ServerInfo,
+                                                                                    fun Module:Function/2)
                                                            end) of
                                                          {ok, Response, Ctx2} ->
                                                              StateAcc1 = from_ctx(Ctx2),
@@ -306,7 +307,7 @@ send_headers(Metadata, State=#state{connection_pid=ConnPid,
                                     resp_headers=Headers,
                                     headers_sent=false}) ->
     MdHeaders = encode_headers(Metadata),
-    h2_connection:send_headers(ConnPid, StreamId, Headers++MdHeaders, [{send_end_stream, false}]),
+    h2_connection:send_headers(ConnPid, StreamId, Headers ++ MdHeaders, [{send_end_stream, false}]),
     State#state{headers_sent=true}.
 
 code_to_status(0) -> ?GRPC_STATUS_OK;
@@ -362,15 +363,15 @@ add_headers(Headers, #state{handler=Pid}) ->
 
 add_trailers(Ctx, Trailers=#{}) ->
     State=#state{resp_trailers=RespTrailers} = from_ctx(Ctx),
-    ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers)++RespTrailers});
+    ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers) ++ RespTrailers});
 add_trailers(Headers, #state{handler=Pid}) ->
     Pid ! {add_trailers, Headers}.
 
 update_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
-    State#state{resp_headers=RespHeaders++Headers}.
+    State#state{resp_headers=RespHeaders ++ Headers}.
 
 update_trailers(Trailers, State=#state{resp_trailers=RespTrailers}) ->
-    State#state{resp_trailers=RespTrailers++Trailers}.
+    State#state{resp_trailers=RespTrailers ++ Trailers}.
 
 send(Message, #state{handler=Pid}) ->
     Pid ! {send_proto, Message}.

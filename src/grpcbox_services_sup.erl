@@ -62,7 +62,7 @@ pool_name(ListenOpts) ->
 
 name(Prefix, ListenOpts) ->
     Port = maps:get(port, ListenOpts, 8080),
-    IPAddress = maps:get(ip, ListenOpts, {0,0,0,0}),
+    IPAddress = maps:get(ip, ListenOpts, {0, 0, 0, 0}),
     list_to_atom(Prefix ++ "_" ++ inet_parse:ntoa(IPAddress) ++ "_" ++ integer_to_list(Port)).
 
 get_authfun(true, Options) ->

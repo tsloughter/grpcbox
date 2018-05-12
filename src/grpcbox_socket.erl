@@ -20,7 +20,7 @@ start_link(Pool, ListenOpts, AcceptorOpts) ->
 
 init([Pool, ListenOpts, PoolOpts]) ->
     Port = maps:get(port, ListenOpts, 8080),
-    IPAddress = maps:get(ip, ListenOpts, {0,0,0,0}),
+    IPAddress = maps:get(ip, ListenOpts, {0, 0, 0, 0}),
     AcceptorPoolSize = maps:get(size, PoolOpts, 10),
     SocketOpts = maps:get(socket_options, ListenOpts, [{reuseaddr, true},
                                                        {nodelay, true},

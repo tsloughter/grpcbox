@@ -22,8 +22,8 @@ init_per_suite(Config) ->
 
     Proto = filename:join(DataDir, "route_guide.proto"),
     {ok, Mod, Code} = gpb_compile:file(Proto, [binary,
-                                               {rename,{msg_name,snake_case}},
-                                               {rename,{msg_fqname,base_name}},
+                                               {rename, {msg_name, snake_case}},
+                                               {rename, {msg_fqname, base_name}},
                                                use_packages, maps, type_specs,
                                                strings_as_binaries,
                                                {i, DataDir},
@@ -55,7 +55,7 @@ init_per_group(tcp, Config) ->
     Config.
 
 end_per_group(_, _Config) ->
-    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
+    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0, 0, 0, 0},
                                                    port => 8080})),
     application:stop(grpcbox),
     ok.
@@ -107,18 +107,18 @@ init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(unary_interceptor, _Config) ->
-    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
+    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0, 0, 0, 0},
                                                    port => 8080})),
     application:stop(grpcbox),
     ok;
 end_per_testcase(chain_interceptor, _Config) ->
-    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
+    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0, 0, 0, 0},
                                                    port => 8080})),
     application:stop(grpcbox),
     ok;
 end_per_testcase(trace_interceptor, _Config) ->
     application:stop(opencensus),
-    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0,0,0,0},
+    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0, 0, 0, 0},
                                                    port => 8080})),
     application:stop(grpcbox),
     ok;
@@ -149,7 +149,7 @@ unary(Connection) ->
     Point = #{latitude => 409146138, longitude => -746188906},
     {ok, #{result := Feature}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
     ?assertEqual(#{location =>
-                       #{latitude => 409146138,longitude => -746188906},
+                       #{latitude => 409146138, longitude => -746188906},
                    name =>
                        <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature).
 
