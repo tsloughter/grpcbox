@@ -96,7 +96,6 @@ load_services([ServicePbModule | Rest]) ->
                       SnakedMethodName = atom_snake_case(Name),
                       case lists:member({SnakedMethodName, 2}, Exports) of
                           true ->
-                              %% ct:pal("found: ~s/~s (~p) -> (~p)~n", [ServiceName, Name, Input, Output]),
                               ets:insert(?SERVICES_TAB, #method{key={atom_to_binary(ServiceName, utf8),
                                                                      atom_to_binary(Name, utf8)},
                                                                 module=SnakedServiceName,

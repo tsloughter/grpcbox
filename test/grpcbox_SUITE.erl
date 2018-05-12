@@ -176,12 +176,12 @@ chain_interceptor(_Config) ->
 trace_interceptor(_Config) ->
     {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
     Point = #{latitude => 409146138, longitude => -746188906},
-    Span = opencensus:start_span(<<"grpc-client-call">>, opencensus:start_trace()),
-    {ok, Context} = oc_trace_context_binary:encode(opencensus:context(Span)),
+    Ctx = oc_trace:with_child_span(ctx:background(), <<"grpc-client-call">>),
+    Context = oc_span_ctx_binary:encode(oc_trace:from_ctx(Ctx)),
     Metadata = #{<<"grpc-trace-bin">> => Context},
     {ok, #{trailers := Trailers}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature',
                                                       route_guide, [{metadata, Metadata}]),
-    BinTraceId = integer_to_binary(Span#span.trace_id),
+    BinTraceId = integer_to_binary((oc_trace:from_ctx(Ctx))#span_ctx.trace_id),
     ?assertMatch(#{<<"x-grpc-trace-id">> := BinTraceId}, Trailers).
 
 stream_interceptor(_Config) ->
@@ -221,8 +221,8 @@ three(Ctx, Message, _ServerInfo, Handler) ->
     Handler(Ctx1, Message).
 
 trace_to_trailer(Ctx, Message, _ServerInfo, Handler) ->
-    Span = ctx:get(Ctx, active_span),
-    BinTraceId = integer_to_binary(Span#span.trace_id),
+    SpanCtx = oc_trace:from_ctx(Ctx),
+    BinTraceId = integer_to_binary(SpanCtx#span_ctx.trace_id),
     Trailer = grpcbox_metadata:pairs([{<<"x-grpc-trace-id">>, BinTraceId}]),
     Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
     Handler(Ctx1, Message).

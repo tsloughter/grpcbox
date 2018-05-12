@@ -288,14 +288,14 @@ end_stream(Status, Message, State=#state{connection_pid=ConnPid,
                                 [{send_end_stream, true}]),
     {ok, State#state{trailers_sent=true}}.
 
-set_trailers(Ctx=#{}, Trailers) ->
+set_trailers(Ctx, Trailers) ->
     State = from_ctx(Ctx),
     ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers)}).
 
 send_headers(State) ->
     send_headers([], State).
 
-send_headers(Ctx=#{}, Headers) when is_map(Headers) ->
+send_headers(Ctx, Headers) when is_map(Headers) ->
     State = from_ctx(Ctx),
     send_headers(maps:to_list(grpc_lib:maybe_encode_headers(Headers)), State);
 
@@ -360,7 +360,7 @@ handle_info({'EXIT', _, _Other}, State) ->
 add_headers(Headers, #state{handler=Pid}) ->
     Pid ! {add_headers, Headers}.
 
-add_trailers(Ctx=#{}, Trailers=#{}) ->
+add_trailers(Ctx, Trailers=#{}) ->
     State=#state{resp_trailers=RespTrailers} = from_ctx(Ctx),
     ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers)++RespTrailers});
 add_trailers(Headers, #state{handler=Pid}) ->
