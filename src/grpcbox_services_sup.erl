@@ -35,7 +35,7 @@ interceptor(Type, Opts) ->
     end.
 
 init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts]) ->
-    AuthFun = get_authfun(maps:get(ssl, ListenOpts, false), GrpcOpts),
+    AuthFun = get_authfun(maps:get(ssl, TransportOpts, false), GrpcOpts),
     UnaryInterceptor = interceptor(unary_interceptor, GrpcOpts),
     StreamInterceptor = interceptor(stream_interceptor, GrpcOpts),
     ChatterboxOpts = #{stream_callback_mod => grpcbox_stream,

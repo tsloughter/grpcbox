@@ -1,7 +1,37 @@
+%% interceptors for opencensus tracing and stats
 -module(grpcbox_trace).
 
--export([unary/4,
-         stream/4]).
+-export([%% server side
+         unary/4,
+         stream/4,
+
+         %% unary client interceptor
+         unary_client/7,
+
+         %% client streaminig interceptors
+         new_stream/6,
+         send_msg/3,
+         recv_msg/3]).
+
+unary_client(Ctx, _Channel, Handler, FullMethod, Input, _Def, _Options) ->
+    Ctx1 = oc_trace:with_child_span(Ctx,
+                                    FullMethod,
+                                    #{}),
+    try
+        Handler(Ctx1, Input)
+    after
+        oc_trace:finish_span(oc_trace:from_ctx(Ctx1))
+    end.
+
+new_stream(Ctx, Channel, Path, Def, Streamer, Options) ->
+    {ok, S} = Streamer(Ctx, Channel, Path, Def, Options),
+    {ok, #{client_stream => S}}.
+
+send_msg(#{client_stream := ClientStream}, Streamer, Input) ->
+    Streamer(ClientStream, Input).
+
+recv_msg(#{client_stream := ClientStream}, Streamer, Input) ->
+    Streamer(ClientStream, Input).
 
 unary(Ctx, Message, _ServerInfo=#{full_method := FullMethod}, Handler) ->
     Ctx1 = trace_context_from_ctx(Ctx),

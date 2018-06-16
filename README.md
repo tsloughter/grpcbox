@@ -10,10 +10,12 @@ Library for creating [grpc](https://grpc.io) servers in Erlang, based on the [ch
 
 Very much still alpha quality.
 
-Implementing a Service
+Implementing a Service Server
 ----
 
-The easiest way to get started is using the plugin, [grpcbox_plugin](https://github.com/tsloughter/grpcbox_plugin):
+The quickest way to play around is with the test service and client that is used by `grpcbox`. Simply pull up a shell with, `rebar3 as test shell` and `grpcbox:start_server()` will start the route guide service on port 8080 and you'll have the client, `routeguide_route_guide_client`, in the path.
+
+The easiest way to get started on your own project is using the plugin, [grpcbox_plugin](https://github.com/tsloughter/grpcbox_plugin):
 
 ```erlang
 {deps, [grpcbox]}.
@@ -214,6 +216,74 @@ See [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erl
 #### Metadata
 
 Metadata is sent in headers and trailers.
+
+Using a Service Client
+----
+
+For each service in the protos passed to `rebar3 gprc gen` it will genrate a `<service>_client` module containing a function for each method in the service.
+
+#### Defining Channels
+
+Channels maintain connections to grpc servers and offer client side load balancing between servers with various methods, round robin, random, hash.
+
+If no channel is specified in the options to a rpc call the `default_channel` is used. Setting the default to connect to localhost on port 8080 in your `sys.config` would look like:
+
+```
+{client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}}
+```
+
+The empty map at the end can contain configuration for the load balancing algorithm, interceptors and compression:
+
+```
+#{balancer => round_robin | random | hash | direct | claim,
+  encoding => identity | gzip | deflate | snappy | atom(),
+  unary_interceptor => term(),
+  stream_interceptor => term()} 
+```
+
+The default balancer is round robin and encoding is identity (no compression). Encoding can also be passed in the options map to individual requests.
+
+#### Calling Unary Client RPC
+
+The `RouteGuide` service has a single unary method, `GetFeature`, in the client we have a function `get_feature/2`:
+
+```erlang
+Point = #{latitude => 409146138, longitude => -746188906},
+{ok, Feature, HeadersAndTrailers} = routeguide_route_guide_client:get_feature(ctx:new(), Point).
+```
+
+#### Client Streaming RPC
+
+```erlang
+{ok, S} = routeguide_route_guide_client:record_route(ctx:new()),
+ok = grpcbox_client:send(S, #{latitude => 409146138, longitude => -746188906}),
+ok = grpcbox_client:send(S, #{latitude => 234818903, longitude => -823423910}),
+ok = grpcbox_client:close_send(S),
+{ok, #{point_count := 2} = grpcbox_client:recv_data(S)).
+```
+
+#### Client with Server Streaming RPC
+
+```erlang
+Rectangle = #{hi => #{latitude => 1, longitude => 2},
+              lo => #{latitude => 3, longitude => 5}},
+{ok, S} = routeguide_route_guide_client:list_features(ctx:new(), Rectangle),
+{ok, #{<<":status">> := <<"200">>}} = grpcbox_client:recv_headers(S),
+{ok, #{name := _} = grpcbox_client:recv_data(S),
+{ok, #{name := _}} = grpcbox_client:recv_data(S),
+{ok, _} = grpcbox_client:recv_trailers(S).
+```
+
+#### Bidirectional RPC
+
+```erlrang
+{ok, S} = routeguide_route_guide_client:route_chat(ctx:new()),
+ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
+ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
+{ok, #{message := <<"hello there">>}} = grpcbox_client:recv_data(S)),
+ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
+{ok, #{message := <<"hello there">>}}, grpcbox_client:close_and_recv(S)).
+```
 
 CT Tests
 ---

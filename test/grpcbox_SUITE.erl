@@ -7,29 +7,33 @@
 
 -include_lib("opencensus/include/opencensus.hrl").
 
+-include("grpcbox.hrl").
+
 groups() ->
     [{ssl, [], [unary_authenticated]},
-     {tcp, [], [unary_no_auth, multiple_servers]}].
+     {tcp, [], [unary_no_auth, multiple_servers]},
+     {negative_tests, [], [unimplemented, closed_stream]},
+     {negative_ssl, [], [unauthorized]},
+     {context, [], [%% deadline
+                   ]}].
 
 all() ->
-    [{group, ssl}, {group, tcp},
-     unary_interceptor, chain_interceptor, trace_interceptor,
-     stream_interceptor].
+    [{group, ssl},
+     {group, tcp},
+     {group, negative_tests},
+     {group, negative_ssl},
+     unary_interceptor,
+     unary_client_interceptor,
+     chain_interceptor,
+     trace_interceptor,
+     stream_interceptor,
+     bidirectional,
+     client_stream,
+     compression
+    ].
 
 init_per_suite(Config) ->
-    DataDir = ?config(data_dir, Config),
     application:load(grpcbox),
-
-    Proto = filename:join(DataDir, "route_guide.proto"),
-    {ok, Mod, Code} = gpb_compile:file(Proto, [binary,
-                                               {rename, {msg_name, snake_case}},
-                                               {rename, {msg_fqname, base_name}},
-                                               use_packages, maps, type_specs,
-                                               strings_as_binaries,
-                                               {i, DataDir},
-                                               {module_name_suffix, "_pb"}]),
-    code:load_binary(Mod, Proto, Code),
-    grpc_client:compile(Proto, [{strings_as_binaries, true}]),
     Config.
 
 end_per_suite(_Config) ->
@@ -37,6 +41,11 @@ end_per_suite(_Config) ->
 
 init_per_group(ssl, Config) ->
     ClientCerts = filename:join(cert_dir(Config), "clients"),
+    Options = [{certfile, cert(Config, "127.0.0.1.crt")},
+               {keyfile, cert(Config, "127.0.0.1.key")},
+               {cacertfile, cert(Config, "My_Root_CA.crt")}
+              ],
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{https, "localhost", 8080, Options}], #{}}]}),
     application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
                                               client_cert_dir => ClientCerts}),
     application:set_env(grpcbox, transport_opts, #{ssl => true,
@@ -45,22 +54,61 @@ init_per_group(ssl, Config) ->
                                                    cacertfile => cert(Config, "My_Root_CA.crt")}),
 
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_group(tcp, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}),
     application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb]}),
     application:set_env(grpcbox, transport_opts, #{}),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+    Config;
+init_per_group(negative_tests, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb]}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+    Config;
+init_per_group(negative_ssl, Config) ->
+    ClientCerts = filename:join(cert_dir(Config), "clients"),
+    Options = [{certfile, cert(Config, "127.0.0.1.crt")},
+               {keyfile, cert(Config, "127.0.0.1.key")},
+               {cacertfile, cert(Config, "My_Root_CA.crt")}],
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{https, "localhost", 8080, Options}], #{}}]}),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
+                                              client_cert_dir => ClientCerts,
+                                              auth_fun => fun(_) -> false end
+                                             }),
+    application:set_env(grpcbox, transport_opts, #{ssl => true,
+                                                   keyfile => cert(Config, "localhost.key"),
+                                                   certfile => cert(Config, "localhost.crt"),
+                                                   cacertfile => cert(Config, "My_Root_CA.crt")}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config.
 
 end_per_group(_, _Config) ->
-    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0, 0, 0, 0},
-                                                   port => 8080})),
+    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
+                                                                   port => 8080})),
     application:stop(grpcbox),
     ok.
 
+init_per_testcase(unary_client_interceptor, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}],
+                                                         #{unary_interceptor => fun(Ctx, _Channel, Handler, _Path, _Input, _Def, _Options) ->
+                                                                                        Handler(Ctx, #{latitude => 30,
+                                                                                                       longitude => 90})
+                                                                                end}}]}),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb]}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+    Config;
 init_per_testcase(unary_interceptor, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
     application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
                                               unary_interceptor => fun(Ctx, _Req, _, Method) ->
                                                                            Method(Ctx, #{latitude => 30,
@@ -68,9 +116,11 @@ init_per_testcase(unary_interceptor, Config) ->
                                                                    end}),
     application:set_env(grpcbox, transport_opts, #{}),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(chain_interceptor, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
     application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
                                               unary_interceptor =>
                                                   grpcbox_chain_interceptor:unary([fun ?MODULE:one/4,
@@ -78,9 +128,11 @@ init_per_testcase(chain_interceptor, Config) ->
                                                                                    fun ?MODULE:three/4])}),
     application:set_env(grpcbox, transport_opts, #{}),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(trace_interceptor, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
     application:ensure_all_started(opencensus),
     application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
                                               unary_interceptor =>
@@ -88,85 +140,202 @@ init_per_testcase(trace_interceptor, Config) ->
                                                                                    fun ?MODULE:trace_to_trailer/4])}),
     application:set_env(grpcbox, transport_opts, #{}),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(stream_interceptor, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
     application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
                                               stream_interceptor =>
                                                   fun(Ref, Stream, _ServerInfo, Handler) ->
                                                           grpcbox_stream:add_trailers([{<<"x-grpc-stream-interceptor">>,
                                                                                         <<"true">>}],
-                                                                                  Stream),
-                                                      Handler(Ref, Stream)
+                                                                                      Stream),
+                                                          Handler(Ref, Stream)
                                                   end}),
     application:set_env(grpcbox, transport_opts, #{}),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox_sup:start_child()),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+    Config;
+init_per_testcase(bidirectional, Config) ->
+    application:load(grpcbox),
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb]}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+    Config;
+init_per_testcase(client_stream, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb]}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+    Config;
+init_per_testcase(compression, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb]}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(_, Config) ->
     Config.
 
 end_per_testcase(unary_interceptor, _Config) ->
-    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0, 0, 0, 0},
-                                                   port => 8080})),
+    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
+                                                                   port => 8080})),
+    application:stop(grpcbox),
+    ok;
+end_per_testcase(unary_client_interceptor, _Config) ->
+    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
+                                                                   port => 8080})),
     application:stop(grpcbox),
     ok;
 end_per_testcase(chain_interceptor, _Config) ->
-    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0, 0, 0, 0},
-                                                   port => 8080})),
+    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
+                                                                   port => 8080})),
     application:stop(grpcbox),
     ok;
 end_per_testcase(trace_interceptor, _Config) ->
     application:stop(opencensus),
-    ?assertMatch(ok, grpcbox_sup:terminate_child(#{ip => {0, 0, 0, 0},
-                                                   port => 8080})),
+    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
+                                                                   port => 8080})),
     application:stop(grpcbox),
     ok;
+end_per_testcase(unary_authenticated, _Config) ->
+    ok;
+end_per_testcase(unary_no_auth, _Config) ->
+    ok;
+end_per_testcase(multiple_servers, _Config) ->
+    ok;
+end_per_testcase(unimplemented, _Config) ->
+    ok;
+end_per_testcase(unauthorized, _Config) ->
+    ok;
+end_per_testcase(closed_stream, _Config) ->
+    ok;
+end_per_testcase(compression, _Config) ->
+    ok;
 end_per_testcase(_, _Config) ->
+    application:stop(grpcbox),
     ok.
 
-unary_no_auth(_Config) ->
-    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
-    unary(Connection).
+unimplemented(_Config) ->
+    Def = #grpcbox_def{service = 'routeguide.RouteGuide',
+                       marshal_fun = fun(I) -> route_guide_pb:encode_msg(I, point) end,
+                       unmarshal_fun = fun(I) -> route_guide_pb:encode_msg(I, feature) end},
+    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}},
+                 grpcbox_client:unary(ctx:new(), <<"/routeguide.RouteGuide/NotReal">>, #{}, Def, #{})),
 
-unary_authenticated(Config) ->
-    Options = [{transport_options, [{certfile, cert(Config, "127.0.0.1.crt")},
-                                    {keyfile, cert(Config, "127.0.0.1.key")},
-                                    {cacertfile, cert(Config, "My_Root_CA.crt")}]}],
-    {ok, Connection} = grpc_client:connect(ssl, "localhost", 8080, Options),
-    unary(Connection).
+    {ok, S} = grpcbox_client:stream(ctx:new(), <<"/routeguide.RouteGuide/NotReal">>, #{}, Def, #{}),
+    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}}, grpcbox_client:recv_data(S)).
 
-multiple_servers(_Config) ->
-    ?assertMatch({ok, _}, grpcbox_sup:start_child(#{grpc_opts => #{service_protos => [route_guide_pb]},
-                                                    listen_opts => #{port => 8081}})),
-    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
-    unary(Connection),
-
-    {ok, Connection2} = grpc_client:connect(tcp, "localhost", 8081),
-    unary(Connection2).
-
-unary(Connection) ->
+unauthorized(_Config) ->
     Point = #{latitude => 409146138, longitude => -746188906},
-    {ok, #{result := Feature}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
+    Ctx = ctx:new(),
+    {error, {?GRPC_STATUS_UNAUTHENTICATED, _}} = routeguide_route_guide_client:get_feature(Ctx, Point).
+
+closed_stream(_Config) ->
+    {ok, S} = routeguide_route_guide_client:record_route(ctx:new()),
+    ok = grpcbox_client:send(S, #{latitude => 409146138, longitude => -746188906}),
+    ok = grpcbox_client:send(S, #{latitude => 234818903, longitude => -823423910}),
+    ?assertMatch(ok, grpcbox_client:close_send(S)),
+
+    %% TODO: should this error? does send need to be a call?
+    %% ?assertMatch(ok, grpcbox_client:send(S, #{latitude => 234818903, longitude => -823423910})),
+
+    ?assertMatch({ok, #{point_count := 2}}, grpcbox_client:recv_data(S)),
+    ?assertMatch({ok, _}, grpcbox_client:recv_trailers(S)),
+    ?assertMatch(stream_finished, grpcbox_client:recv_data(S)),
+
+    %% verify you get stream finished also when not having received the trailers
+    {ok, S1} = routeguide_route_guide_client:record_route(ctx:new()),
+    ok = grpcbox_client:send(S1, #{latitude => 409146138, longitude => -746188906}),
+    ok = grpcbox_client:send(S1, #{latitude => 234818903, longitude => -823423910}),
+    ?assertMatch(ok, grpcbox_client:close_send(S1)),
+    ?assertMatch({ok, #{point_count := 2}}, grpcbox_client:recv_data(S1)),
+    ?assertMatch(stream_finished, grpcbox_client:recv_data(S1)).
+
+compression(_Config) ->
+    Point = #{latitude => 409146138, longitude => -746188906},
+    Ctx = ctx:new(),
+    ?assertMatch({error, {unknown_encoding, something}},
+                 routeguide_route_guide_client:get_feature(Ctx, Point, #{encoding => something})),
+
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Ctx, Point, #{encoding => gzip}),
     ?assertEqual(#{location =>
                        #{latitude => 409146138, longitude => -746188906},
                    name =>
                        <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature).
 
-unary_interceptor(_Config) ->
-    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
+unary_no_auth(_Config) ->
+    unary(_Config).
 
+unary_authenticated(Config) ->
+    unary(Config).
+
+multiple_servers(_Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []},
+                                                                           {http, "localhost", 8081, []}]},
+                                                        #{balancer => round_robin}]}),
+    ?assertMatch({ok, _}, grpcbox:start_server(#{grpc_opts => #{service_protos => [route_guide_pb]},
+                                                 listen_opts => #{port => 8081}})),
+    unary(_Config),
+    unary(_Config).
+
+bidirectional(_Config) ->
+    {ok, S} = routeguide_route_guide_client:route_chat(ctx:new()),
+    %% send 2 before receiving since the server only sends what it already had in its list of messages for the
+    %% location of your last send.
+    ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
+    ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
+    ?assertMatch({ok, #{message := <<"hello there">>}}, grpcbox_client:recv_data(S)),
+    ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
+
+    %% closes the stream, waits for an 'end of stream' message and then returns the received data
+    ?assertMatch(ok, grpcbox_client:close_send(S)).
+%% TODO: add tests to ensure stream pids are gone and that accidental recvs and such after a close don't hang
+
+client_stream(_Config) ->
+    {ok, S} = routeguide_route_guide_client:record_route(ctx:new()),
+    ok = grpcbox_client:send(S, #{latitude => 409146138, longitude => -746188906}),
+    ok = grpcbox_client:send(S, #{latitude => 234818903, longitude => -823423910}),
+    ?assertMatch(ok, grpcbox_client:close_send(S)),
+    ?assertMatch({ok, #{point_count := 2}}, grpcbox_client:recv_data(S)).
+%% TODO: add tests to ensure stream pids are gone and that accidental recvs and such after a close don't hang
+
+unary(_Channel) ->
+    Point = #{latitude => 409146138, longitude => -746188906},
+    Ctx = ctx:with_deadline_after(ctx:new(), 5, second),
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Ctx, Point),
+    ?assertEqual(#{location =>
+                       #{latitude => 409146138, longitude => -746188906},
+                   name =>
+                       <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature).
+
+unary_client_interceptor(_Config) ->
+    %% client side interceptor replaces the point with lat 30 and long 90
+    Point = #{latitude => 409146138, longitude => -746188906},
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(ctx:background(), Point),
+    ?assertEqual(#{location =>
+                       #{latitude => 30, longitude => 90},
+                   name => <<"">>}, Feature).
+
+unary_interceptor(_Config) ->
     %% our test interceptor replaces the point with lat 30 and long 90
     Point = #{latitude => 409146138, longitude => -746188906},
-    {ok, #{result := Feature}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(ctx:background(), Point),
     ?assertEqual(#{location =>
                        #{latitude => 30, longitude => 90},
                    name => <<"">>}, Feature).
 
 chain_interceptor(_Config) ->
-    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
     Point = #{latitude => 409146138, longitude => -746188906},
-    {ok, #{trailers := Trailers}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature', route_guide, []),
+    {ok, _Feature, #{trailers := Trailers}} = routeguide_route_guide_client:get_feature(ctx:background(), Point),
     ?assertMatch(#{<<"x-grpc-interceptor-one">> := <<"one">>,
                    <<"x-grpc-interceptor-three">> := <<"three">>,
                    <<"x-grpc-interceptor-two">> := <<"two">>}, Trailers).
@@ -174,25 +343,23 @@ chain_interceptor(_Config) ->
 %% include a trace context and test that it works by having a second interceptor add
 %% the trace id from the context as a response trailer.
 trace_interceptor(_Config) ->
-    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
     Point = #{latitude => 409146138, longitude => -746188906},
     Ctx = oc_trace:with_child_span(ctx:background(), <<"grpc-client-call">>),
     Context = oc_span_ctx_binary:encode(oc_trace:from_ctx(Ctx)),
     Metadata = #{<<"grpc-trace-bin">> => Context},
-    {ok, #{trailers := Trailers}} = grpc_client:unary(Connection, Point, 'RouteGuide', 'GetFeature',
-                                                      route_guide, [{metadata, Metadata}]),
+    Ctx1 = grpcbox_metadata:append_to_outgoing_ctx(Ctx, Metadata),
+    {_, _Feature, #{trailers := Trailers}} = routeguide_route_guide_client:get_feature(Ctx1, Point),
     BinTraceId = integer_to_binary((oc_trace:from_ctx(Ctx))#span_ctx.trace_id),
-    ?assertMatch(#{<<"x-grpc-trace-id">> := BinTraceId}, Trailers).
+    ?assertMatch(BinTraceId, maps:get(<<"x-grpc-trace-id">>, Trailers)).
 
 stream_interceptor(_Config) ->
-    {ok, Connection} = grpc_client:connect(tcp, "localhost", 8080),
-    {ok, Stream} = grpc_client:new_stream(Connection, 'RouteGuide', 'ListFeatures', route_guide),
-    grpc_client:send_last(Stream, #{hi => #{latitude => 1, longitude => 2},
-                               lo => #{latitude => 3, longitude => 5}}),
-    ?assertMatch({headers, #{<<":status">> := <<"200">>}}, grpc_client:rcv(Stream)),
-    ?assertMatch({data, #{name := <<"Tour Eiffel">>}}, grpc_client:rcv(Stream)),
-    ?assertMatch({data, #{name := <<"Louvre">>}}, grpc_client:rcv(Stream)),
-    ?assertMatch({headers, #{<<"x-grpc-stream-interceptor">> := <<"true">>}}, grpc_client:rcv(Stream)).
+    {ok, Stream} =
+        routeguide_route_guide_client:list_features(ctx:background(), #{hi => #{latitude => 1, longitude => 2},
+                                                                        lo => #{latitude => 3, longitude => 5}}),
+    ?assertMatch({ok, #{<<":status">> := <<"200">>}}, grpcbox_client:recv_headers(Stream)),
+    ?assertMatch({ok, #{name := <<"Tour Eiffel">>}}, grpcbox_client:recv_data(Stream)),
+    ?assertMatch({ok, #{name := <<"Louvre">>}}, grpcbox_client:recv_data(Stream)),
+    ?assertMatch({ok, {_, _, #{<<"x-grpc-stream-interceptor">> := <<"true">>}}}, grpcbox_client:recv_trailers(Stream)).
 
 %%
 

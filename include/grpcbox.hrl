@@ -8,6 +8,13 @@
                  output   :: {term(), boolean()},
                  opts     :: [term()]}).
 
+%% service definition
+-record(grpcbox_def, {service :: atom(),
+                      marshal_fun :: fun((maps:map()) -> binary()),
+                      unmarshal_fun :: fun((binary()) -> maps:map())}).
+
+-define(CHANNELS_TAB, channels_table).
+
 -define(GRPC_STATUS_OK, <<"0">>).
 -define(GRPC_STATUS_CANCELLED, <<"1">>).
 -define(GRPC_STATUS_UNKNOWN, <<"2">>).
@@ -25,3 +32,6 @@
 -define(GRPC_STATUS_UNAVAILABLE, <<"14">>).
 -define(GRPC_STATUS_DATA_LOSS, <<"15">>).
 -define(GRPC_STATUS_UNAUTHENTICATED, <<"16">>).
+
+-define(GRPC_ERROR(Status, Message), {grpc_error, {Status, Message}}).
+-define(THROW(Status, Message), throw(?GRPC_ERROR(Status, Message))).

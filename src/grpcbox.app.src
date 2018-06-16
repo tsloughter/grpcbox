@@ -1,10 +1,38 @@
 {application, grpcbox,
- [{description,"Erlang grpc server library based on chatterbox"},
+ [{description,"Erlang grpc library based on chatterbox"},
   {vsn,"git"},
   {registered,[]},
   {mod,{grpcbox_app,[]}},
-  {applications,[kernel,stdlib,chatterbox,grpc_lib,acceptor_pool]},
-  {env,[]},
+  {applications,[kernel,
+                 stdlib,
+                 chatterbox,
+                 grpc_lib,
+                 acceptor_pool,
+                 gproc]},
+  {env, [{client, #{channels => [%% {default_channel, round_robin, [{http, "localhost", 8080, []}], #{}}
+                                ]}},
+
+         {grpc_opts, #{service_protos => [],
+                       client_cert_dir => ""}},
+
+         {transport_opts, #{ssl => false,
+                            keyfile => "",
+                            certfile => "",
+                            cacertfile => ""}},
+
+         {listen_opts, #{port => 8080,
+                         ip => {0,0,0,0}}},
+
+         %% server acceptors
+         {pool_opts, #{size => 10}},
+
+         %% chatterbox options
+         {server_opts, #{header_table_size => 4096,
+                         enable_push => 1,
+                         max_concurrent_streams => unlimited,
+                         initial_window_size => 65535,
+                         max_frame_size => 16384,
+                         max_header_list_size => unlimited}}]},
   {modules,[]},
   {maintainers,["Tristan Sloughter"]},
   {licenses,["Apache 2.0"]},

@@ -7,14 +7,14 @@
 
 -export([init/1]).
 
-start_link(Name, ServerOpts, ChatterboxOpts, ListenOpts) ->
-    acceptor_pool:start_link({local, Name}, ?MODULE, [ServerOpts, ChatterboxOpts, ListenOpts]).
+start_link(Name, ServerOpts, ChatterboxOpts, TransportOpts) ->
+    acceptor_pool:start_link({local, Name}, ?MODULE, [ServerOpts, ChatterboxOpts, TransportOpts]).
 
 accept_socket(Pool, Socket, Acceptors) ->
     acceptor_pool:accept_socket(Pool, Socket, Acceptors).
 
-init([ServerOpts, ChatterboxOpts, ListenOpts]) ->
-    {Transport, SslOpts} = case ListenOpts of
+init([ServerOpts, ChatterboxOpts, TransportOpts]) ->
+    {Transport, SslOpts} = case TransportOpts of
                                #{ssl := true,
                                  keyfile := KeyFile,
                                  certfile := CertFile,

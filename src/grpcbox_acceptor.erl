@@ -12,7 +12,7 @@ acceptor_init(_, LSocket, {Transport, ServerOpts, ChatterboxOpts, SslOpts}) ->
     {ok, {Transport, MRef, ServerOpts, ChatterboxOpts, SslOpts}}.
 
 acceptor_continue(_PeerName, Socket, {ssl, _MRef, ServerOpts, ChatterboxOpts, SslOpts}) ->
-    {ok, AcceptSocket} = ssl:ssl_accept(Socket, SslOpts),
+    {ok, AcceptSocket} = ssl:handshake(Socket, SslOpts),
     case ssl:negotiated_protocol(AcceptSocket) of
         {ok, <<"h2">>} ->
             h2_connection:become({ssl, AcceptSocket}, ServerOpts, ChatterboxOpts);
