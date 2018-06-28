@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2018-01-08T00:13:47+00:00 and should not be modified manually
+%% this module was generated on 2018-06-28T22:22:37+00:00 and should not be modified manually
 
 -module(grpc_testing_test_service_bhvr).
 

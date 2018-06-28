@@ -18,6 +18,8 @@
                                                     {<<":scheme">>, Scheme},
                                                     {<<":authority">>, Host},
                                                     {<<"grpc-encoding">>, Encoding},
+                                                    %% TODO: Include fully qualified message name in template def for this
+                                                    %% {<<"grpc-message-type">>, MessageType},
                                                     {<<"content-type">>, <<"application/grpc+proto">>},
                                                     {<<"user-agent">>, <<"grpc-erlang/0.2.0">>},
                                                     {<<"te">>, <<"trailers">>} | MD]).
@@ -159,10 +161,10 @@ encoding_to_atom(<<"identity">>) -> identity;
 encoding_to_atom(<<"gzip">>) -> gzip;
 encoding_to_atom(<<"deflate">>) -> deflate;
 encoding_to_atom(<<"snappy">>) -> snappy;
-encoding_to_atom(Custom) -> binary_to_atom(Custom, utf8).
+encoding_to_atom(Custom) -> binary_to_atom(Custom, latin1).
 
 encoding_to_binary(identity) -> <<"identity">>;
 encoding_to_binary(gzip) -> <<"gzip">>;
 encoding_to_binary(deflate) -> <<"deflate">>;
 encoding_to_binary(snappy) -> <<"snappy">>;
-encoding_to_binary(Custom) -> atom_to_binary(Custom, utf8).
+encoding_to_binary(Custom) -> atom_to_binary(Custom, latin1).

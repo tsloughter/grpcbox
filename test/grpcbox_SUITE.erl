@@ -30,6 +30,7 @@ all() ->
      bidirectional,
      client_stream,
      compression
+     %% TODO: rst stream error handling
     ].
 
 init_per_suite(Config) ->
