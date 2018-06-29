@@ -10,11 +10,7 @@
          full_duplex_call/2,
          half_duplex_call/2]).
 
-
--define(INITIAL_METADATA_KEY, <<"x-grpc-test-echo-initial">>).
--define(TRAILING_METADATA_KEY, <<"x-grpc-test-echo-trailing-bin">>).
--define(INITIAL_METADATA_VALUE, <<"test_initial_metadata_value">>).
--define(TRAILING_METADATA_VALUE, <<"\x0a\x0b\x0a\x0b\x0a\x0b">>).
+-include("grpcbox_interop_tests.hrl").
 
 -spec empty_call(ctx:ctx(), test_pb:empty()) ->
                         {ok, test_pb:empty()} | grpcbox_stream:grpc_error_response().

@@ -112,8 +112,7 @@ on_receive_headers(Headers, State) ->
 handle_service_lookup(Ctx, [Service, Method], State) ->
     case ets:lookup(?SERVICES_TAB, {Service, Method}) of
         [M=#method{}] ->
-            State2 = send_headers(State),
-            State1 = State2#state{ctx=Ctx,
+            State1 = State#state{ctx=Ctx,
                                  method=M},
             handle_auth(Ctx, State1);
         _ ->
@@ -156,19 +155,17 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                                  method=#method{module=Module,
                                                 function=Function,
                                                 output={_, false}}}) ->
-    %% TODO: don't send here?
-    %% State1 = send_headers(State),
     case (case StreamInterceptor of
               undefined -> Module:Function(Ref, State);
               _ ->
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module,
                                  input_stream => true,
-                                 output_strema => false},
+                                 output_stream => false},
                   StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
           end) of
         {ok, Response, State2} ->
-            send(false, Response, State2);
+            send(Response, State2);
         E={grpc_error, _} ->
             throw(E)
     end;
@@ -184,7 +181,7 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
             ServerInfo = #{full_method => FullMethod,
                            service => Module,
                            input_stream => true,
-                           output_strema => true},
+                           output_stream => true},
             StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
     end.
 

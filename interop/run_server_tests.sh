@@ -12,7 +12,10 @@ tests=(
     empty_stream
     status_code_and_message
     custom_metadata
+    unimplemented_method
+    unimplemented_service
 
+    ## TODO
     # compute_engine_creds
     # service_account_creds
     # jwt_token_creds
@@ -23,8 +26,6 @@ tests=(
     # timeout_on_sleeping_server
     # cancel_after_begin
     # cancel_after_first_response
-    # unimplemented_method
-    # unimplemented_service
 )
 
 for test in "${tests[@]}"; do

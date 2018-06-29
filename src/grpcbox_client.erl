@@ -68,7 +68,7 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
         case recv_end(S, 5000) of
             eos ->
                 {ok, Headers} = recv_headers(S, 0),
-                case recv_trailers(S, 0) of
+                case recv_trailers(S) of
                     {ok, {<<"0">>, _, Metadata}} ->
                         {ok, Data} = recv_data(S, 0),
                         {ok, Data, #{headers => Headers,
@@ -108,7 +108,8 @@ close_and_recv(Stream) ->
 
 close_send(#{channel := Conn,
              stream_id := StreamId}) ->
-    h2_connection:send_trailers(Conn, StreamId, [], [{send_end_stream, true}]).
+    ok = h2_connection:send_body(Conn, StreamId, <<>>, [{send_end_stream, true}]).
+    %% h2_connection:send_trailers(Conn, StreamId, [], [{send_end_stream, true}]).
 
 send(Stream=#{stream_interceptor := #{send_msg := SendMsg}}, Input) ->
     SendMsg(Stream, fun grpcbox_client_stream:send_msg/2, Input);

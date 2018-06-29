@@ -1,0 +1,4 @@
+-define(INITIAL_METADATA_KEY, <<"x-grpc-test-echo-initial">>).
+-define(TRAILING_METADATA_KEY, <<"x-grpc-test-echo-trailing-bin">>).
+-define(INITIAL_METADATA_VALUE, <<"test_initial_metadata_value">>).
+-define(TRAILING_METADATA_VALUE, <<"\x0a\x0b\x0a\x0b\x0a\x0b">>).

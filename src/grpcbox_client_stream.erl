@@ -134,6 +134,16 @@ on_receive_headers(H, State=#{stream_id := StreamId,
     Encoding = proplists:get_value(<<"grpc-encoding">>, H, identity),
     Metadata = grpcbox_utils:headers_to_metadata(H),
     Pid ! {headers, StreamId, Metadata},
+
+    %% TODO: better way to know if it is a Trailers-Only response?
+    %% maybe chatterbox should include information about the end of the stream
+    case proplists:get_value(<<"grpc-status">>, H, undefined) of
+        undefined ->
+            ok;
+        Status ->
+            Message = proplists:get_value(<<"grpc-message">>, H, undefined),
+            Pid ! {trailers, StreamId, {Status, Message, Metadata}}
+    end,
     {ok, State#{resp_headers => H,
                 encoding => encoding_to_atom(Encoding)}}.
 
