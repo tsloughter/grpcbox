@@ -1,6 +1,7 @@
 -module(grpcbox_stream).
 
 -include_lib("chatterbox/include/http2.hrl").
+-include_lib("kernel/include/logger.hrl").
 -include("grpcbox.hrl").
 
 -behaviour(h2_stream).
@@ -31,35 +32,29 @@
               grpc_error/0,
               grpc_error_response/0]).
 
--record(stats, {recv_messages = 0 :: integer(),
-                sent_messages = 0 :: integer(),
-                recv_bytes    = 0 :: integer(),
-                sent_bytes    = 0 :: integer(),
-                start_time        :: integer() | undefined,
-                end_time          :: integer() | undefined}).
-
--record(state, {handler            :: pid(),
+-record(state, {handler             :: pid(),
                 socket,
                 auth_fun,
-                buffer             :: binary(),
-                ctx                :: ctx:ctx(),
-                req_headers=[]     :: list(),
-                full_method        :: binary() | undefined,
-                input_ref          :: reference() | undefined,
-                callback_pid       :: pid() | undefined,
-                connection_pid     :: pid(),
-                request_encoding   :: gzip | identity | undefined,
-                response_encoding  :: gzip | identity | undefined,
-                content_type       :: proto | json | undefined,
-                resp_headers=[]    :: list(),
-                resp_trailers=[]   :: list(),
-                headers_sent=false :: boolean(),
+                buffer              :: binary(),
+                ctx                 :: ctx:ctx(),
+                req_headers=[]      :: list(),
+                full_method         :: binary() | undefined,
+                input_ref           :: reference() | undefined,
+                callback_pid        :: pid() | undefined,
+                connection_pid      :: pid(),
+                request_encoding    :: gzip | identity | undefined,
+                response_encoding   :: gzip | identity | undefined,
+                content_type        :: proto | json | undefined,
+                resp_headers=[]     :: list(),
+                resp_trailers=[]    :: list(),
+                headers_sent=false  :: boolean(),
                 trailers_sent=false :: boolean(),
-                unary_interceptor  :: fun() | undefined,
-                stream_interceptor :: fun() | undefined,
-                stream_id          :: stream_id(),
-                method             :: #method{} | undefined,
-                stats              :: #stats{}}).
+                unary_interceptor   :: fun() | undefined,
+                stream_interceptor  :: fun() | undefined,
+                stream_id           :: stream_id(),
+                method              :: #method{} | undefined,
+                stats_handler       :: module() | undefined,
+                stats               :: term() | undefined}).
 
 -opaque t() :: #state{}.
 
@@ -68,40 +63,43 @@
 -type grpc_error() :: {grpc_status(), grpc_status_message()}.
 -type grpc_error_response() :: {grpc_error, grpc_error()}.
 
-init(ConnPid, StreamId, [Socket, AuthFun, UnaryInterceptor, StreamInterceptor]) ->
+init(ConnPid, StreamId, [Socket, AuthFun, UnaryInterceptor, StreamInterceptor, StatsHandler]) ->
     process_flag(trap_exit, true),
-    {ok, #state{connection_pid=ConnPid,
-                stream_id=StreamId,
-                buffer = <<>>,
-                auth_fun=AuthFun,
-                unary_interceptor=UnaryInterceptor,
-                stream_interceptor=StreamInterceptor,
-                socket=Socket,
-                handler=self(),
-                stats=#stats{}}}.
+    State = #state{connection_pid=ConnPid,
+                   stream_id=StreamId,
+                   buffer = <<>>,
+                   auth_fun=AuthFun,
+                   unary_interceptor=UnaryInterceptor,
+                   stream_interceptor=StreamInterceptor,
+                   socket=Socket,
+                   handler=self(),
+                   stats_handler=StatsHandler},
+    State1 = stats_handler(ctx:new(), rpc_begin, {}, State),
+    {ok, State1}.
 
-on_receive_headers(Headers, State) ->
+on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
     %% proplists:get_value(<<":method">>, Headers) =:= <<"POST">>,
+    Metadata = grpcbox_utils:headers_to_metadata(Headers),
+    Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
+               infinity ->
+                   grpcbox_metadata:new_incoming_ctx(Metadata);
+               D ->
+                   ctx:with_deadline_after(grpcbox_metadata:new_incoming_ctx(Metadata), D, nanosecond)
+           end,
+
+    FullPath = proplists:get_value(<<":path">>, Headers),
+    Ctx1 = oc_tags:new(Ctx, #{grpc_server_method => FullPath}),
+
     RequestEncoding = parse_options(<<"grpc-encoding">>, Headers),
     ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
     ContentType = parse_options(<<"content-type">>, Headers),
-
-    Metadata = grpcbox_utils:headers_to_metadata(Headers),
-
-    Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
-              infinity ->
-                  grpcbox_metadata:new_incoming_ctx(Metadata);
-              D ->
-                  ctx:with_deadline_after(grpcbox_metadata:new_incoming_ctx(Metadata), D, nanosecond)
-          end,
 
     RespHeaders = [{<<":status">>, <<"200">>},
                    {<<"user-agent">>, <<"grpc-erlang/0.1.0">>},
                    {<<"content-type">>, content_type(ContentType)}
                    | response_encoding(ResponseEncoding)],
 
-    FullPath = proplists:get_value(<<":path">>, Headers),
-    handle_service_lookup(Ctx, string:lexemes(FullPath, "/"),
+    handle_service_lookup(Ctx1, string:lexemes(FullPath, "/"),
                           State#state{resp_headers=RespHeaders,
                                       req_headers=Headers,
                                       full_method=FullPath,
@@ -195,20 +193,19 @@ from_ctx(Ctx) ->
     ctx:get(Ctx, ctx_stream_key).
 
 on_receive_data(Bin, State=#state{request_encoding=Encoding,
-                                  buffer=Buffer,
-                                  stats=#stats{recv_bytes=RecvBytes}}) ->
+                                  buffer=Buffer}) ->
     try
         {NewBuffer, Messages} = grpcbox_frame:split(<<Buffer/binary, Bin/binary>>, Encoding),
-        State1 = lists:foldl(fun(EncodedMessage, StateAcc=#state{stats=#stats{recv_messages=RecvMessages}}) ->
+        State1 = lists:foldl(fun(EncodedMessage, StateAcc=#state{}) ->
                                      StateAcc1 = handle_message(EncodedMessage, StateAcc),
-                                     StateAcc1#state{stats=#stats{recv_messages=RecvMessages+1}}
+                                     StateAcc1
                              end, State, Messages),
-        {ok, State1#state{buffer=NewBuffer,
-                          stats=#stats{recv_bytes=RecvBytes + size(Bin)}}}
+        {ok, State1#state{buffer=NewBuffer}}
     catch
         throw:{grpc_error, {Status, Message}} ->
             end_stream(Status, Message, State);
-        _C:_T ->
+        C:E:S ->
+            ?LOG_INFO("crash: class=~p exception=~p stacktrace=~p", [C, E, S]),
             end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State)
     end.
 
@@ -220,16 +217,19 @@ handle_message(EncodedMessage, State=#state{input_ref=Ref,
                                                            output={_Output, OutputStream}}}) ->
     try Proto:decode_msg(EncodedMessage, Input) of
         Message ->
+            State1=#state{ctx=Ctx1} =
+                stats_handler(Ctx, in_payload, #{uncompressed_size => erlang:external_size(Message),
+                                                 compressed_size => size(EncodedMessage)}, State),
             case {InputStream, OutputStream} of
                 {true, _} ->
                     Pid ! {Ref, Message},
-                    State;
+                    State1;
                 {false, true} ->
                     _ = proc_lib:spawn_link(?MODULE, handle_streams,
-                                            [Message, State#state{handler=self()}]),
-                    State;
+                                            [Message, State1#state{handler=self()}]),
+                    State1;
                 {false, false} ->
-                    handle_unary(Ctx, Message, State)
+                    handle_unary(Ctx1, Message, State1)
             end
     catch
         error:{gpb_error, _} ->
@@ -259,31 +259,40 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
             throw(E)
     end.
 
-on_end_stream(State=#state{input_ref=Ref,
-                           callback_pid=Pid,
-                           method=#method{input={_Input, true},
-                                          output={_Output, false}}}) ->
-    Pid ! {Ref, eos},
-    {ok, State};
-on_end_stream(State=#state{input_ref=Ref,
-                           callback_pid=Pid,
-                           method=#method{input={_Input, true},
-                                          output={_Output, true}}}) ->
-    Pid ! {Ref, eos},
-    {ok, State};
-on_end_stream(State=#state{input_ref=_Ref,
-                           callback_pid=_Pid,
-                           method=#method{input={_Input, false},
-                                          output={_Output, true}}}) ->
-    {ok, State};
-on_end_stream(State=#state{method=#method{output={_Output, false}}}) ->
-    end_stream(State),
-    {ok, State};
-on_end_stream(State) ->
-    end_stream(State),
-    {ok, State}.
+on_end_stream(State=#state{ctx=Ctx}) ->
+    on_end_stream_(State),
+    State1 = stats_handler(Ctx, rpc_end, {}, State),
+    {ok, State1}.
+
+on_end_stream_(#state{input_ref=Ref,
+                      callback_pid=Pid,
+                      method=#method{input={_Input, true},
+                                     output={_Output, false}}}) ->
+    Pid ! {Ref, eos};
+on_end_stream_(#state{input_ref=Ref,
+                      callback_pid=Pid,
+                      method=#method{input={_Input, true},
+                                     output={_Output, true}}}) ->
+    Pid ! {Ref, eos};
+on_end_stream_(#state{input_ref=_Ref,
+                      callback_pid=_Pid,
+                      method=#method{input={_Input, false},
+                                     output={_Output, true}}}) ->
+    ok;
+on_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
+    end_stream(State);
+on_end_stream_(State) ->
+    end_stream(State).
 
 %% Internal
+
+stats_handler(Ctx, _, _, State=#state{stats_handler=undefined}) ->
+    State#state{ctx=Ctx};
+stats_handler(Ctx, Event, Stats, State=#state{stats_handler=StatsHandler,
+                                              stats=StatsState}) ->
+    {Ctx1, StatsState1} = StatsHandler:handle(Ctx, Event, Stats, StatsState),
+    State#state{ctx=Ctx1,
+                stats=StatsState1}.
 
 end_stream(State) ->
     end_stream(?GRPC_STATUS_OK, <<>>, State).
@@ -391,7 +400,8 @@ send(Message, #state{handler=Pid}) ->
 send(End, Message, State=#state{headers_sent=false}) ->
     State1 = send_headers(State),
     send(End, Message, State1);
-send(End, Message, State=#state{connection_pid=ConnPid,
+send(End, Message, State=#state{ctx=Ctx,
+                                connection_pid=ConnPid,
                                 stream_id=StreamId,
                                 response_encoding=Encoding,
                                 method=#method{proto=Proto,
@@ -400,7 +410,8 @@ send(End, Message, State=#state{connection_pid=ConnPid,
     BodyToSend = Proto:encode_msg(Message, Output),
     OutFrame = grpcbox_frame:encode(Encoding, BodyToSend),
     ok = h2_connection:send_body(ConnPid, StreamId, OutFrame, [{send_end_stream, End}]),
-    State.
+    stats_handler(Ctx, out_payload, #{uncompressed_size => erlang:external_size(Message),
+                                      compressed_size => size(BodyToSend)}, State).
 
 response_encoding(gzip) ->
     [{<<"grpc-encoding">>, <<"gzip">>}];

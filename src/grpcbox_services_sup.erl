@@ -38,8 +38,9 @@ init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts]) ->
     AuthFun = get_authfun(maps:get(ssl, TransportOpts, false), GrpcOpts),
     UnaryInterceptor = interceptor(unary_interceptor, GrpcOpts),
     StreamInterceptor = interceptor(stream_interceptor, GrpcOpts),
+    StatsHandler = maps:get(stats_handler, GrpcOpts, undefined),
     ChatterboxOpts = #{stream_callback_mod => grpcbox_stream,
-                       stream_callback_opts => [AuthFun, UnaryInterceptor, StreamInterceptor]},
+                       stream_callback_opts => [AuthFun, UnaryInterceptor, StreamInterceptor, StatsHandler]},
 
     %% unique name for pool based on the ip and port it will listen on
     Name = pool_name(ListenOpts),

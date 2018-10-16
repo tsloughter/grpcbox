@@ -29,7 +29,8 @@ all() ->
      stream_interceptor,
      bidirectional,
      client_stream,
-     compression
+     compression,
+     stats_handler
      %% TODO: rst stream error handling
     ].
 
@@ -183,6 +184,15 @@ init_per_testcase(compression, Config) ->
     application:ensure_all_started(grpcbox),
     ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
+init_per_testcase(stats_handler, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
+                                              stats_handler => test_stats_handler}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+    Config;
 init_per_testcase(_, Config) ->
     Config.
 
@@ -218,8 +228,6 @@ end_per_testcase(unimplemented, _Config) ->
 end_per_testcase(unauthorized, _Config) ->
     ok;
 end_per_testcase(closed_stream, _Config) ->
-    ok;
-end_per_testcase(compression, _Config) ->
     ok;
 end_per_testcase(_, _Config) ->
     application:stop(grpcbox),
@@ -272,6 +280,42 @@ compression(_Config) ->
                        #{latitude => 409146138, longitude => -746188906},
                    name =>
                        <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature).
+
+stats_handler(_Config) ->
+    register(stats_pid, self()),
+
+    Point = #{latitude => 409146138, longitude => -746188906},
+    Ctx = ctx:new(),
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Ctx, Point, #{encoding => gzip}),
+    ?assertEqual(#{location =>
+                       #{latitude => 409146138, longitude => -746188906},
+                   name =>
+                       <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature),
+
+    F = fun L(Stats) ->
+                receive
+                    {rpc_begin, T} ->
+                        L(Stats#{rpc_begin => T});
+                    {out_payload, USize, CSize} ->
+                        L(Stats#{out_payload => {USize, CSize}});
+                    {in_payload, USize, CSize} ->
+                        L(Stats#{in_payload => {USize, CSize}});
+                    {rpc_end, T} ->
+                        Stats#{rpc_end => T}
+                after
+                    2000 ->
+                        exit(1)
+                end
+        end,
+    Stats = F(#{}),
+
+    {OutUSize, OutCSize} = maps:get(out_payload, Stats),
+    ?assert(is_integer(OutUSize) andalso is_integer(OutCSize)),
+
+    {InUSize, InCSize} = maps:get(in_payload, Stats),
+    ?assert(is_integer(InUSize) andalso is_integer(InCSize)),
+
+    ?assert(maps:get(rpc_end, Stats) > maps:get(rpc_begin, Stats)).
 
 unary_no_auth(_Config) ->
     unary(_Config).
