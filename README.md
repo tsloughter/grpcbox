@@ -190,7 +190,7 @@ There is a provided interceptor `grpcbox_chain_interceptor` which accepts a list
                                      fun ?MODULE:three/4])}
 ```
 
-#### Tracing and Statistics
+#### Tracing
 
 The provided interceptor `grpcbox_trace` supports the [OpenCensus](http://opencensus.io/) wire protocol using [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erlang). It will use the `trace_id`, `span_id` and any options or tags from the trace context.
 
@@ -213,6 +213,27 @@ Or as a middleware in the chain interceptor:
 
 See [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erlang) for details on configuring reporters.
 
+#### Statistics
+
+Statistics are collected by implementing a stats handler module. A handler for OpenCensus stats (be sure to include [OpenCensus](https://hex.pm/packages/opencensus) as a dependency and make sure it starts on boot) is provided and can be enabled for the server with a config option:
+
+``` erlang
+{grpcbox, [{grpc_opts, #{stats_handler => grpcbox_oc_stats_handler
+                         ...}}]}
+```
+
+For the client the stats handler is a per-channel configuration, see the Defining Channels section below.
+
+You can verify it is working by enabling the stdout exporter:
+
+``` erlang
+ {opencensus, [{stat, [{exporters, [{oc_stat_exporter_stdout, []}]}]}]}
+```
+
+For actual use, an [exporter for Prometheus](https://github.com/opencensus-beam/prometheus) is available.
+
+Details on all the metrics that are collected can be found in the [OpenCensus gRPC Stats specification](https://github.com/census-instrumentation/opencensus-specs/blob/master/stats/gRPC.md).
+
 #### Metadata
 
 Metadata is sent in headers and trailers.
@@ -232,11 +253,12 @@ If no channel is specified in the options to a rpc call the `default_channel` is
 {client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}}
 ```
 
-The empty map at the end can contain configuration for the load balancing algorithm, interceptors and compression:
+The empty map at the end can contain configuration for the load balancing algorithm, interceptors, statistics handling and compression:
 
 ```
 #{balancer => round_robin | random | hash | direct | claim,
   encoding => identity | gzip | deflate | snappy | atom(),
+  stats_handler => grpcbox_oc_stats_handler,
   unary_interceptor => term(),
   stream_interceptor => term()} 
 ```
@@ -305,7 +327,7 @@ For testing grpcbox's server:
 ```
 $ rebar3 as interop shell
 
-> grpcbox_sup:start_child().
+> grpcbox:start_server().
 ```
 
 With the shell running the tests can then be run from a script:

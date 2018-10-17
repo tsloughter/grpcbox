@@ -2,7 +2,7 @@
 
 -behaviour(gen_statem).
 
--export([start_link/4,
+-export([start_link/5,
          conn/1]).
 -export([init/1,
          callback_mode/0,
@@ -18,37 +18,41 @@
                channel :: grpcbox_channel:t(),
                info :: #{authority := binary(),
                          scheme := binary(),
-                         encoding := grpcbox:encoding()
+                         encoding := grpcbox:encoding(),
+                         stats_handler := module() | undefined
                         },
                conn :: pid() | undefined,
                idle_interval :: timer:time()}).
 
-start_link(Name, Channel, Endpoint, Encoding) ->
-    gen_statem:start_link(?MODULE, [Name, Channel, Endpoint, Encoding], []).
+start_link(Name, Channel, Endpoint, Encoding, StatsHandler) ->
+    gen_statem:start_link(?MODULE, [Name, Channel, Endpoint, Encoding, StatsHandler], []).
 
 conn(Pid) ->
     gen_statem:call(Pid, conn).
 
-init([Name, Channel, Endpoint, Encoding]) ->
+init([Name, Channel, Endpoint, Encoding, StatsHandler]) ->
     process_flag(trap_exit, true),
     gproc_pool:connect_worker(Channel, Name),
     {ok, idle, #data{conn=undefined,
-                     info=info_map(Endpoint, Encoding),
+                     info=info_map(Endpoint, Encoding, StatsHandler),
                      endpoint=Endpoint,
                      channel=Channel}}.
 
-info_map({http, Host, 80, _}, Encoding) ->
+info_map({http, Host, 80, _}, Encoding, StatsHandler) ->
     #{authority => list_to_binary(Host),
       scheme => <<"http">>,
-      encoding => Encoding};
-info_map({https, Host, 443, _}, Encoding) ->
+      encoding => Encoding,
+      stats_handler => StatsHandler};
+info_map({https, Host, 443, _}, Encoding, StatsHandler) ->
     #{authority => list_to_binary(Host),
       scheme => <<"https">>,
-      encoding => Encoding};
-info_map({Scheme, Host, Port, _}, Encoding) ->
+      encoding => Encoding,
+      stats_handler => StatsHandler};
+info_map({Scheme, Host, Port, _}, Encoding, StatsHandler) ->
     #{authority => list_to_binary(Host ++ ":" ++ integer_to_list(Port)),
       scheme => atom_to_binary(Scheme, utf8),
-      encoding => Encoding}.
+      encoding => Encoding,
+      stats_handler => StatsHandler}.
 
 callback_mode() ->
     state_functions.

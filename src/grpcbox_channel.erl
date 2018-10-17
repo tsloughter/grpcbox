@@ -34,6 +34,7 @@
                interceptors :: #{unary_interceptor => grpcbox_client:unary_interceptor(),
                                  stream_interceptor => grpcbox_client:stream_interceptor()}
                              | undefined,
+               stats_handler :: module() | undefined,
                refresh_interval :: timer:time()}).
 
 -spec start_link(atom(), [endpoint()], options()) -> {ok, pid()}.
@@ -61,6 +62,7 @@ init([Name, Endpoints, Options]) ->
 
     BalancerType = maps:get(balancer, Options, round_robin),
     Encoding = maps:get(encoding, Options, identity),
+    StatsHandler = maps:get(stats_handler, Options, undefined),
 
     insert_interceptors(Name, Options),
 
@@ -68,6 +70,7 @@ init([Name, Endpoints, Options]) ->
                                         {autosize, true}]),
     {ok, idle, #data{pool=Name,
                      encoding=Encoding,
+                     stats_handler=StatsHandler,
                      endpoints=Endpoints}, [{next_event, internal, connect}]}.
 
 callback_mode() ->
@@ -77,11 +80,13 @@ connected(EventType, EventContent, Data) ->
     handle_event(EventType, EventContent, Data).
 
 idle(internal, connect, Data=#data{pool=Pool,
+                                   stats_handler=StatsHandler,
                                    encoding=Encoding,
                                    endpoints=Endpoints}) ->
     [begin
          gproc_pool:add_worker(Pool, Endpoint),
-         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SSLOptions}, Encoding),
+         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SSLOptions},
+                                                   Encoding, StatsHandler),
          Pid
      end || Endpoint={Transport, Host, Port, SSLOptions} <- Endpoints],
     {next_state, connected, Data};

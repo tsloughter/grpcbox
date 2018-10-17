@@ -14,10 +14,6 @@
  {<<"grpc_lib">>,{pkg,<<"grpc_lib">>,<<"0.1.2">>},0},
  {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.2.3">>},1},
  {<<"jsx">>,{pkg,<<"jsx">>,<<"2.9.0">>},1},
- {<<"opencensus">>,
-  {git,"https://github.com/census-instrumentation/opencensus-erlang",
-       {ref,"7d03b9ae24d5fbe5b5b2868665c3098db8f17eaa"}},
-  0},
  {<<"recon">>,{pkg,<<"recon">>,<<"2.3.5">>},0},
  {<<"rfc3339">>,{pkg,<<"rfc3339">>,<<"0.9.0">>},2},
  {<<"wts">>,{pkg,<<"wts">>,<<"0.3.0">>},1}]}.

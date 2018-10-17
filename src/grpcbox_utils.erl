@@ -4,7 +4,10 @@
          maybe_decode_header/2,
          decode_header/1,
          encode_headers/1,
-         is_reserved_header/1]).
+         is_reserved_header/1,
+         status_to_string/1]).
+
+-include("grpcbox.hrl").
 
 headers_to_metadata(H) ->
     lists:foldl(fun({K, V}, Acc) ->
@@ -55,3 +58,41 @@ is_reserved_header(<<"grpc-timeout">>) -> true;
 is_reserved_header(<<"grpc-status-details-bin">>) -> true;
 is_reserved_header(<<"te">>) -> true;
 is_reserved_header(_) -> false.
+
+-spec status_to_string(binary()) -> binary().
+status_to_string(?GRPC_STATUS_OK) ->
+    <<"OK">>;
+status_to_string(?GRPC_STATUS_CANCELLED) ->
+    <<"CANCELLED">>;
+status_to_string(?GRPC_STATUS_UNKNOWN) ->
+    <<"UNKNOWN">>;
+status_to_string(?GRPC_STATUS_INVALID_ARGUMENT) ->
+    <<"INVALID_ARGUMENT">>;
+status_to_string(?GRPC_STATUS_DEADLINE_EXCEEDED) ->
+    <<"DEADLINE_EXCEEDED">>;
+status_to_string(?GRPC_STATUS_NOT_FOUND) ->
+    <<"NOT_FOUND">>;
+status_to_string(?GRPC_STATUS_ALREADY_EXISTS) ->
+    <<"ALREADY_EXISTS">>;
+status_to_string(?GRPC_STATUS_PERMISSION_DENIED) ->
+    <<"PERMISSION_DENIED">>;
+status_to_string(?GRPC_STATUS_RESOURCE_EXHAUSTED) ->
+    <<"RESOURCE_EXHAUSTED">>;
+status_to_string(?GRPC_STATUS_FAILED_PRECONDITION) ->
+    <<"FAILED_PRECONDITION">>;
+status_to_string(?GRPC_STATUS_ABORTED) ->
+    <<"ABORTED">>;
+status_to_string(?GRPC_STATUS_OUT_OF_RANGE) ->
+    <<"OUT_OF_RANGE">>;
+status_to_string(?GRPC_STATUS_UNIMPLEMENTED) ->
+    <<"UNIMPLEMENTED">>;
+status_to_string(?GRPC_STATUS_INTERNAL) ->
+    <<"INTERNAL">>;
+status_to_string(?GRPC_STATUS_UNAVAILABLE) ->
+    <<"UNAVAILABLE">>;
+status_to_string(?GRPC_STATUS_DATA_LOSS) ->
+    <<"DATA_LOSS">>;
+status_to_string(?GRPC_STATUS_UNAUTHENTICATED) ->
+    <<"UNAUTHENTICATED">>;
+status_to_string(Code) ->
+    <<"CODE_", Code/binary>>.

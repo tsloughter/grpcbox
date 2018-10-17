@@ -18,7 +18,8 @@
                                                     {<<":scheme">>, Scheme},
                                                     {<<":authority">>, Host},
                                                     {<<"grpc-encoding">>, Encoding},
-                                                    %% TODO: Include fully qualified message name in template def for this
+                                                    %% TODO: Include fully qualified message
+                                                    %% name in template def for this
                                                     %% {<<"grpc-message-type">>, MessageType},
                                                     {<<"content-type">>, <<"application/grpc+proto">>},
                                                     {<<"user-agent">>, <<"grpc-erlang/0.2.0">>},
@@ -29,13 +30,17 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 unmarshal_fun=UnMarshalFun}, Options) ->
     {ok, Conn, #{scheme := Scheme,
                  authority := Authority,
-                 encoding := DefaultEncoding}} = grpcbox_subchannel:conn(Channel),
+                 encoding := DefaultEncoding,
+                 stats_handler := StatsHandler}} = grpcbox_subchannel:conn(Channel),
     Encoding = maps:get(encoding, Options, DefaultEncoding),
     RequestHeaders = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), metadata_headers(Ctx)),
     case h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
                                                     marshal_fun => MarshalFun,
                                                     unmarshal_fun => UnMarshalFun,
+                                                    path => Path,
                                                     buffer => <<>>,
+                                                    stats_handler => StatsHandler,
+                                                    stats => #{},
                                                     client_pid => self()}], self()) of
         {error, _Code} = Err ->
             Err;
@@ -55,7 +60,8 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                      unmarshal_fun=UnMarshalFun}, Options) ->
     {ok, Conn, #{scheme := Scheme,
                  authority := Authority,
-                 encoding := DefaultEncoding}} = grpcbox_subchannel:conn(Channel),
+                 encoding := DefaultEncoding,
+                 stats_handler := StatsHandler}} = grpcbox_subchannel:conn(Channel),
 
     Encoding = maps:get(encoding, Options, DefaultEncoding),
     Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
@@ -64,7 +70,10 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
     case h2_connection:new_stream(Conn, grpcbox_client_stream, [#{service => Service,
                                                                   marshal_fun => MarshalFun,
                                                                   unmarshal_fun => UnMarshalFun,
+                                                                  path => Path,
                                                                   buffer => <<>>,
+                                                                  stats_handler => StatsHandler,
+                                                                  stats => #{},
                                                                   client_pid => self()}], self()) of
         {error, _Code} = Err ->
             Err;
@@ -116,20 +125,26 @@ metadata_headers(Ctx) ->
 
 %% callbacks
 
-init(_, StreamId, [_, State]) ->
-    {ok, State#{stream_id => StreamId}};
+init(_, StreamId, [_, State=#{path := Path}]) ->
+    Ctx1 = oc_tags:new(ctx:new(), #{grpc_client_method => Path}),
+    State1 = stats_handler(Ctx1, rpc_begin, {}, State),
+    {ok, State1#{stream_id => StreamId}};
 init(_, _, State) ->
     {ok, State}.
 
 on_receive_headers(H, State=#{resp_headers := _,
+                              ctx := Ctx,
                               stream_id := StreamId,
                               client_pid := Pid}) ->
     Status = proplists:get_value(<<"grpc-status">>, H, undefined),
     Message = proplists:get_value(<<"grpc-message">>, H, undefined),
     Metadata = grpcbox_utils:headers_to_metadata(H),
     Pid ! {trailers, StreamId, {Status, Message, Metadata}},
-    {ok, State#{resp_trailers => H}};
+    Ctx1 = oc_tags:new(Ctx, #{grpc_client_status => grpcbox_utils:status_to_string(Status)}),
+    {ok, State#{ctx => Ctx1,
+                resp_trailers => H}};
 on_receive_headers(H, State=#{stream_id := StreamId,
+                              ctx := Ctx,
                               client_pid := Pid}) ->
     Encoding = proplists:get_value(<<"grpc-encoding">>, H, identity),
     Metadata = grpcbox_utils:headers_to_metadata(H),
@@ -139,13 +154,17 @@ on_receive_headers(H, State=#{stream_id := StreamId,
     %% maybe chatterbox should include information about the end of the stream
     case proplists:get_value(<<"grpc-status">>, H, undefined) of
         undefined ->
-            ok;
+            {ok, State#{resp_headers => H,
+                        encoding => encoding_to_atom(Encoding)}};
         Status ->
             Message = proplists:get_value(<<"grpc-message">>, H, undefined),
-            Pid ! {trailers, StreamId, {Status, Message, Metadata}}
-    end,
-    {ok, State#{resp_headers => H,
-                encoding => encoding_to_atom(Encoding)}}.
+            Pid ! {trailers, StreamId, {Status, Message, Metadata}},
+            Ctx1 = oc_tags:new(Ctx, #{grpc_client_status => grpcbox_utils:status_to_string(Status)}),
+            {ok, State#{resp_headers => H,
+                        ctx => Ctx1,
+                        status => Status,
+                        encoding => encoding_to_atom(Encoding)}}
+    end.
 
 on_receive_data(Data, State=#{stream_id := StreamId,
                               client_pid := Pid,
@@ -159,12 +178,24 @@ on_receive_data(_Data, State) ->
     {ok, State}.
 
 on_end_stream(State=#{stream_id := StreamId,
+                      ctx := Ctx,
                       client_pid := Pid}) ->
     Pid ! {eos, StreamId},
-    {ok, State}.
+    State1 = stats_handler(Ctx, rpc_end, {}, State),
+    {ok, State1}.
 
 handle_info(_, State) ->
     State.
+
+%%
+
+stats_handler(Ctx, _, _, State=#{stats_handler := undefined}) ->
+    State#{ctx => Ctx};
+stats_handler(Ctx, Event, Stats, State=#{stats_handler := StatsHandler,
+                                         stats := StatsState}) ->
+    {Ctx1, StatsState1} = StatsHandler:handle(Ctx, client, Event, Stats, StatsState),
+    State#{ctx => Ctx1,
+           stats => StatsState1}.
 
 encoding_to_atom(identity) -> identity;
 encoding_to_atom(<<"identity">>) -> identity;
@@ -178,3 +209,4 @@ encoding_to_binary(gzip) -> <<"gzip">>;
 encoding_to_binary(deflate) -> <<"deflate">>;
 encoding_to_binary(snappy) -> <<"snappy">>;
 encoding_to_binary(Custom) -> atom_to_binary(Custom, latin1).
+

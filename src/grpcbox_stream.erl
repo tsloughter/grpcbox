@@ -74,8 +74,7 @@ init(ConnPid, StreamId, [Socket, AuthFun, UnaryInterceptor, StreamInterceptor, S
                    socket=Socket,
                    handler=self(),
                    stats_handler=StatsHandler},
-    State1 = stats_handler(ctx:new(), rpc_begin, {}, State),
-    {ok, State1}.
+    {ok, State}.
 
 on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
     %% proplists:get_value(<<":method">>, Headers) =:= <<"POST">>,
@@ -89,6 +88,8 @@ on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
 
     FullPath = proplists:get_value(<<":path">>, Headers),
     Ctx1 = oc_tags:new(Ctx, #{grpc_server_method => FullPath}),
+    %% wait to rpc_begin here since we need to know the method
+    State1 = stats_handler(Ctx1, rpc_begin, {}, State),
 
     RequestEncoding = parse_options(<<"grpc-encoding">>, Headers),
     ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
@@ -100,12 +101,12 @@ on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
                    | response_encoding(ResponseEncoding)],
 
     handle_service_lookup(Ctx1, string:lexemes(FullPath, "/"),
-                          State#state{resp_headers=RespHeaders,
-                                      req_headers=Headers,
-                                      full_method=FullPath,
-                                      request_encoding=RequestEncoding,
-                                      response_encoding=ResponseEncoding,
-                                      content_type=ContentType}).
+                          State1#state{resp_headers=RespHeaders,
+                                       req_headers=Headers,
+                                       full_method=FullPath,
+                                       request_encoding=RequestEncoding,
+                                       response_encoding=ResponseEncoding,
+                                       content_type=ContentType}).
 
 handle_service_lookup(Ctx, [Service, Method], State) ->
     case ets:lookup(?SERVICES_TAB, {Service, Method}) of
@@ -192,6 +193,8 @@ ctx_with_stream(Ctx, Stream) ->
 from_ctx(Ctx) ->
     ctx:get(Ctx, ctx_stream_key).
 
+on_receive_data(_, State=#state{method=undefined}) ->
+    {ok, State};
 on_receive_data(Bin, State=#state{request_encoding=Encoding,
                                   buffer=Buffer}) ->
     try
@@ -259,10 +262,9 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
             throw(E)
     end.
 
-on_end_stream(State=#state{ctx=Ctx}) ->
+on_end_stream(State) ->
     on_end_stream_(State),
-    State1 = stats_handler(Ctx, rpc_end, {}, State),
-    {ok, State1}.
+    {ok, State}.
 
 on_end_stream_(#state{input_ref=Ref,
                       callback_pid=Pid,
@@ -290,7 +292,7 @@ stats_handler(Ctx, _, _, State=#state{stats_handler=undefined}) ->
     State#state{ctx=Ctx};
 stats_handler(Ctx, Event, Stats, State=#state{stats_handler=StatsHandler,
                                               stats=StatsState}) ->
-    {Ctx1, StatsState1} = StatsHandler:handle(Ctx, Event, Stats, StatsState),
+    {Ctx1, StatsState1} = StatsHandler:handle(Ctx, server, Event, Stats, StatsState),
     State#state{ctx=Ctx1,
                 stats=StatsState1}.
 
@@ -303,12 +305,15 @@ end_stream(_Status, _Message, State=#state{trailers_sent=true}) ->
     {ok, State};
 end_stream(Status, Message, State=#state{connection_pid=ConnPid,
                                          stream_id=StreamId,
+                                         ctx=Ctx,
                                          resp_trailers=Trailers}) ->
     EncodedTrailers = grpcbox_utils:encode_headers(Trailers),
     h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
                                                     {<<"grpc-message">>, Message} | EncodedTrailers],
                                 [{send_end_stream, true}]),
-    {ok, State#state{trailers_sent=true}}.
+    Ctx1 = oc_tags:new(Ctx, #{grpc_server_status => grpcbox_utils:status_to_string(Status)}),
+    State1 = stats_handler(Ctx1, rpc_end, {}, State),
+    {ok, State1#state{trailers_sent=true}}.
 
 set_trailers(Ctx, Trailers) ->
     State = from_ctx(Ctx),

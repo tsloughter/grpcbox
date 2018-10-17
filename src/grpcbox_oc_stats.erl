@@ -2,6 +2,7 @@
 
 -export([register_measures/0,
          register_measures/1,
+         subscribe_views/0,
          default_views/0,
          default_views/1,
          extra_views/0,
@@ -66,9 +67,11 @@ register_measures_(server) ->
       "The total number of server RPCs ever opened, including those that have not completed.",
       none}].
 
+subscribe_views() ->
+    [oc_stat_view:subscribe(V) || V <- default_views()].
+
 default_views() ->
-    default_views(client),
-    default_views(server).
+    default_views(client) ++ default_views(server).
 
 default_views(client) ->
     [#{name => "grpc.io/client/sent_bytes_per_rpc",
@@ -89,7 +92,7 @@ default_views(client) ->
      #{name => "grpc.io/client/completed_rpcs",
        description => "Total count of completed rpcs",
        tags => [grpc_client_method, grpc_client_status],
-       measure => 'grpc.io/client/server_latency',
+       measure => 'grpc.io/client/roundtrip_latency',
        aggregation => oc_stat_aggregation_count},
      #{name => "grpc.io/client/started_rpcs",
        description => "The total number of client RPCs ever opened, including those that have not completed.",
