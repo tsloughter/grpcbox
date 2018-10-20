@@ -126,7 +126,7 @@ metadata_headers(Ctx) ->
 %% callbacks
 
 init(_, StreamId, [_, State=#{path := Path}]) ->
-    Ctx1 = oc_tags:new(ctx:new(), #{grpc_client_method => Path}),
+    Ctx1 = ctx:with_value(ctx:new(), grpc_client_method, Path),
     State1 = stats_handler(Ctx1, rpc_begin, {}, State),
     {ok, State1#{stream_id => StreamId}};
 init(_, _, State) ->
@@ -140,7 +140,7 @@ on_receive_headers(H, State=#{resp_headers := _,
     Message = proplists:get_value(<<"grpc-message">>, H, undefined),
     Metadata = grpcbox_utils:headers_to_metadata(H),
     Pid ! {trailers, StreamId, {Status, Message, Metadata}},
-    Ctx1 = oc_tags:new(Ctx, #{grpc_client_status => grpcbox_utils:status_to_string(Status)}),
+    Ctx1 = ctx:with_value(Ctx, grpc_client_status, grpcbox_utils:status_to_string(Status)),
     {ok, State#{ctx => Ctx1,
                 resp_trailers => H}};
 on_receive_headers(H, State=#{stream_id := StreamId,
@@ -159,7 +159,7 @@ on_receive_headers(H, State=#{stream_id := StreamId,
         Status ->
             Message = proplists:get_value(<<"grpc-message">>, H, undefined),
             Pid ! {trailers, StreamId, {Status, Message, Metadata}},
-            Ctx1 = oc_tags:new(Ctx, #{grpc_client_status => grpcbox_utils:status_to_string(Status)}),
+            Ctx1 = ctx:with_value(Ctx, grpc_client_status, grpcbox_utils:status_to_string(Status)),
             {ok, State#{resp_headers => H,
                         ctx => Ctx1,
                         status => Status,

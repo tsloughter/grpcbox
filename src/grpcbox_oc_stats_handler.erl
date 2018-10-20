@@ -20,11 +20,15 @@ init(Type) ->
     grpcbox_oc_stats:register_measures(Type).
 
 handle(Ctx, server, rpc_begin, _, _) ->
-    oc_stat:record(Ctx, [{'grpc.io/server/started_rpcs', 1}]),
-    {Ctx, #stats{start_time=erlang:monotonic_time()}};
+    Method = ctx:get(Ctx, grpc_server_method),
+    Tags = #{grpc_server_method => Method},
+    oc_stat:record(Tags, [{'grpc.io/server/started_rpcs', 1}]),
+    {oc_tags:new(Ctx, Tags), #stats{start_time=erlang:monotonic_time()}};
 handle(Ctx, client, rpc_begin, _, _) ->
-    oc_stat:record(Ctx, 'grpc.io/client/started_rpcs', 1),
-    {Ctx, #stats{start_time=erlang:monotonic_time()}};
+    Method = ctx:get(Ctx, grpc_client_method),
+    Tags = #{grpc_client_method => Method},
+    oc_stat:record(Tags, 'grpc.io/client/started_rpcs', 1),
+    {oc_tags:new(Ctx, Tags), #stats{start_time=erlang:monotonic_time()}};
 handle(Ctx, _, out_payload, #{uncompressed_size := USize,
                               compressed_size := _CSize}, Stats=#stats{sent_count=SentCount,
                                                                        sent_bytes=SentBytes}) ->
@@ -43,25 +47,29 @@ handle(Ctx, server, rpc_end, _, Stats=#stats{start_time=StartTime,
                                              recv_count=RecvCount,
                                              recv_bytes=RecvBytes}) ->
     EndTime = erlang:monotonic_time(),
-    oc_stat:record(Ctx, [{'grpc.io/server/server_latency', EndTime - StartTime},
-                         {'grpc.io/server/sent_bytes_per_rpc', SentBytes},
-                         {'grpc.io/server/received_bytes_per_rpc', RecvBytes},
-                         {'grpc.io/server/received_messages_per_rpc', RecvCount},
-                         {'grpc.io/server/sent_messages_per_rpc', SentCount}]),
+    Status = ctx:get(Ctx, grpc_server_status),
+    Ctx1 = oc_tags:new(Ctx, #{grpc_server_status => Status}),
+    oc_stat:record(Ctx1, [{'grpc.io/server/server_latency', EndTime - StartTime},
+                          {'grpc.io/server/sent_bytes_per_rpc', SentBytes},
+                          {'grpc.io/server/received_bytes_per_rpc', RecvBytes},
+                          {'grpc.io/server/received_messages_per_rpc', RecvCount},
+                          {'grpc.io/server/sent_messages_per_rpc', SentCount}]),
 
-    {Ctx, Stats#stats{end_time=EndTime}};
+    {Ctx1, Stats#stats{end_time=EndTime}};
 handle(Ctx, client, rpc_end, _, Stats=#stats{start_time=StartTime,
                                              sent_count=SentCount,
                                              sent_bytes=SentBytes,
                                              recv_count=RecvCount,
                                              recv_bytes=RecvBytes}) ->
     EndTime = erlang:monotonic_time(),
-    oc_stat:record(Ctx, [{'grpc.io/client/roundtrip_latency', EndTime - StartTime},
-                         {'grpc.io/client/sent_bytes_per_rpc', SentBytes},
-                         {'grpc.io/client/received_bytes_per_rpc', RecvBytes},
-                         {'grpc.io/client/received_messages_per_rpc', RecvCount},
-                         {'grpc.io/client/sent_messages_per_rpc', SentCount}]),
+    Status = ctx:get(Ctx, grpc_client_status),
+    Ctx1 = oc_tags:new(Ctx, #{grpc_client_status => Status}),
+    oc_stat:record(Ctx1, [{'grpc.io/client/roundtrip_latency', EndTime - StartTime},
+                          {'grpc.io/client/sent_bytes_per_rpc', SentBytes},
+                          {'grpc.io/client/received_bytes_per_rpc', RecvBytes},
+                          {'grpc.io/client/received_messages_per_rpc', RecvCount},
+                          {'grpc.io/client/sent_messages_per_rpc', SentCount}]),
 
-    {Ctx, Stats#stats{end_time=EndTime}};
+    {Ctx1, Stats#stats{end_time=EndTime}};
 handle(Ctx, _, _, _, Stats=#stats{}) ->
     {Ctx, Stats}.

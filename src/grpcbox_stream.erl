@@ -87,9 +87,9 @@ on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
            end,
 
     FullPath = proplists:get_value(<<":path">>, Headers),
-    Ctx1 = oc_tags:new(Ctx, #{grpc_server_method => FullPath}),
     %% wait to rpc_begin here since we need to know the method
-    State1 = stats_handler(Ctx1, rpc_begin, {}, State),
+    Ctx1 = ctx:with_value(Ctx, grpc_server_method, FullPath),
+    State1=#state{ctx=Ctx2} = stats_handler(Ctx1, rpc_begin, {}, State#state{full_method=FullPath}),
 
     RequestEncoding = parse_options(<<"grpc-encoding">>, Headers),
     ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
@@ -100,10 +100,9 @@ on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
                    {<<"content-type">>, content_type(ContentType)}
                    | response_encoding(ResponseEncoding)],
 
-    handle_service_lookup(Ctx1, string:lexemes(FullPath, "/"),
+    handle_service_lookup(Ctx2, string:lexemes(FullPath, "/"),
                           State1#state{resp_headers=RespHeaders,
                                        req_headers=Headers,
-                                       full_method=FullPath,
                                        request_encoding=RequestEncoding,
                                        response_encoding=ResponseEncoding,
                                        content_type=ContentType}).
@@ -311,7 +310,7 @@ end_stream(Status, Message, State=#state{connection_pid=ConnPid,
     h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
                                                     {<<"grpc-message">>, Message} | EncodedTrailers],
                                 [{send_end_stream, true}]),
-    Ctx1 = oc_tags:new(Ctx, #{grpc_server_status => grpcbox_utils:status_to_string(Status)}),
+    Ctx1 = ctx:with_value(Ctx, grpc_server_status, grpcbox_utils:status_to_string(Status)),
     State1 = stats_handler(Ctx1, rpc_end, {}, State),
     {ok, State1#state{trailers_sent=true}}.
 
