@@ -6,7 +6,9 @@
 -module(grpcbox).
 
 -export([start_server/0,
-         start_server/1]).
+         start_server/1,
+
+         child_spec/5]).
 
 -include_lib("chatterbox/include/http2.hrl").
 
@@ -44,3 +46,10 @@ start_server() ->
 start_server(Opts) ->
     grpcbox_services_simple_sup:start_child(Opts).
 
+child_spec(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
+    #{id => grpcbox_services_sup,
+      start => {grpcbox_services_sup, start_link, [ServerOpts, GrpcOpts, ListenOpts,
+                                                   PoolOpts, TransportOpts]},
+      type => supervisor,
+      restart => permanent,
+      shutdown => 1000}.

@@ -17,7 +17,7 @@
 
 start_link(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
     ServicePbModules = maps:get(service_protos, GrpcOpts),
-    Services = maps:get(services, GrpcOpts),
+    Services = maps:get(services, GrpcOpts, #{}),
     load_services(ServicePbModules, Services),
 
     %% give the services_sup a name because in the future we might want to reference it easily for
@@ -93,8 +93,8 @@ load_services([ServicePbModule | Rest], Services) ->
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
          SnakedServiceName = atom_snake_case(ServiceName),
          ServiceModule = maps:get(ServiceName, Services, SnakedServiceName),
-         try lists:keyfind(exports, 1, ServiceModule:module_info()) of
-             {exports, Exports} ->
+         try ServiceModule:module_info(exports) of
+             Exports ->
                  [begin
                       SnakedMethodName = atom_snake_case(Name),
                       case lists:member({SnakedMethodName, 2}, Exports) of
