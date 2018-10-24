@@ -17,7 +17,8 @@
 
 start_link(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
     ServicePbModules = maps:get(service_protos, GrpcOpts),
-    load_services(ServicePbModules),
+    Services = maps:get(services, GrpcOpts),
+    load_services(ServicePbModules, Services),
 
     %% give the services_sup a name because in the future we might want to reference it easily for
     %% debugging purposes or live configuration changes
@@ -84,14 +85,15 @@ get_authfun(_, _) ->
 %% grpc requests are of the form `<pkg>.<Service>/<Method>` in camelcase. For this reason we
 %% have gpb keep the service definitions in their original form and convert to snake case here
 %% to know what module:function to call for each.
-load_services([]) ->
+load_services([], _) ->
     ok;
-load_services([ServicePbModule | Rest]) ->
+load_services([ServicePbModule | Rest], Services) ->
     ServiceNames = ServicePbModule:get_service_names(),
     [begin
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
          SnakedServiceName = atom_snake_case(ServiceName),
-         try lists:keyfind(exports, 1, SnakedServiceName:module_info()) of
+         ServiceModule = maps:get(ServiceName, Services, SnakedServiceName),
+         try lists:keyfind(exports, 1, ServiceModule:module_info()) of
              {exports, Exports} ->
                  [begin
                       SnakedMethodName = atom_snake_case(Name),
@@ -99,7 +101,7 @@ load_services([ServicePbModule | Rest]) ->
                           true ->
                               ets:insert(?SERVICES_TAB, #method{key={atom_to_binary(ServiceName, utf8),
                                                                      atom_to_binary(Name, utf8)},
-                                                                module=SnakedServiceName,
+                                                                module=ServiceModule,
                                                                 function=SnakedMethodName,
                                                                 proto=ServicePbModule,
                                                                 input={Input, InputStream},
@@ -122,7 +124,7 @@ load_services([ServicePbModule | Rest]) ->
          end
      end || ServiceName <- ServiceNames],
 
-    load_services(Rest).
+    load_services(Rest, Services).
 
 atom_snake_case(Name) ->
     NameString = atom_to_list(Name),
