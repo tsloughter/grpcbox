@@ -36,7 +36,19 @@ $ rebar3 grpc gen
 ===> Writing src/grpcbox_route_guide_bhvr.erl
 ```
 
-A behaviour is used because it provides a way to generate the interface and types without being where the actual implementation is also done. This way if a change happens to the proto you can regenerate the interface without any issues with the implementation of the service, simply then update the implemntation callbacks to match the changed interface.
+A behaviour is used because it provides a way to generate the interface and types without being where the actual implementation is also done. This way if a change happens to the proto you can regenerate the interface without any issues with the implementation of the service, simply then update the implementation callbacks to match the changed interface.
+
+Runtime configuration for `grpcbox` can be done in `sys.config`, specifying the compiled proto modules to use for finding the services available, which services to actually enable for requests and what module implements them, acceptor pool and http server settings. See `interop/config/sys.config` for a working example.
+
+In the interop config the portion for defining services to handle requests for is:
+
+``` erlrang
+{grpcbox, [{grpc_opts, #{service_protos => [test_pb],
+                         services => #{'grpc.testing.TestService' => grpc_testing_test_service}}},
+...
+```
+
+`test_pb` is the `gpb` generated module that exports `get_service_names/0`. The results of that function are used to construct the metadata needed for handling requests. The `services` map gives the module to call for handling methods of a service. If a service is not defined in that map it will result in the grpc error code 12, `Unimplemented`.
 
 #### Unary RPC
 

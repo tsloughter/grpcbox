@@ -91,17 +91,17 @@ load_services([ServicePbModule | Rest], Services) ->
     ServiceNames = ServicePbModule:get_service_names(),
     [begin
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
-         SnakedServiceName = atom_snake_case(ServiceName),
-         ServiceModule = maps:get(ServiceName, Services, SnakedServiceName),
-         try ServiceModule:module_info(exports) of
-             Exports ->
+         %% throws exception if ServiceName isn't in the map or doesn't exist
+         try ServiceModule = maps:get(ServiceName, Services),
+              {ServiceModule, ServiceModule:module_info(exports)} of
+             {ServiceModule1, Exports} ->
                  [begin
                       SnakedMethodName = atom_snake_case(Name),
                       case lists:member({SnakedMethodName, 2}, Exports) of
                           true ->
                               ets:insert(?SERVICES_TAB, #method{key={atom_to_binary(ServiceName, utf8),
                                                                      atom_to_binary(Name, utf8)},
-                                                                module=ServiceModule,
+                                                                module=ServiceModule1,
                                                                 function=SnakedMethodName,
                                                                 proto=ServicePbModule,
                                                                 input={Input, InputStream},
