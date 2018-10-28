@@ -12,7 +12,6 @@
 -include("grpcbox.hrl").
 
 start(_StartType, _StartArgs) ->
-    ets:new(?SERVICES_TAB, [public, named_table, set, {read_concurrency, true}, {keypos, 2}]),
     {ok, Pid} = grpcbox_sup:start_link(),
     case application:get_env(grpcbox, client) of
         {ok, #{channels := Channels}} ->

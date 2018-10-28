@@ -16,10 +16,6 @@
 -include("grpcbox.hrl").
 
 start_link(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
-    ServicePbModules = maps:get(service_protos, GrpcOpts),
-    Services = maps:get(services, GrpcOpts, #{}),
-    load_services(ServicePbModules, Services),
-
     %% give the services_sup a name because in the future we might want to reference it easily for
     %% debugging purposes or live configuration changes
     Name = services_sup_name(ListenOpts),
@@ -36,12 +32,18 @@ interceptor(Type, Opts) ->
     end.
 
 init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts]) ->
+    Tid = ets:new(services_table, [public, set, {read_concurrency, true}, {keypos, 2}]),
+    ServicePbModules = maps:get(service_protos, GrpcOpts),
+    Services = maps:get(services, GrpcOpts, #{}),
+    load_services(ServicePbModules, Services, Tid),
+
     AuthFun = get_authfun(maps:get(ssl, TransportOpts, false), GrpcOpts),
     UnaryInterceptor = interceptor(unary_interceptor, GrpcOpts),
     StreamInterceptor = interceptor(stream_interceptor, GrpcOpts),
     StatsHandler = maps:get(stats_handler, GrpcOpts, undefined),
     ChatterboxOpts = #{stream_callback_mod => grpcbox_stream,
-                       stream_callback_opts => [AuthFun, UnaryInterceptor, StreamInterceptor, StatsHandler]},
+                       stream_callback_opts => [Tid, AuthFun, UnaryInterceptor,
+                                                StreamInterceptor, StatsHandler]},
 
     %% unique name for pool based on the ip and port it will listen on
     Name = pool_name(ListenOpts),
@@ -85,9 +87,9 @@ get_authfun(_, _) ->
 %% grpc requests are of the form `<pkg>.<Service>/<Method>` in camelcase. For this reason we
 %% have gpb keep the service definitions in their original form and convert to snake case here
 %% to know what module:function to call for each.
-load_services([], _) ->
+load_services([], _, _) ->
     ok;
-load_services([ServicePbModule | Rest], Services) ->
+load_services([ServicePbModule | Rest], Services, ServicesTable) ->
     ServiceNames = ServicePbModule:get_service_names(),
     [begin
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
@@ -99,7 +101,7 @@ load_services([ServicePbModule | Rest], Services) ->
                       SnakedMethodName = atom_snake_case(Name),
                       case lists:member({SnakedMethodName, 2}, Exports) of
                           true ->
-                              ets:insert(?SERVICES_TAB, #method{key={atom_to_binary(ServiceName, utf8),
+                              ets:insert(ServicesTable, #method{key={atom_to_binary(ServiceName, utf8),
                                                                      atom_to_binary(Name, utf8)},
                                                                 module=ServiceModule1,
                                                                 function=SnakedMethodName,
@@ -124,7 +126,7 @@ load_services([ServicePbModule | Rest], Services) ->
          end
      end || ServiceName <- ServiceNames],
 
-    load_services(Rest, Services).
+    load_services(Rest, Services, ServicesTable).
 
 atom_snake_case(Name) ->
     NameString = atom_to_list(Name),

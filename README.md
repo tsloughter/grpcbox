@@ -50,6 +50,8 @@ In the interop config the portion for defining services to handle requests for i
 
 `test_pb` is the `gpb` generated module that exports `get_service_names/0`. The results of that function are used to construct the metadata needed for handling requests. The `services` map gives the module to call for handling methods of a service. If a service is not defined in that map it will result in the grpc error code 12, `Unimplemented`.
 
+The server can be started by either running `grpcbox:start_server()`, assuming the services are all configured in the `sys.config` and it is loaded. `start_server/0` will start a `grpcbox_service_sup` supervisor under the `grpcbox_services_simple_sup` simple one for one supervisor. Or get a child spec `grpcbox:child_spec(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts)` to include the service supervisor in your own supervision tree.
+
 #### Unary RPC
 
 Unary RPCs receive a single request and return a single response. The RPC `GetFeature` takes a single `Point` and returns the `Feature` at that point:

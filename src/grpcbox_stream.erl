@@ -37,6 +37,7 @@
                 auth_fun,
                 buffer              :: binary(),
                 ctx                 :: ctx:ctx(),
+                services_table      :: ets:tid(),
                 req_headers=[]      :: list(),
                 full_method         :: binary() | undefined,
                 input_ref           :: reference() | undefined,
@@ -63,10 +64,12 @@
 -type grpc_error() :: {grpc_status(), grpc_status_message()}.
 -type grpc_error_response() :: {grpc_error, grpc_error()}.
 
-init(ConnPid, StreamId, [Socket, AuthFun, UnaryInterceptor, StreamInterceptor, StatsHandler]) ->
+init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
+                         StreamInterceptor, StatsHandler]) ->
     process_flag(trap_exit, true),
     State = #state{connection_pid=ConnPid,
                    stream_id=StreamId,
+                   services_table=ServicesTable,
                    buffer = <<>>,
                    auth_fun=AuthFun,
                    unary_interceptor=UnaryInterceptor,
@@ -107,8 +110,8 @@ on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
                                        response_encoding=ResponseEncoding,
                                        content_type=ContentType}).
 
-handle_service_lookup(Ctx, [Service, Method], State) ->
-    case ets:lookup(?SERVICES_TAB, {Service, Method}) of
+handle_service_lookup(Ctx, [Service, Method], State=#state{services_table=ServicesTable}) ->
+    case ets:lookup(ServicesTable, {Service, Method}) of
         [M=#method{}] ->
             State1 = State#state{ctx=Ctx,
                                  method=M},
