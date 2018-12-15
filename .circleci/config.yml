@@ -1,141 +1,19 @@
 version: 2.1
 
 orbs:
-  rebar3_test:
-    commands:
-      install_ca_certs:
-        steps:
-          - run:
-              command: apk add --no-cache ca-certificates
-      restore_deps:
-        steps:
-          - restore_cache:
-              keys:
-                - rebar-lock-{{ checksum "rebar.lock" }}
-                - hex-packages
-      save_deps:
-        steps:
-          - save_cache:
-              key: rebar-lock-{{ checksum "rebar.lock" }}
-              paths:
-                - ~/project/_build/default/lib
-                - ~/project/_build/default/plugins
-
-          - save_cache:
-              key: hex-packages
-              paths:
-                - ~/.cache/rebar3/hex/default/packages
-
-      crash_artifacts:
-        parameters:
-          cmd:
-            description: unique name, like the command that is running, in case there are multiple dumps
-            type: string
-        steps:
-          - store_artifacts:
-              path: ~/project/rebar3.crashdump
-              destination: <<parameters.cmd>>_rebar3_crashdump.txt
-              when: on_fail
-
-      compile:
-        steps:
-          - install_ca_certs
-          - checkout
-          - restore_deps
-          - run:
-              command: rebar3 compile
-          - crash_artifacts:
-              cmd: compile
-          - save_deps
-      dialyzer:
-        steps:
-          - install_ca_certs
-          - checkout
-          - restore_cache:
-              keys:
-                - erlang-plt
-          - restore_deps
-          - run:
-              command: rebar3 dialyzer
-          - crash_artifacts:
-              cmd: compile
-          - save_cache:
-              key: erlang-plt
-              paths:
-                - ~/.cache/rebar3/rebar3_*_plt
-      xref:
-        steps:
-          - install_ca_certs
-          - checkout
-          - restore_deps
-          - run:
-              command: rebar3 xref
-          - crash_artifacts:
-              cmd: xref
-      ct:
-        steps:
-          - install_ca_certs
-          - checkout
-          - restore_deps
-          - run:
-              command: |
-                rebar3 do ct, cover
-                rebar3 covertool generate
-            # apk add --update python python-dev py-pip
-            # pip install codecov && codecov -f _build/test/covertool/pgo.covertool.xml
-          - crash_artifacts:
-              cmd: ct
-          - store_test_results:
-              path: ~/project/_build/test/logs/
-          - store_artifacts:
-              path: ~/project/_build/test/logs
-              destination: common_test
-
-    executors:
-      rebar3_executor:
-        parameters:
-          version:
-            type: string
-            default: "21.2-alpine"
-        docker:
-          - image: erlang:<<parameters.version>>
-            entrypoint: ["/bin/sh"]
-
-jobs:
-  build:
-    executor: rebar3_test/rebar3_executor
-    steps:
-      - rebar3_test/compile
-
-  dialyzer:
-    executor: rebar3_test/rebar3_executor
-    steps:
-      - rebar3_test/compile
-
-  xref:
-    executor: rebar3_test/rebar3_executor
-    steps:
-      - rebar3_test/xref
-
-  tests:
-    executor: rebar3_test/rebar3_executor
-    steps:
-      - rebar3_test/ct
+  rebar3: tsloughter/rebar3@0.2.0
 
 workflows:
-  version: 2
+  version: 2.1
   build_and_test:
     jobs:
-      - build
-      - dialyzer:
+      - rebar3/compile
+      - rebar3/xref:
           requires:
-            - build
-      - xref:
+            - rebar3/compile
+      - rebar3/dialyzer:
           requires:
-            - build
-      # - lint:
-      #     requires:
-      #       - build
-      - tests:
+            - rebar3/compile
+      - rebar3/ct:
           requires:
-            - build
+            - rebar3/compile
