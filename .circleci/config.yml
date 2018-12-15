@@ -1,124 +1,126 @@
-defaults: &defaults
-  shell: /bin/bash
-  working_directory: /home/circleci/grpcbox
-  docker:
-    - image: tsloughter/erlang-alpine:20.0.1
-      cmd: ["/bin/bash"]
+version: 2.1
 
-version: 2
+orbs:
+  rebar3_test:
+    commands:
+      install_ca_certs:
+        steps:
+          - run:
+              command: apk add --no-cache ca-certificates
+      restore_deps:
+        steps:
+          - restore_cache:
+              keys:
+                - rebar-lock-{{ checksum "rebar.lock" }}
+                - hex-packages
+      save_deps:
+        steps:
+          - save_cache:
+              key: rebar-lock-{{ checksum "rebar.lock" }}
+              paths:
+                - ~/project/_build/default/lib
+                - ~/project/_build/default/plugins
+
+          - save_cache:
+              key: hex-packages
+              paths:
+                - ~/.cache/rebar3/hex/default/packages
+
+      crash_artifacts:
+        parameters:
+          cmd:
+            description: unique name, like the command that is running, in case there are multiple dumps
+            type: string
+        steps:
+          - store_artifacts:
+              path: ~/project/rebar3.crashdump
+              destination: <<parameters.cmd>>_rebar3_crashdump.txt
+              when: on_fail
+
+      compile:
+        steps:
+          - install_ca_certs
+          - checkout
+          - restore_deps
+          - run:
+              command: rebar3 compile
+          - crash_artifacts:
+              cmd: compile
+          - save_deps
+      dialyzer:
+        steps:
+          - install_ca_certs
+          - checkout
+          - restore_cache:
+              keys:
+                - erlang-plt
+          - restore_deps
+          - run:
+              command: rebar3 dialyzer
+          - crash_artifacts:
+              cmd: compile
+          - save_cache:
+              key: erlang-plt
+              paths:
+                - ~/.cache/rebar3/rebar3_*_plt
+      xref:
+        steps:
+          - install_ca_certs
+          - checkout
+          - restore_deps
+          - run:
+              command: rebar3 xref
+          - crash_artifacts:
+              cmd: xref
+      ct:
+        steps:
+          - install_ca_certs
+          - checkout
+          - restore_deps
+          - run:
+              command: |
+                rebar3 do ct, cover
+                rebar3 covertool generate
+            # apk add --update python python-dev py-pip
+            # pip install codecov && codecov -f _build/test/covertool/pgo.covertool.xml
+          - crash_artifacts:
+              cmd: ct
+          - store_test_results:
+              path: ~/project/_build/test/logs/
+          - store_artifacts:
+              path: ~/project/_build/test/logs
+              destination: common_test
+
+    executors:
+      rebar3_executor:
+        parameters:
+          version:
+            type: string
+            default: "21.2-alpine"
+        docker:
+          - image: erlang:<<parameters.version>>
+            entrypoint: ["/bin/sh"]
+
 jobs:
   build:
-    <<: *defaults
+    executor: rebar3_test/rebar3_executor
     steps:
-      - checkout
-
-      - restore_cache:
-          keys:
-            - grpcbox-{{ checksum "rebar.lock" }}
-            - grpcbox-hex-packages
-
-      - run:
-          command: rebar3 compile
-
-      - store_artifacts:
-          path: /home/circleci/grpcbox/rebar3.crashdump
-          destination: rebar3_crashdump.txt
-          when: on_fail
-
-      - save-cache:
-          key: grpcbox-{{ checksum "rebar.lock" }}
-          paths:
-            - /home/circleci/grpcbox/_build/default/lib
-            - /home/circleci/grpcbox/_build/default/plugins
-
-      - save-cache:
-          key: grpcbox-hex-packages
-          paths:
-            - /root/.cache/rebar3/hex/default/packages
+      - rebar3_test/compile
 
   dialyzer:
-    <<: *defaults
+    executor: rebar3_test/rebar3_executor
     steps:
-      - checkout
+      - rebar3_test/compile
 
-      - attach_workspace:
-          at: /home/circleci/grpcbox
-
-      - restore_cache:
-          keys:
-            - erlang-plt-20.0.1
-
-      - restore_cache:
-          keys:
-            - grpcbox-{{ checksum "rebar.lock" }}
-            - grpcbox-hex-packages
-
-      - run:
-          command: rebar3 dialyzer
-
-      - save-cache:
-          key: erlang-plt-20.0.1
-          paths:
-            - /root/.cache/rebar3/rebar3_20.0.1_plt
   xref:
-    <<: *defaults
+    executor: rebar3_test/rebar3_executor
     steps:
-      - checkout
-
-      - attach_workspace:
-          at: /home/circleci/grpcbox
-
-      - restore_cache:
-          keys:
-            - grpcbox-{{ checksum "rebar.lock" }}
-            - grpcbox-hex-packages
-
-      - run:
-          command: rebar3 xref
-
-  lint:
-    <<: *defaults
-    steps:
-      - checkout
-
-      - attach_workspace:
-          at: /home/circleci/grpcbox
-
-      - restore_cache:
-          keys:
-            - grpcbox-{{ checksum "rebar.lock" }}
-            - grpcbox-hex-packages
-
-      - run:
-          command: rebar3 lint
+      - rebar3_test/xref
 
   tests:
-    <<: *defaults
+    executor: rebar3_test/rebar3_executor
     steps:
-      - checkout
-
-      - attach_workspace:
-          at: /home/circleci/grpcbox
-
-      - restore_cache:
-          keys:
-            - grpcbox-{{ checksum "rebar.lock" }}
-            - grpcbox-hex-packages
-
-      - run:
-          command: |
-            set -eux
-            rebar3 do ct, cover
-            rebar3 covertool generate
-            apk add --update python python-dev py-pip
-            pip install codecov && codecov -f _build/test/covertool/grpcbox.covertool.xml
-
-      - store_test_results:
-          path: /home/circleci/grpcbox/_build/test/logs/
-
-      - store_artifacts:
-          path: /home/circleci/grpcbox/_build/test/logs
-          destination: common_test
+      - rebar3_test/ct
 
 workflows:
   version: 2
@@ -131,9 +133,9 @@ workflows:
       - xref:
           requires:
             - build
-      - lint:
-          requires:
-            - build
+      # - lint:
+      #     requires:
+      #       - build
       - tests:
           requires:
             - build
