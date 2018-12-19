@@ -116,7 +116,7 @@ insert_unary_interceptor(Name, Interceptors) ->
             ets:insert(?CHANNELS_TAB, {{Name, unary}, Interceptor})
     end.
 
-insert_stream_interceptor(Name, Type, Interceptors) ->
+insert_stream_interceptor(Name, _Type, Interceptors) ->
     case maps:get(stream_interceptor, Interceptors, undefined) of
         undefined ->
             ok;
