@@ -245,9 +245,9 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
                                         full_method=FullMethod,
                                         method=#method{module=Module,
                                                        function=Function,
-                                                       proto=Proto,
-                                                       input={Input, InputStream},
-                                                       output={_Output, OutputStream}}}) ->
+                                                       proto=_Proto,
+                                                       input={_Input, _InputStream},
+                                                       output={_Output, _OutputStream}}}) ->
     Ctx1 = ctx_with_stream(Ctx, State),
     case (case UnaryInterceptor of
               undefined -> Module:Function(Ctx1, Message);
