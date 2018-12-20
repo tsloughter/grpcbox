@@ -17,6 +17,8 @@ commands:
       - run:
           name: Upload Coverage Results
           command: |
+            head << parameters.path >>
+
             apk add --no-cache curl
             curl --request POST --retry 3 --silent --show-error --fail \
             --data-binary @<< parameters.path >> \
@@ -40,9 +42,13 @@ jobs:
           at: ~/project/
       - run:
           command: |
+            set -x
+            ls
+            ls _build/test
+            head /root/project/_build/test/cover/ct.coverdata
             rebar3 covertool generate
       - upload:
-          path: ~/project/_build/test/covertool/grpcbox.covertool.xml
+          path: /root/project/_build/test/covertool/grpcbox.covertool.xml
 
 workflows:
   version: 2.1
