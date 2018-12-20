@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  rebar3: tsloughter/rebar3@0.2.0
+  rebar3: tsloughter/rebar3@dev:cover
 
 workflows:
   version: 2.1
@@ -15,5 +15,6 @@ workflows:
           requires:
             - rebar3/compile
       - rebar3/ct:
+          cover: true
           requires:
             - rebar3/compile
