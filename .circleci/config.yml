@@ -42,6 +42,10 @@ jobs:
           at: ~/project/
       - run:
           command: |
+            set -x
+            ls
+            ls _build/test
+            head /root/project/_build/test/cover/ct.coverdata
             rebar3 covertool generate
       - upload:
           path: /root/project/_build/test/covertool/grpcbox.covertool.xml
