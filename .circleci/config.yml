@@ -44,7 +44,7 @@ jobs:
           command: |
             rebar3 covertool generate
       - upload:
-          path: _build/test/covertool/grpcbox.covertool.xml
+          path: /root/project/_build/test/covertool/grpcbox.covertool.xml
 
 workflows:
   version: 2.1
