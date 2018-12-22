@@ -1,34 +1,7 @@
 version: 2.1
 
 orbs:
-  rebar3: tsloughter/rebar3@0.5.1
-
-commands:
-  upload:
-    parameters:
-      token:
-        description: The API token to use for uploading to Codecov.
-        type: string
-        default: $CODECOV_TOKEN
-      path:
-        description: Path to the code coverage data file to upload.
-        type: string
-    steps:
-      - run:
-          name: Upload Coverage Results
-          command: |
-            apk add --no-cache curl
-            curl --request POST --retry 3 --silent --show-error --fail \
-            --data-binary @<< parameters.path >> \
-            "https://codecov.io/upload/v2?service=circleci\
-            &token=<< parameters.token >>\
-            &commit=$CIRCLE_SHA1\
-            &branch=$CIRCLE_BRANCH\
-            &build=$CIRCLE_BUILD_NUM\
-            &job=$CIRCLE_NODE_INDEX\
-            &build_url=$CIRCLE_BUILD_URL\
-            &slug=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME\
-            &pr=$CIRCLE_PR_NUMBER"
+  rebar3: tsloughter/rebar3@0.5.3
 
 jobs:
   codecov:
@@ -41,8 +14,8 @@ jobs:
       - run:
           command: |
             rebar3 covertool generate
-      - upload:
-          path: ~/project/_build/test/covertool/grpcbox.covertool.xml
+            apk add --update python python-dev py-pip git
+            pip install codecov && codecov -f _build/test/covertool/grpcbox.covertool.xml
 
 workflows:
   version: 2.1
