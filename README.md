@@ -20,7 +20,7 @@ The easiest way to get started on your own project is using the plugin, [grpcbox
 ```erlang
 {deps, [grpcbox]}.
 
-{grpc, [{protos, "priv/protos"},
+{grpc, [{protos, "protos"},
         {gpb_opts, [{module_name_suffix, "_pb"}]}]}.
 
 {plugins, [grpcbox_plugin]}.
@@ -28,7 +28,7 @@ The easiest way to get started on your own project is using the plugin, [grpcbox
 
 Currently `grpcbox` and the plugin are a bit picky and the `gpb` options will always include `[use_packages, maps, {i, "."}, {o, "src"}]`.
 
-Assuming the `priv/protos` directory of your application has the `route_guide.proto` found in this repo, `priv/protos/route_guide.proto`, the output from running the plugin will be:
+Assuming the `protos` directory of your application has the `route_guide.proto` found in this repo, `protos/route_guide.proto`, the output from running the plugin will be:
 
 ```shell
 $ rebar3 grpc gen
