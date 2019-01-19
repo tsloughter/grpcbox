@@ -89,6 +89,8 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                 Error
         end
     catch
+        error:{badmatch, {error, econnrefused}} ->
+            {error, econnrefused};
         throw:{error, _}=E ->
             E
     end.
@@ -100,8 +102,12 @@ stream(Ctx, Path, Def, Options) ->
         undefined ->
             grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options);
         #{new_stream := NewStream} ->
-            {ok, S} = NewStream(Ctx, Channel, Path, Def, fun grpcbox_client_stream:new_stream/5, Options),
-            {ok, S#{stream_interceptor => Interceptor}};
+            case NewStream(Ctx, Channel, Path, Def, fun grpcbox_client_stream:new_stream/5, Options) of
+                {ok, S} ->
+                    {ok, S#{stream_interceptor => Interceptor}};
+                {error, _}=Error ->
+                    Error
+            end;
         _ ->
             grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options)
     end.

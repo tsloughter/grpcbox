@@ -273,7 +273,7 @@ end_per_testcase(_, _Config) ->
 initially_down_service(_Config) ->
     Point = #{latitude => 409146138, longitude => -746188906},
     Ctx = ctx:with_deadline_after(ctx:new(), 5, second),
-    ?assertError({badmatch, {error, econnrefused}}, routeguide_route_guide_client:get_feature(Ctx, Point)),
+    ?assertEqual({error, econnrefused}, routeguide_route_guide_client:get_feature(Ctx, Point)),
 
     application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
                                               services => #{'routeguide.RouteGuide' =>

@@ -28,59 +28,66 @@
 new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 marshal_fun=MarshalFun,
                                                 unmarshal_fun=UnMarshalFun}, Options) ->
-    {ok, Conn, #{scheme := Scheme,
-                 authority := Authority,
-                 encoding := DefaultEncoding,
-                 stats_handler := StatsHandler}} = grpcbox_subchannel:conn(Channel),
-    Encoding = maps:get(encoding, Options, DefaultEncoding),
-    RequestHeaders = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), metadata_headers(Ctx)),
-    case h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
-                                                    marshal_fun => MarshalFun,
-                                                    unmarshal_fun => UnMarshalFun,
-                                                    path => Path,
-                                                    buffer => <<>>,
-                                                    stats_handler => StatsHandler,
-                                                    stats => #{},
-                                                    client_pid => self()}], self()) of
-        {error, _Code} = Err ->
-            Err;
-        {StreamId, Pid} ->
-            h2_connection:send_headers(Conn, StreamId, RequestHeaders),
-            Ref = erlang:monitor(process, Pid),
-            {ok, #{channel => Conn,
-                   stream_id => StreamId,
-                   stream_pid => Pid,
-                   monitor_ref => Ref,
-                   service_def => Def,
-                   encoding => Encoding}}
+    case grpcbox_subchannel:conn(Channel) of
+        {ok, Conn, #{scheme := Scheme,
+                     authority := Authority,
+                     encoding := DefaultEncoding,
+                     stats_handler := StatsHandler}} ->
+            Encoding = maps:get(encoding, Options, DefaultEncoding),
+            RequestHeaders = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), metadata_headers(Ctx)),
+            case h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
+                                                            marshal_fun => MarshalFun,
+                                                            unmarshal_fun => UnMarshalFun,
+                                                            path => Path,
+                                                            buffer => <<>>,
+                                                            stats_handler => StatsHandler,
+                                                            stats => #{},
+                                                            client_pid => self()}], self()) of
+                {error, _Code} = Err ->
+                    Err;
+                {StreamId, Pid} ->
+                    h2_connection:send_headers(Conn, StreamId, RequestHeaders),
+                    Ref = erlang:monitor(process, Pid),
+                    {ok, #{channel => Conn,
+                           stream_id => StreamId,
+                           stream_pid => Pid,
+                           monitor_ref => Ref,
+                           service_def => Def,
+                           encoding => Encoding}}
+            end;
+        {error, _}=Error ->
+            Error
     end.
 
 send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                      marshal_fun=MarshalFun,
                                                      unmarshal_fun=UnMarshalFun}, Options) ->
-    {ok, Conn, #{scheme := Scheme,
-                 authority := Authority,
-                 encoding := DefaultEncoding,
-                 stats_handler := StatsHandler}} = grpcbox_subchannel:conn(Channel),
+    case grpcbox_subchannel:conn(Channel) of
+        {ok, Conn, #{scheme := Scheme,
+                     authority := Authority,
+                     encoding := DefaultEncoding,
+                     stats_handler := StatsHandler}} ->
+            Encoding = maps:get(encoding, Options, DefaultEncoding),
+            Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
+            Headers = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), metadata_headers(Ctx)),
 
-    Encoding = maps:get(encoding, Options, DefaultEncoding),
-    Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
-    Headers = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), metadata_headers(Ctx)),
-
-    case h2_connection:new_stream(Conn, grpcbox_client_stream, [#{service => Service,
-                                                                  marshal_fun => MarshalFun,
-                                                                  unmarshal_fun => UnMarshalFun,
-                                                                  path => Path,
-                                                                  buffer => <<>>,
-                                                                  stats_handler => StatsHandler,
-                                                                  stats => #{},
-                                                                  client_pid => self()}], self()) of
-        {error, _Code} = Err ->
-            Err;
-        {StreamId, Pid} ->
-            h2_connection:send_headers(Conn, StreamId, Headers),
-            h2_connection:send_body(Conn, StreamId, Body),
-            {ok, Conn, StreamId, Pid}
+            case h2_connection:new_stream(Conn, grpcbox_client_stream, [#{service => Service,
+                                                                          marshal_fun => MarshalFun,
+                                                                          unmarshal_fun => UnMarshalFun,
+                                                                          path => Path,
+                                                                          buffer => <<>>,
+                                                                          stats_handler => StatsHandler,
+                                                                          stats => #{},
+                                                                          client_pid => self()}], self()) of
+                {error, _Code} = Err ->
+                    Err;
+                {StreamId, Pid} ->
+                    h2_connection:send_headers(Conn, StreamId, Headers),
+                    h2_connection:send_body(Conn, StreamId, Body),
+                    {ok, Conn, StreamId, Pid}
+            end;
+        {error, _}=Error ->
+            Error
     end.
 
 send_msg(#{channel := Conn,
