@@ -384,7 +384,10 @@ handle_info({'EXIT', _, {grpc_error, {Status, Message}}}, State) ->
     State;
 handle_info({'EXIT', _, _Other}, State) ->
     end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
+    State;
+handle_info(_, State) ->
     State.
+
 
 add_headers(Headers, #state{handler=Pid}) ->
     Pid ! {add_headers, Headers}.

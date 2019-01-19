@@ -1,10 +1,10 @@
--record(method, {key      :: {unicode:chardata(), unicode:chardata()},
-                 proto    :: module(),
-                 module   :: module(),
-                 function :: atom(),
-                 input    :: {term(), boolean()},
-                 output   :: {term(), boolean()},
-                 opts     :: [term()]}).
+-record(method, {key      :: {unicode:chardata() | '$1', unicode:chardata() | '_'},
+                 proto    :: module() | '_',
+                 module   :: module() | '_',
+                 function :: atom() | '_',
+                 input    :: {term(), boolean()} | '_',
+                 output   :: {term(), boolean()} | '_',
+                 opts     :: [term()] | '_'}).
 
 %% service definition
 -record(grpcbox_def, {service :: atom(),

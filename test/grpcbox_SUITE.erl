@@ -32,7 +32,8 @@ all() ->
      client_stream,
      compression,
      stats_handler,
-     health_service
+     health_service,
+     reflection_service
      %% TODO: rst stream error handling
     ].
 
@@ -225,6 +226,18 @@ init_per_testcase(health_service, Config) ->
     application:ensure_all_started(grpcbox),
     ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
+init_per_testcase(reflection_service, Config) ->
+    application:load(grpcbox),
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb,
+                                                                 grpcbox_reflection_pb],
+                                              services => #{'grpc.reflection.v1alpha.ServerReflection'
+                                                            => grpcbox_reflection_service}}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+    Config;
 init_per_testcase(_, Config) ->
     Config.
 
@@ -337,6 +350,42 @@ health_service(_Config) ->
                  grpcbox_health_client:check(Ctx, #{service => <<"grpc.health.v1.Health">>})),
     ?assertMatch({ok, #{status := 'UNKNOWN'}, _},
                  grpcbox_health_client:check(Ctx, #{service => <<"something else">>})).
+
+reflection_service(_Config) ->
+    {ok, S} = grpcbox_reflection_client:server_reflection_info(ctx:new()),
+
+    ok = grpcbox_client:send(S, #{message_request => {list_services, <<>>}}),
+    ?assertMatch({ok, #{message_response :=
+                            {list_services_response,
+                             #{service := [#{name := <<"grpc.reflection.v1alpha.ServerReflection">>}]}}}},
+                 grpcbox_client:recv_data(S)),
+
+    ok = grpcbox_client:send(S, #{message_request => {all_extension_numbers_of_type, <<>>}}),
+    ?assertMatch({ok, #{message_response :=
+                            {all_extension_numbers_response,
+                             #{base_type_name := <<>>,extension_number := []}}}},
+                 grpcbox_client:recv_data(S)),
+
+    ok = grpcbox_client:send(S, #{message_request => {file_containing_extension, #{}}}),
+    ?assertMatch({ok, #{message_response :=
+                            {file_descriptor_response,
+                             #{file_descriptor_proto := []}}}},
+                 grpcbox_client:recv_data(S)),
+
+    %% ok = grpcbox_client:send(S, #{message_request => {file_by_filename, <<>>}}),
+    %% ?assertMatch({ok, #{message_response :=
+    %%                         {file_descriptor_response,
+    %%                          #{file_descriptor_proto := []}}}},
+    %%              grpcbox_client:recv_data(S)),
+
+    ok = grpcbox_client:send(S, #{message_request => {file_containing_symbol, <<"routeguide.RouteGuide">>}}),
+    ?assertMatch({ok, #{message_response :=
+                            {file_descriptor_response,
+                             #{file_descriptor_proto := [_]}}}},
+                 grpcbox_client:recv_data(S)),
+
+    %% closes the stream, waits for an 'end of stream' message and then returns the received data
+    ?assertMatch(ok, grpcbox_client:close_send(S)).
 
 stats_handler(_Config) ->
     register(stats_pid, self()),

@@ -18,9 +18,9 @@
 start_link(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
     %% give the services_sup a name because in the future we might want to reference it easily for
     %% debugging purposes or live configuration changes
-    Name = services_sup_name(ListenOpts),
-    supervisor:start_link({local, Name}, ?MODULE, [ServerOpts, GrpcOpts, ListenOpts,
-                                                   PoolOpts, TransportOpts]).
+    ServicesSupName = services_sup_name(ListenOpts),
+    supervisor:start_link({local, ServicesSupName}, ?MODULE, [ServerOpts, GrpcOpts, ListenOpts,
+                                                              PoolOpts, TransportOpts, ServicesSupName]).
 interceptor(Type, Opts) ->
     case maps:get(Type, Opts, undefined) of
         {Module, Function} ->
@@ -31,8 +31,9 @@ interceptor(Type, Opts) ->
             undefined
     end.
 
-init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts]) ->
-    Tid = ets:new(services_table, [public, set, {read_concurrency, true}, {keypos, 2}]),
+init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts, ServiceSupName]) ->
+    Tid = ets:new(ServiceSupName, [protected, named_table, set,
+                                   {read_concurrency, true}, {keypos, 2}]),
     ServicePbModules = maps:get(service_protos, GrpcOpts),
     Services = maps:get(services, GrpcOpts, #{}),
     load_services(ServicePbModules, Services, Tid),

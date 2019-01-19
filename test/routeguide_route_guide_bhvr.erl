@@ -3,13 +3,13 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2018-06-24T20:43:59+00:00 and should not be modified manually
+%% this module was generated on 2019-01-19T22:34:35+00:00 and should not be modified manually
 
 -module(routeguide_route_guide_bhvr).
 
 %% @doc Unary RPC
 -callback get_feature(ctx:ctx(), route_guide_pb:point()) ->
-    {ok, route_guide_pb:feature()} | grpcbox_stream:grpc_error_response().
+    {ok, route_guide_pb:feature(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
 
 %% @doc 
 -callback list_features(route_guide_pb:rectangle(), grpcbox_stream:t()) ->
@@ -17,7 +17,7 @@
 
 %% @doc 
 -callback record_route(reference(), grpcbox_stream:t()) ->
-    {ok, route_guide_pb:route_summary()} | grpcbox_stream:grpc_error_response().
+    {ok, route_guide_pb:route_summary(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
 
 %% @doc 
 -callback route_chat(reference(), grpcbox_stream:t()) ->

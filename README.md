@@ -6,9 +6,18 @@ grpcbox
 [![Hex.pm](https://img.shields.io/hexpm/v//grpcbox.svg?maxAge=2592000)](https://hex.pm/packages/grpcbox)
 [![Hex.pm](https://img.shields.io/hexpm/dt/grpcbox.svg?maxAge=2592000)](https://hex.pm/packages/grpcbox)
 
-Library for creating [grpc](https://grpc.io) services in Erlang, based on the [chatterbox](https://github.com/joedevivo/chatterbox) http2 server.
+Library for creating [grpc](https://grpc.io) services (client and server) in Erlang, based on the [chatterbox](https://github.com/joedevivo/chatterbox) http2 library.
 
+Features
+---
 
+* Unary, client stream, server stream and bidirectional rpcs
+* Client load balancing
+* Interceptors
+* Health check service
+* Reflection service
+* [OpenCensus](https://opencensus.io) interceptors for stats and tracing
+* [Plugin](https://github.com/tsloughter/grpcbox_plugin) for generating clients and behaviour type specs for service server implementation
 
 Implementing a Service Server
 ----
