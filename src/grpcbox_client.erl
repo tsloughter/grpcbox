@@ -21,6 +21,7 @@
          close_and_recv/1,
          close_send/1]).
 
+-include_lib("chatterbox/include/http2.hrl").
 -include("grpcbox.hrl").
 
 -type options() :: #{channel => grpcbox_channel:t(),
@@ -30,7 +31,15 @@
 -type stream_interceptor() :: term().
 -type interceptor() :: unary_interceptor() | stream_interceptor().
 
--export_type([options/0,
+-type stream() :: #{channel => pid(),
+                    stream_id => stream_id(),
+                    stream_pid => pid(),
+                    monitor_ref => reference(),
+                    service_def => #grpcbox_def{},
+                    encoding => grpcbox:encoding()}.
+
+-export_type([stream/0,
+              options/0,
               unary_interceptor/0,
               stream_interceptor/0,
               interceptor/0]).

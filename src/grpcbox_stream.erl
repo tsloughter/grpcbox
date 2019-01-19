@@ -57,7 +57,7 @@
                 stats_handler       :: module() | undefined,
                 stats               :: term() | undefined}).
 
--opaque t() :: #state{}.
+-type t() :: #state{}.
 
 -type grpc_status_message() :: unicode:chardata().
 -type grpc_status() :: 0..16.

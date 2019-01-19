@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2019-01-17T19:47:53+00:00 and should not be modified manually
+%% this module was generated on 2019-01-19T04:07:16+00:00 and should not be modified manually
 
 -module(grpcbox_health_client).
 
@@ -33,12 +33,12 @@ check(Ctx, Input, Options) ->
 
 %% @doc 
 -spec watch(ctx:t(), grpcbox_health_pb:health_check_request()) ->
-    {ok, grpcbox_stream:t()} | grpcbox_stream:grpc_error_response().
+    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
 watch(Ctx, Input) ->
     watch(Ctx, Input, #{}).
 
 -spec watch(ctx:t(), grpcbox_health_pb:health_check_request(), grpcbox_client:options()) ->
-    {ok, grpcbox_stream:t()} | grpcbox_stream:grpc_error_response().
+    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
 watch(Ctx, Input, Options) ->
     grpcbox_client:stream(Ctx, <<"/grpc.health.v1.Health/Watch">>, Input, ?DEF(health_check_request, health_check_response), Options).
 
