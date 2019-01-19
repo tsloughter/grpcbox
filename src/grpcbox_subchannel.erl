@@ -63,13 +63,13 @@ ready({call, From}, conn, #data{conn=Conn,
 ready(EventType, EventContent, Data) ->
     handle_event(EventType, EventContent, Data).
 
-transient_failure({call, _}, conn, Data) ->
-    connect(Data, [postpone]);
+transient_failure({call, From}, conn, Data) ->
+    connect(Data, From, [postpone]);
 transient_failure(EventType, EventContent, Data) ->
     handle_event(EventType, EventContent, Data).
 
-idle({call, _}, conn, Data) ->
-    connect(Data, [postpone]);
+idle({call, From}, conn, Data) ->
+    connect(Data, From, [postpone]);
 idle(EventType, EventContent, Data) ->
     handle_event(EventType, EventContent, Data).
 
@@ -80,6 +80,10 @@ shutdown(EventType, EventContent, Data) ->
 
 handle_event({call, From}, info, #data{info=Info}) ->
     {keep_state_and_data, [{reply, From, Info}]};
+handle_event(info, {'EXIT', Pid, econnrefused}, Data=#data{conn=Pid}) ->
+    {next_state, idle, Data#data{conn=undefined}};
+handle_event(info, {'EXIT', _, econnrefused}, Data=#data{conn=undefined}) ->
+    {next_state, idle, Data#data{conn=undefined}};
 handle_event(_, _, _) ->
     keep_state_and_data.
 
@@ -90,17 +94,17 @@ terminate(_Reason, _State, #data{endpoint=Endpoint,
     ok.
 
 connect(Data=#data{conn=undefined,
-                   endpoint={Transport, Host, Port, SSLOptions}}, Actions) ->
+                   endpoint={Transport, Host, Port, SSLOptions}}, From, Actions) ->
     case h2_client:start_link(Transport, Host, Port, options(Transport, SSLOptions),
                               #{stream_callback_mod => grpcbox_client_stream}) of
         {ok, Pid} ->
             {next_state, ready, Data#data{conn=Pid}, Actions};
-        _ ->
-            {keep_state_and_data, Actions}
+        {error, _}=Error ->
+            {keep_state_and_data, [{reply, From, Error}]}
     end;
-connect(Data=#data{conn=Pid}, Actions) when is_pid(Pid) ->
+connect(Data=#data{conn=Pid}, From, Actions) when is_pid(Pid) ->
     h2_connection:stop(Pid),
-    connect(Data#data{conn=undefined}, Actions).
+    connect(Data#data{conn=undefined}, From, Actions).
 
 options(https, Options) ->
     [{client_preferred_next_protocols, {client, [<<"h2">>]}} | Options];

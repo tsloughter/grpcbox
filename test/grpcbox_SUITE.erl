@@ -22,6 +22,7 @@ all() ->
      {group, tcp},
      {group, negative_tests},
      {group, negative_ssl},
+     initially_down_service,
      unary_interceptor,
      unary_client_interceptor,
      chain_interceptor,
@@ -101,6 +102,13 @@ end_per_group(_, _Config) ->
     application:stop(grpcbox),
     ok.
 
+init_per_testcase(initially_down_service, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, grpc_opts, #{}),
+    application:set_env(grpcbox, transport_opts, #{}),
+    application:ensure_all_started(grpcbox),
+    Config;
 init_per_testcase(unary_client_interceptor, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}],
@@ -261,6 +269,18 @@ end_per_testcase(closed_stream, _Config) ->
 end_per_testcase(_, _Config) ->
     application:stop(grpcbox),
     ok.
+
+initially_down_service(_Config) ->
+    Point = #{latitude => 409146138, longitude => -746188906},
+    Ctx = ctx:with_deadline_after(ctx:new(), 5, second),
+    ?assertError({badmatch, {error, econnrefused}}, routeguide_route_guide_client:get_feature(Ctx, Point)),
+
+    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
+                                              services => #{'routeguide.RouteGuide' =>
+                                                                routeguide_route_guide}}),
+    ?assertMatch({ok, _}, grpcbox:start_server()),
+
+    {ok, _Feature, _} = routeguide_route_guide_client:get_feature(Ctx, Point).
 
 unimplemented(_Config) ->
     Def = #grpcbox_def{service = 'routeguide.RouteGuide',
