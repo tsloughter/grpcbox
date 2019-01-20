@@ -14,7 +14,7 @@ server_reflection_info(Ref, Stream) ->
         {Ref, Message} ->
             handle_message(Message, Stream),
             server_reflection_info(Ref, Stream)
-        end.
+    end.
 
 handle_message(#{message_request := {list_services, _}}=OriginalRequest, Stream) ->
     Services = list_services(),
@@ -44,7 +44,7 @@ handle_message(#{message_request := {file_containing_extension, _}}=OriginalRequ
 
 list_services() ->
     ServiceSups = supervisor:which_children(grpcbox_services_simple_sup),
-    lists:flatmap(fun services/1, ServiceSups).
+    lists:usort(lists:flatmap(fun services/1, ServiceSups)).
 
 services({_, Pid, _, _}) ->
     {registered_name, Name} = erlang:process_info(Pid, registered_name),
@@ -57,10 +57,14 @@ file_by_filename(_Filename) ->
     %% {file_descriptor_response, #{file_descriptor_proto => [FileDescriptor]}
 
 file_containing_symbol(Symbol) ->
-    %% TODO: don't rely on the application env. should be a global registry
-    GrpcOpts = application:get_env(grpcbox, grpc_opts, #{}),
-    ServicePbModules = maps:get(service_protos, GrpcOpts),
+    ServiceSups = supervisor:which_children(grpcbox_services_simple_sup),
+    ServicePbModules = lists:usort(lists:flatmap(fun proto_modules/1, ServiceSups)),
     find(ServicePbModules, Symbol).
+
+proto_modules({_, Pid, _, _}) ->
+    {registered_name, Name} = erlang:process_info(Pid, registered_name),
+    [Module || Module <- ets:select(Name, [{#method{proto='$1',
+                                                    _='_'}, [], ['$1']}])].
 
 find([], _) ->
     {error_response, #{error_code => 5,

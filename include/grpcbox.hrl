@@ -1,5 +1,5 @@
--record(method, {key      :: {unicode:chardata() | '$1', unicode:chardata() | '_'},
-                 proto    :: module() | '_',
+-record(method, {key      :: {unicode:chardata() | '$1', unicode:chardata() | '_'} | '_',
+                 proto    :: module() | '$1' | '_',
                  module   :: module() | '_',
                  function :: atom() | '_',
                  input    :: {term(), boolean()} | '_',
