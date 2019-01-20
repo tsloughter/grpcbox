@@ -362,14 +362,16 @@ reflection_service(_Config) ->
 
     ok = grpcbox_client:send(S, #{message_request => {all_extension_numbers_of_type, <<>>}}),
     ?assertMatch({ok, #{message_response :=
-                            {all_extension_numbers_response,
-                             #{base_type_name := <<>>,extension_number := []}}}},
+                            {error_response,#{error_code := 12,
+                                              error_message :=
+                                                  <<"unimplemented method since extensions removed in proto3">>}}}},
                  grpcbox_client:recv_data(S)),
 
     ok = grpcbox_client:send(S, #{message_request => {file_containing_extension, #{}}}),
     ?assertMatch({ok, #{message_response :=
-                            {file_descriptor_response,
-                             #{file_descriptor_proto := []}}}},
+                            {error_response,#{error_code := 12,
+                                              error_message :=
+                                                  <<"unimplemented method since extensions removed in proto3">>}}}},
                  grpcbox_client:recv_data(S)),
 
     %% ok = grpcbox_client:send(S, #{message_request => {file_by_filename, <<>>}}),

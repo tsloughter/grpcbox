@@ -4,6 +4,11 @@
 
 -include("grpcbox.hrl").
 
+-define(UNIMPLEMENTED_RESPONSE,
+        {error_response,
+         #{error_code => 12,
+           error_message => "unimplemented method since extensions removed in proto3"}}).
+
 server_reflection_info(Ref, Stream) ->
     receive
         {Ref, Message} ->
@@ -17,24 +22,23 @@ handle_message(#{message_request := {list_services, _}}=OriginalRequest, Stream)
                           message_response => {list_services_response,
                                                #{service => Services}}}, Stream);
 handle_message(#{message_request := {file_by_filename, Filename}}=OriginalRequest, Stream) ->
-    FileDescriptor = file_by_filename(Filename),
+    Response = file_by_filename(Filename),
     grpcbox_stream:send(#{original_request => OriginalRequest,
-                          message_response => {file_descriptor_response,
-                                               #{file_descriptor_proto => [FileDescriptor]}}}, Stream);
+                          message_response => Response}, Stream);
 handle_message(#{message_request := {file_containing_symbol, Symbol}}=OriginalRequest, Stream) ->
-    FileDescriptor = file_containing_symbol(Symbol),
+    Response = file_containing_symbol(Symbol),
     grpcbox_stream:send(#{original_request => OriginalRequest,
-                          message_response => {file_descriptor_response,
-                                               #{file_descriptor_proto => [FileDescriptor]}}}, Stream);
+                          message_response => Response}, Stream);
 
 %% proto3 dropped extensions so we'll just return an empty result
 
 handle_message(#{message_request := {all_extension_numbers_of_type, _}}=OriginalRequest, Stream) ->
     grpcbox_stream:send(#{original_request => OriginalRequest,
-                          message_response => {all_extension_numbers_response, #{}}}, Stream);
+                          message_response => ?UNIMPLEMENTED_RESPONSE},
+                        Stream);
 handle_message(#{message_request := {file_containing_extension, _}}=OriginalRequest, Stream) ->
     grpcbox_stream:send(#{original_request => OriginalRequest,
-                          message_response => {file_descriptor_response, #{}}}, Stream).
+                          message_response => ?UNIMPLEMENTED_RESPONSE}, Stream).
 
 %%
 
@@ -48,7 +52,9 @@ services({_, Pid, _, _}) ->
                                                                  _='_'}, [], ['$1']}])].
 
 file_by_filename(_Filename) ->
-    <<>>.
+    {error_response, #{error_code => 12,
+                       error_message => "not implemented yet"}}.
+    %% {file_descriptor_response, #{file_descriptor_proto => [FileDescriptor]}
 
 file_containing_symbol(Symbol) ->
     %% TODO: don't rely on the application env. should be a global registry
@@ -57,11 +63,13 @@ file_containing_symbol(Symbol) ->
     find(ServicePbModules, Symbol).
 
 find([], _) ->
-    <<>>;
+    {error_response, #{error_code => 5,
+                       error_message => "symbol not found"}};
 find([M | T], Symbol) ->
     try M:fqbin_to_service_name(Symbol) of
         _ ->
-            M:descriptor()
+            {file_descriptor_response,
+             #{file_descriptor_proto => [M:descriptor()]}}
     catch
         _:_ ->
             find(T, Symbol)
