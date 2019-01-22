@@ -231,10 +231,12 @@ init_per_testcase(reflection_service, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
     application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb,
-                                                                 grpcbox_reflection_pb],
+                                                                 grpcbox_reflection_pb,
+                                                                 grpcbox_health_pb],
                                               services => #{'grpc.reflection.v1alpha.ServerReflection'
                                                             => grpcbox_reflection_service,
-                                                            'routeguide.RouteGuide' => routeguide_route_guide}}),
+                                                            'routeguide.RouteGuide' => routeguide_route_guide,
+                                                            'grpc.health.v1.Health' => grpcbox_health_service}}),
     application:set_env(grpcbox, transport_opts, #{}),
     application:ensure_all_started(grpcbox),
     ?assertMatch({ok, _}, grpcbox:start_server()),
@@ -358,7 +360,8 @@ reflection_service(_Config) ->
     ok = grpcbox_client:send(S, #{message_request => {list_services, <<>>}}),
     ?assertMatch({ok, #{message_response :=
                             {list_services_response,
-                             #{service := [#{name := <<"grpc.reflection.v1alpha.ServerReflection">>},
+                             #{service := [#{name := <<"grpc.health.v1.Health">>},
+                                           #{name := <<"grpc.reflection.v1alpha.ServerReflection">>},
                                            #{name := <<"routeguide.RouteGuide">>}]}}}},
                  grpcbox_client:recv_data(S)),
 
@@ -383,6 +386,12 @@ reflection_service(_Config) ->
     %%              grpcbox_client:recv_data(S)),
 
     ok = grpcbox_client:send(S, #{message_request => {file_containing_symbol, <<"routeguide.RouteGuide">>}}),
+    ?assertMatch({ok, #{message_response :=
+                            {file_descriptor_response,
+                             #{file_descriptor_proto := [_]}}}},
+                 grpcbox_client:recv_data(S)),
+
+    ok = grpcbox_client:send(S, #{message_request => {file_containing_symbol, <<"grpc.health.v1.HealthCheckResponse.ServingStatus">>}}),
     ?assertMatch({ok, #{message_response :=
                             {file_descriptor_response,
                              #{file_descriptor_proto := [_]}}}},

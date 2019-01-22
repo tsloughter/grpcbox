@@ -70,11 +70,20 @@ find([], _) ->
     {error_response, #{error_code => 5,
                        error_message => "symbol not found"}};
 find([M | T], Symbol) ->
-    try M:fqbin_to_service_name(Symbol) of
-        _ ->
+    case lists:any(fun(F) -> find_symbol(M, F, Symbol) end, [service_name_to_fqbin,
+                                                             fetch_enum_def]) of
+        true ->
             {file_descriptor_response,
-             #{file_descriptor_proto => [M:descriptor()]}}
+             #{file_descriptor_proto => [M:descriptor()]}};
+        false ->
+            find(T, Symbol)
+    end.
+
+find_symbol(M, F, Symbol) ->
+    try M:F(binary_to_existing_atom(Symbol, utf8)) of
+        _ ->
+            true
     catch
         _:_ ->
-            find(T, Symbol)
+            false
     end.
