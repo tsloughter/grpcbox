@@ -24,6 +24,7 @@
                      stream_interceptor => grpcbox_client:stream_interceptor()}.
 -type load_balancer() :: round_robin | random | hash | direct | claim.
 -export_type([t/0,
+              options/0,
               endpoint/0]).
 
 -record(data, {endpoints :: [endpoint()],
