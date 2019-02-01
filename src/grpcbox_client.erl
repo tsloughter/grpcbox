@@ -98,18 +98,26 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
 %% no input: bidrectional
 stream(Ctx, Path, Def, Options) ->
     {Channel, Interceptor} = get_channel(Options, stream),
-    case Interceptor of
-        undefined ->
-            grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options);
-        #{new_stream := NewStream} ->
-            case NewStream(Ctx, Channel, Path, Def, fun grpcbox_client_stream:new_stream/5, Options) of
-                {ok, S} ->
-                    {ok, S#{stream_interceptor => Interceptor}};
-                {error, _}=Error ->
-                    Error
-            end;
-        _ ->
-            grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options)
+    {ok, Stream} = case Interceptor of
+                       undefined ->
+                           grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options);
+                       #{new_stream := NewStream} ->
+                           case NewStream(Ctx, Channel, Path, Def, fun grpcbox_client_stream:new_stream/5, Options) of
+                               {ok, S} ->
+                                   {ok, S#{stream_interceptor => Interceptor}};
+                               {error, _}=Error ->
+                                   Error
+                           end;
+                       _ ->
+                           grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options)
+                   end,
+    case recv_headers(Stream) of
+        {ok, Headers} ->
+            {ok, Stream, Headers};
+        {error, Reason}->
+            {error, Reason};
+        timeout ->
+            timeout
     end.
 
 close_and_recv(Stream) ->

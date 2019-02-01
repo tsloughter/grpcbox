@@ -371,7 +371,9 @@ handle_call({ctx, Ctx}, State) ->
     {ok, ok, State#state{ctx=Ctx}}.
 
 handle_info({add_headers, Headers}, State) ->
-    update_headers(Headers, State);
+    State1 = update_headers(Headers, State),
+    send_headers(State1),
+    State1;
 handle_info({add_trailers, Trailers}, State) ->
     update_trailers(Trailers, State);
 handle_info({send_proto, Message}, State) ->
