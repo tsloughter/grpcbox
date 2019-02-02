@@ -1,21 +1,17 @@
 version: 2.1
 
 orbs:
-  rebar3: tsloughter/rebar3@0.5.4
+  rebar3: tsloughter/rebar3@0.6.0
+  codecov: circleci/codecov@0.0.3
 
 jobs:
   codecov:
     executor: rebar3/erlang
     steps:
-      - rebar3/install_ca_certs
-      - checkout
       - attach_workspace:
           at: ~/project/
-      - run:
-          command: |
-            rebar3 covertool generate
-            apk add --update python python-dev py-pip git
-            pip install codecov && codecov -f _build/test/covertool/grpcbox.covertool.xml
+      - codecov/upload:
+          path: _build/test/covertool/grpcbox.covertool.xml
 
 workflows:
   version: 2.1
