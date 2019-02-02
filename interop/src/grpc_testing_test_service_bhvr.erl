@@ -3,21 +3,21 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2018-06-28T22:22:37+00:00 and should not be modified manually
+%% this module was generated on 2019-02-02T14:54:28+00:00 and should not be modified manually
 
 -module(grpc_testing_test_service_bhvr).
 
 %% @doc Unary RPC
 -callback empty_call(ctx:ctx(), test_pb:empty()) ->
-    {ok, test_pb:empty()} | grpcbox_stream:grpc_error_response().
+    {ok, test_pb:empty(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
 
 %% @doc Unary RPC
 -callback unary_call(ctx:ctx(), test_pb:simple_request()) ->
-    {ok, test_pb:simple_response()} | grpcbox_stream:grpc_error_response().
+    {ok, test_pb:simple_response(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
 
 %% @doc Unary RPC
 -callback cacheable_unary_call(ctx:ctx(), test_pb:simple_request()) ->
-    {ok, test_pb:simple_response()} | grpcbox_stream:grpc_error_response().
+    {ok, test_pb:simple_response(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
 
 %% @doc 
 -callback streaming_output_call(test_pb:streaming_output_call_request(), grpcbox_stream:t()) ->
@@ -25,7 +25,7 @@
 
 %% @doc 
 -callback streaming_input_call(reference(), grpcbox_stream:t()) ->
-    {ok, test_pb:streaming_input_call_response()} | grpcbox_stream:grpc_error_response().
+    {ok, test_pb:streaming_input_call_response(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
 
 %% @doc 
 -callback full_duplex_call(reference(), grpcbox_stream:t()) ->
@@ -37,5 +37,5 @@
 
 %% @doc Unary RPC
 -callback unimplemented_call(ctx:ctx(), test_pb:empty()) ->
-    {ok, test_pb:empty()} | grpcbox_stream:grpc_error_response().
+    {ok, test_pb:empty(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
 

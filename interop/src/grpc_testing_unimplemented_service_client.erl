@@ -1,16 +1,16 @@
 %%%-------------------------------------------------------------------
-%% @doc Behaviour to implement for grpc service grpc.testing.UnimplementedService.
+%% @doc Client module for grpc service grpc.testing.UnimplementedService.
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2018-06-28T22:22:37+00:00 and should not be modified manually
+%% this module was generated on 2019-02-02T14:54:28+00:00 and should not be modified manually
 
 -module(grpc_testing_unimplemented_service_client).
 
--compile([nowarn_export_all]).
--compile([export_all]).
+-compile(export_all).
+-compile(nowarn_export_all).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -define(SERVICE, 'grpc.testing.UnimplementedService').
 -define(PROTO_MODULE, 'test_pb').
