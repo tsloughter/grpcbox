@@ -68,7 +68,7 @@ disconnected(EventType, EventContent, Data) ->
 
 handle_event({call, From}, info, #data{info=Info}) ->
     {keep_state_and_data, [{reply, From, Info}]};
-handle_event(info, {'EXIT', Pid, econnrefused}, Data=#data{conn=Pid}) ->
+handle_event(info, {'EXIT', Pid, _}, Data=#data{conn=Pid}) ->
     {next_state, disconnected, Data#data{conn=undefined}};
 handle_event(info, {'EXIT', _, econnrefused}, #data{conn=undefined}) ->
     keep_state_and_data;
@@ -94,7 +94,7 @@ terminate(_Reason, _State, #data{conn=Pid,
 connect(Data=#data{conn=undefined,
                    endpoint={Transport, Host, Port, SSLOptions}}, From, Actions) ->
     case h2_client:start_link(Transport, Host, Port, options(Transport, SSLOptions),
-                              #{stream_callback_mod => grpcbox_client_stream}) of
+                             #{stream_callback_mod => grpcbox_client_stream}) of
         {ok, Pid} ->
             {next_state, ready, Data#data{conn=Pid}, Actions};
         {error, _}=Error ->
