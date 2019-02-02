@@ -8,6 +8,7 @@
 
 %% service definition
 -record(grpcbox_def, {service :: atom(),
+                      message_type = <<>> :: binary(),
                       marshal_fun :: fun((maps:map()) -> binary()),
                       unmarshal_fun :: fun((binary()) -> maps:map())}).
 

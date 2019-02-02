@@ -340,7 +340,7 @@ compression(_Config) ->
     ?assertMatch({error, {unknown_encoding, something}},
                  routeguide_route_guide_client:get_feature(Ctx, Point, #{encoding => something})),
 
-    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Ctx, Point, #{encoding => gzip}),
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Point, #{encoding => gzip}),
     ?assertEqual(#{location =>
                        #{latitude => 409146138, longitude => -746188906},
                    name =>
@@ -355,7 +355,7 @@ health_service(_Config) ->
                  grpcbox_health_client:check(Ctx, #{service => <<"something else">>})).
 
 reflection_service(_Config) ->
-    {ok, S} = grpcbox_reflection_client:server_reflection_info(ctx:new()),
+    {ok, S} = grpcbox_reflection_client:server_reflection_info(),
 
     ok = grpcbox_client:send(S, #{message_request => {list_services, <<>>}}),
     ?assertMatch({ok, #{message_response :=
@@ -475,8 +475,7 @@ client_stream(_Config) ->
 
 unary(_Channel) ->
     Point = #{latitude => 409146138, longitude => -746188906},
-    Ctx = ctx:with_deadline_after(ctx:new(), 5, second),
-    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Ctx, Point),
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Point),
     ?assertEqual(#{location =>
                        #{latitude => 409146138, longitude => -746188906},
                    name =>
@@ -485,7 +484,7 @@ unary(_Channel) ->
 unary_client_interceptor(_Config) ->
     %% client side interceptor replaces the point with lat 30 and long 90
     Point = #{latitude => 409146138, longitude => -746188906},
-    {ok, Feature, _} = routeguide_route_guide_client:get_feature(ctx:background(), Point),
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Point),
     ?assertEqual(#{location =>
                        #{latitude => 30, longitude => 90},
                    name => <<"">>}, Feature).
@@ -493,7 +492,7 @@ unary_client_interceptor(_Config) ->
 unary_interceptor(_Config) ->
     %% our test interceptor replaces the point with lat 30 and long 90
     Point = #{latitude => 409146138, longitude => -746188906},
-    {ok, Feature, _} = routeguide_route_guide_client:get_feature(ctx:background(), Point),
+    {ok, Feature, _} = routeguide_route_guide_client:get_feature(Point),
     ?assertEqual(#{location =>
                        #{latitude => 30, longitude => 90},
                    name => <<"">>}, Feature).

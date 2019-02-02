@@ -294,13 +294,13 @@ The `RouteGuide` service has a single unary method, `GetFeature`, in the client 
 
 ```erlang
 Point = #{latitude => 409146138, longitude => -746188906},
-{ok, Feature, HeadersAndTrailers} = routeguide_route_guide_client:get_feature(ctx:new(), Point).
+{ok, Feature, HeadersAndTrailers} = routeguide_route_guide_client:get_feature(Point).
 ```
 
 #### Client Streaming RPC
 
 ```erlang
-{ok, S} = routeguide_route_guide_client:record_route(ctx:new()),
+{ok, S} = routeguide_route_guide_client:record_route(),
 ok = grpcbox_client:send(S, #{latitude => 409146138, longitude => -746188906}),
 ok = grpcbox_client:send(S, #{latitude => 234818903, longitude => -823423910}),
 ok = grpcbox_client:close_send(S),
@@ -312,7 +312,7 @@ ok = grpcbox_client:close_send(S),
 ```erlang
 Rectangle = #{hi => #{latitude => 1, longitude => 2},
               lo => #{latitude => 3, longitude => 5}},
-{ok, S} = routeguide_route_guide_client:list_features(ctx:new(), Rectangle),
+{ok, S} = routeguide_route_guide_client:list_features(Rectangle),
 {ok, #{<<":status">> := <<"200">>}} = grpcbox_client:recv_headers(S),
 {ok, #{name := _} = grpcbox_client:recv_data(S),
 {ok, #{name := _}} = grpcbox_client:recv_data(S),
@@ -322,13 +322,24 @@ Rectangle = #{hi => #{latitude => 1, longitude => 2},
 #### Bidirectional RPC
 
 ```erlrang
-{ok, S} = routeguide_route_guide_client:route_chat(ctx:new()),
+{ok, S} = routeguide_route_guide_client:route_chat(),
 ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
 ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
 {ok, #{message := <<"hello there">>}} = grpcbox_client:recv_data(S)),
 ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
 {ok, #{message := <<"hello there">>}}, grpcbox_client:close_and_recv(S)).
 ```
+
+#### Context
+
+Client calls optionally accept a [context](https://hex.pm/packages/ctx) as the first argument. Contexts are used to set and propagate deadlines and [OpenCensus](https://hex.pm/packages/opencensus) tags.
+
+```erlang
+Ctx = ctx:with_deadline_after(300, seconds),
+Point = #{latitude => 409146138, longitude => -746188906},
+{ok, Feature, HeadersAndTrailers} = routeguide_route_guide_client:get_feature(Ctx, Point).
+```
+
 
 CT Tests
 ---
