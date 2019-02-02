@@ -52,17 +52,20 @@ unary(Ctx, Service, Method, Input, Def, Options) ->
     unary(Ctx, filename:join([<<>>, Service, Method]), Input, Def, Options).
 
 unary(Ctx, Path, Input, Def, Options) ->
-    {Channel, Interceptor} = get_channel(Options, unary),
+    case get_channel(Options, unary) of
+        {ok, {Channel, Interceptor}} ->
+            Handler = fun(Ctx1, Input1) ->
+                              unary_handler(Ctx1, Channel, Path, Input1, Def, Options)
+                      end,
 
-    Handler = fun(Ctx1, Input1) ->
-                      unary_handler(Ctx1, Channel, Path, Input1, Def, Options)
-              end,
-
-    case Interceptor of
-        undefined ->
-            Handler(Ctx, Input);
-        _ ->
-            Interceptor(Ctx, Channel, Handler, Path, Input, Def, Options)
+            case Interceptor of
+                undefined ->
+                    Handler(Ctx, Input);
+                _ ->
+                    Interceptor(Ctx, Channel, Handler, Path, Input, Def, Options)
+            end;
+        {error, _Reason}=Error ->
+            Error
     end.
 
 unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
@@ -97,19 +100,23 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
 
 %% no input: bidrectional
 stream(Ctx, Path, Def, Options) ->
-    {Channel, Interceptor} = get_channel(Options, stream),
-    case Interceptor of
-        undefined ->
-            grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options);
-        #{new_stream := NewStream} ->
-            case NewStream(Ctx, Channel, Path, Def, fun grpcbox_client_stream:new_stream/5, Options) of
-                {ok, S} ->
-                    {ok, S#{stream_interceptor => Interceptor}};
-                {error, _}=Error ->
-                    Error
+    case get_channel(Options, stream) of
+        {ok, {Channel, Interceptor}} ->
+            case Interceptor of
+                undefined ->
+                    grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options);
+                #{new_stream := NewStream} ->
+                    case NewStream(Ctx, Channel, Path, Def, fun grpcbox_client_stream:new_stream/5, Options) of
+                        {ok, S} ->
+                            {ok, S#{stream_interceptor => Interceptor}};
+                        {error, _}=Error ->
+                            Error
+                    end;
+                _ ->
+                    grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options)
             end;
-        _ ->
-            grpcbox_client_stream:new_stream(Ctx, Channel, Path, Def, Options)
+        {error, _Reason}=Error ->
+            Error
     end.
 
 close_and_recv(Stream) ->
@@ -133,14 +140,19 @@ send(Stream, Input) ->
 
 %% input given, stream response
 stream(Ctx, Path, Input, Def, Options) ->
-    {Channel, _Interceptor} = get_channel(Options, stream),
-    {ok, Conn, Stream, Pid} = grpcbox_client_stream:send_request(Ctx, Channel, Path, Input, Def, Options),
-    Ref = erlang:monitor(process, Pid),
-    {ok, #{channel => Conn,
-           stream_id => Stream,
-           stream_pid => Pid,
-           monitor_ref => Ref,
-           service_def => Def}}.
+    case get_channel(Options, stream) of
+        {ok, {Channel, _Interceptor}} ->
+            {ok, Conn, Stream, Pid} = grpcbox_client_stream:send_request(Ctx, Channel, Path,
+                                                                         Input, Def, Options),
+            Ref = erlang:monitor(process, Pid),
+            {ok, #{channel => Conn,
+                   stream_id => Stream,
+                   stream_pid => Pid,
+                   monitor_ref => Ref,
+                   service_def => Def}};
+        {error, _Reason}=Error ->
+            Error
+    end.
 
 recv_data(Stream) ->
     recv_data(Stream, 500).

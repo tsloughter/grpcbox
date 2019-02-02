@@ -42,9 +42,15 @@
 start_link(Name, Endpoints, Options) ->
     gen_statem:start_link({local, Name}, ?MODULE, [Name, Endpoints, Options], []).
 
--spec pick(t(), unary | stream) -> {pid(), grpcbox_client:interceptor() | undefined}.
+%% @doc Picks a subchannel from a pool using the configured strategy.
+-spec pick(t(), unary | stream) -> {ok, {pid(), grpcbox_client:interceptor() | undefined}} |
+                                   {error, undefined_channel}.
 pick(Name, CallType) ->
-    {gproc_pool:pick_worker(Name), interceptor(Name, CallType)}.
+    try {ok, {gproc_pool:pick_worker(Name), interceptor(Name, CallType)}}
+    catch
+        error:badarg ->
+            {error, undefined_channel}
+    end.
 
 -spec interceptor(t(), unary | stream) -> grpcbox_client:interceptor() | undefined.
 interceptor(Name, CallType) ->
