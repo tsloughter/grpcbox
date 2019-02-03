@@ -77,13 +77,48 @@ get_authfun(true, Options) ->
                 undefined ->
                     undefined;
                 Dir ->
-                    grpc_lib:auth_fun(Dir)
+                    auth_fun(Dir)
             end;
         Fun ->
             Fun
     end;
 get_authfun(_, _) ->
     undefined.
+
+-spec auth_fun(Directory::string()) -> fun(((public_key:der_encoded())) -> {true, string()} | false).
+auth_fun(Directory) ->
+    Ids = issuer_ids_from_directory(Directory),
+    fun(Cert) ->
+            {ok, IssuerID} = public_key:pkix_issuer_id(Cert, self),
+            case maps:find(IssuerID, Ids) of
+                {ok, Identity} ->
+                    {true, Identity};
+                error ->
+                    false
+            end
+    end.
+
+issuer_ids_from_directory(Dir) ->
+    {ok, Filenames} = file:list_dir(Dir),
+    Keyfiles = lists:filter(fun(N) ->
+                                case filename:extension(N) of
+                                    ".pem" -> true;
+                                    ".crt" -> true;
+                                    _ -> false
+                                end
+                            end, Filenames),
+    maps:from_list([issuer_id_from_file(filename:join([Dir, F]))
+                    || F <- Keyfiles]).
+
+issuer_id_from_file(Filename) ->
+    {certfile_to_issuer_id(Filename),
+     filename:rootname(filename:basename(Filename))}.
+
+certfile_to_issuer_id(Filename) ->
+    {ok, Data} = file:read_file(Filename),
+    [{'Certificate', Cert, not_encrypted}] = public_key:pem_decode(Data),
+    {ok, IssuerID} = public_key:pkix_issuer_id(Cert, self),
+IssuerID.
 
 %% grpc requests are of the form `<pkg>.<Service>/<Method>` in camelcase. For this reason we
 %% have gpb keep the service definitions in their original form and convert to snake case here

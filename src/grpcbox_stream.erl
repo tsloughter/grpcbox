@@ -326,7 +326,7 @@ send_headers(State) ->
 
 send_headers(Ctx, Headers) when is_map(Headers) ->
     State = from_ctx(Ctx),
-    send_headers(maps:to_list(grpc_lib:maybe_encode_headers(Headers)), State);
+    send_headers(maps:to_list(maybe_encode_headers(Headers)), State);
 
 send_headers(_Metadata, State=#state{headers_sent=true}) ->
     State;
@@ -492,3 +492,15 @@ parse_encoding(EncodingType, Headers) ->
             ?THROW(?GRPC_STATUS_UNIMPLEMENTED, <<"unknown encoding">>)
     end.
 
+maybe_encode_headers(Headers) ->
+    maps:map(fun(K, V) ->
+                     maybe_encode_header_value(K, V)
+             end, Headers).
+
+maybe_encode_header_value(K, V) ->
+    case binary:longest_common_suffix([K, <<"-bin">>]) == 4 of
+        true ->
+            base64:encode(V);
+        false ->
+            V
+    end.

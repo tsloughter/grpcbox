@@ -6,7 +6,6 @@
   {applications,[kernel,
                  stdlib,
                  chatterbox,
-                 grpc_lib,
                  acceptor_pool,
                  gproc]},
   {env, [{client, #{channels => [%% {default_channel, round_robin, [{http, "localhost", 8080, []}], #{}}
