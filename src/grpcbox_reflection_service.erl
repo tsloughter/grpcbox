@@ -11,6 +11,8 @@
 
 server_reflection_info(Ref, Stream) ->
     receive
+        {Ref, eos} ->
+            ok;
         {Ref, Message} ->
             handle_message(Message, Stream),
             server_reflection_info(Ref, Stream)
@@ -70,22 +72,35 @@ find([], _) ->
     {error_response, #{error_code => 5,
                        error_message => "symbol not found"}};
 find([M | T], Symbol) ->
-    case lists:any(fun(F) -> find_symbol(M, F, Symbol) end, [get_proto_by_msg_name_as_fqbin,
+    case find_all(fun(F) -> find_symbol(M, F, Symbol) end, [get_proto_by_msg_name_as_fqbin,
                                                              get_proto_by_service_name_as_fqbin,
                                                              get_proto_by_enum_name_as_fqbin,
                                                              get_protos_by_pkg_name_as_fqbin]) of
-        true ->
+        [P | _] ->
             {file_descriptor_response,
-             #{file_descriptor_proto => [M:descriptor()]}};
-        false ->
+             #{file_descriptor_proto => [M:descriptor(P)]}};
+        [] ->
             find(T, Symbol)
     end.
 
 find_symbol(M, F, Symbol) ->
     try M:F(Symbol) of
-        _ ->
-            true
+        Proto ->
+            Proto
     catch
         _:_ ->
             false
+    end.
+
+find_all(F, L) ->
+    find_all(F, L, []).
+
+find_all(_, [], Acc) ->
+    Acc;
+find_all(F, [H | T], Acc) ->
+    case F(H) of
+        false ->
+            find_all(F, T, Acc);
+        Proto ->
+            find_all(F, T, [Proto | Acc])
     end.
