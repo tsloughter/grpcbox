@@ -5,10 +5,8 @@
 
 -module(grpcbox).
 
--export([start_server/0,
-         start_server/1,
-
-         child_spec/5]).
+-export([start_server/1,
+         server_child_spec/5]).
 
 -include_lib("chatterbox/include/http2.hrl").
 
@@ -31,22 +29,11 @@
               server_opts/0,
               encoding/0]).
 
-start_server() ->
-    GrpcOpts = application:get_env(grpcbox, grpc_opts, #{}),
-    ServerOpts = application:get_env(grpcbox, server_opts, #{}),
-    ListenOpts = application:get_env(grpcbox, listen_opts, #{}),
-    PoolOpts = application:get_env(grpcbox, pool_opts, #{}),
-    TransportOpts = application:get_env(grpcbox, transport_opts, #{}),
-    grpcbox_services_simple_sup:start_child(#{server_opts => ServerOpts,
-                                              grpc_opts => GrpcOpts,
-                                              listen_opts => ListenOpts,
-                                              pool_opts => PoolOpts,
-                                              transport_opts => TransportOpts}).
-
+-spec start_server(server_opts()) -> supervisor:startchild_ret().
 start_server(Opts) ->
     grpcbox_services_simple_sup:start_child(Opts).
 
-child_spec(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
+server_child_spec(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
     #{id => grpcbox_services_sup,
       start => {grpcbox_services_sup, start_link, [ServerOpts, GrpcOpts, ListenOpts,
                                                    PoolOpts, TransportOpts]},

@@ -51,32 +51,32 @@ init_per_group(ssl, Config) ->
                {cacertfile, cert(Config, "My_Root_CA.crt")}
               ],
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{https, "localhost", 8080, Options}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                              client_cert_dir => ClientCerts}),
-    application:set_env(grpcbox, transport_opts, #{ssl => true,
-                                                   keyfile => cert(Config, "localhost.key"),
-                                                   certfile => cert(Config, "localhost.crt"),
-                                                   cacertfile => cert(Config, "My_Root_CA.crt")}),
-
+    Servers = [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                client_cert_dir => ClientCerts},
+                 transport_opts => #{ssl => true,
+                                     keyfile => cert(Config, "localhost.key"),
+                                     certfile => cert(Config, "localhost.crt"),
+                                     cacertfile => cert(Config, "My_Root_CA.crt")}}],
+    application:set_env(grpcbox, servers, Servers),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_group(tcp, Config) ->
-    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide}}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
+                                                         #{}}]}),
+    application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                                            services => #{'routeguide.RouteGuide' =>
+                                                                              routeguide_route_guide}},
+                                             transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_group(negative_tests, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                             services => #{'routeguide.RouteGuide' => routeguide_route_guide}}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                                            services => #{'routeguide.RouteGuide' =>
+                                                                              routeguide_route_guide}},
+                                             transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_group(negative_ssl, Config) ->
     ClientCerts = filename:join(cert_dir(Config), "clients"),
@@ -84,17 +84,18 @@ init_per_group(negative_ssl, Config) ->
                {keyfile, cert(Config, "127.0.0.1.key")},
                {cacertfile, cert(Config, "My_Root_CA.crt")}],
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{https, "localhost", 8080, Options}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                              client_cert_dir => ClientCerts,
-                                              auth_fun => fun(_) -> false end
-                                             }),
-    application:set_env(grpcbox, transport_opts, #{ssl => true,
-                                                   keyfile => cert(Config, "localhost.key"),
-                                                   certfile => cert(Config, "localhost.crt"),
-                                                   cacertfile => cert(Config, "My_Root_CA.crt")}),
+
+    Servers = [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                client_cert_dir => ClientCerts,
+                                auth_fun => fun(_) -> false end
+                               },
+                 transport_opts => #{ssl => true,
+                                     keyfile => cert(Config, "localhost.key"),
+                                     certfile => cert(Config, "localhost.crt"),
+                                     cacertfile => cert(Config, "My_Root_CA.crt")}}],
+    application:set_env(grpcbox, servers, Servers),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config.
 
 end_per_group(_, _Config) ->
@@ -106,8 +107,7 @@ end_per_group(_, _Config) ->
 init_per_testcase(initially_down_service, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers, []),
     application:ensure_all_started(grpcbox),
     Config;
 init_per_testcase(unary_client_interceptor, Config) ->
@@ -117,129 +117,125 @@ init_per_testcase(unary_client_interceptor, Config) ->
                                                                                         Handler(Ctx, #{latitude => 30,
                                                                                                        longitude => 90})
                                                                                 end}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide}}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                                            services => #{'routeguide.RouteGuide' =>
+                                                                              routeguide_route_guide}},
+                                             transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(unary_interceptor, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                              unary_interceptor => fun(Ctx, _Req, _, Method) ->
-                                                                           Method(Ctx, #{latitude => 30,
-                                                                                         longitude => 90})
-                                                                   end}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' =>
+                                                            routeguide_route_guide},
+                                          unary_interceptor => fun(Ctx, _Req, _, Method) ->
+                                                                       Method(Ctx, #{latitude => 30,
+                                                                                     longitude => 90})
+                                                               end},
+                           transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
+
     Config;
 init_per_testcase(chain_interceptor, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                              unary_interceptor =>
-                                                  grpcbox_chain_interceptor:unary([fun ?MODULE:one/4,
-                                                                                   fun ?MODULE:two/4,
-                                                                                   fun ?MODULE:three/4])}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                          unary_interceptor =>
+                                              grpcbox_chain_interceptor:unary([fun ?MODULE:one/4,
+                                                                               fun ?MODULE:two/4,
+                                                                               fun ?MODULE:three/4])},
+                           transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(trace_interceptor, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
     application:ensure_all_started(opencensus),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                              unary_interceptor =>
-                                                  grpcbox_chain_interceptor:unary([fun grpcbox_trace:unary/4,
-                                                                                   fun ?MODULE:trace_to_trailer/4])}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                          unary_interceptor =>
+                                              grpcbox_chain_interceptor:unary([fun grpcbox_trace:unary/4,
+                                                                               fun ?MODULE:trace_to_trailer/4])},
+                           transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(stream_interceptor, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                              stream_interceptor =>
-                                                  fun(Ref, Stream, _ServerInfo, Handler) ->
-                                                          grpcbox_stream:add_trailers([{<<"x-grpc-stream-interceptor">>,
-                                                                                        <<"true">>}],
-                                                                                      Stream),
-                                                          Handler(Ref, Stream)
-                                                  end}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                          stream_interceptor =>
+                                              fun(Ref, Stream, _ServerInfo, Handler) ->
+                                                      grpcbox_stream:add_trailers([{<<"x-grpc-stream-interceptor">>,
+                                                                                    <<"true">>}],
+                                                                                  Stream),
+                                                      Handler(Ref, Stream)
+                                              end},
+                           transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(bidirectional, Config) ->
     application:load(grpcbox),
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide}}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide}}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(client_stream, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide}}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide}}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(compression, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide}}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide}}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(stats_handler, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                              stats_handler => test_stats_handler}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                          stats_handler => test_stats_handler}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(health_service, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}],
                                                          #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [grpcbox_health_pb],
-                                              services => #{'grpc.health.v1.Health' => grpcbox_health_service}}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [grpcbox_health_pb],
+                                          services => #{'grpc.health.v1.Health' => grpcbox_health_service}}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(reflection_service, Config) ->
     application:load(grpcbox),
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb,
-                                                                 grpcbox_reflection_pb,
-                                                                 grpcbox_health_pb],
-                                              services => #{'grpc.reflection.v1alpha.ServerReflection'
-                                                            => grpcbox_reflection_service,
-                                                            'routeguide.RouteGuide' => routeguide_route_guide,
-                                                            'grpc.health.v1.Health' => grpcbox_health_service}}),
-    application:set_env(grpcbox, transport_opts, #{}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb,
+                                                             grpcbox_reflection_pb,
+                                                             grpcbox_health_pb],
+                                          services => #{'grpc.reflection.v1alpha.ServerReflection'
+                                                        => grpcbox_reflection_service,
+                                                        'routeguide.RouteGuide' => routeguide_route_guide,
+                                                        'grpc.health.v1.Health' => grpcbox_health_service}}}]),
     application:ensure_all_started(grpcbox),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
     Config;
 init_per_testcase(_, Config) ->
     Config.
@@ -291,10 +287,9 @@ initially_down_service(_Config) ->
     Ctx = ctx:with_deadline_after(ctx:new(), 5, second),
     ?assertEqual({error, econnrefused}, routeguide_route_guide_client:get_feature(Ctx, Point)),
 
-    application:set_env(grpcbox, grpc_opts, #{service_protos => [route_guide_pb],
-                                              services => #{'routeguide.RouteGuide' =>
-                                                                routeguide_route_guide}}),
-    ?assertMatch({ok, _}, grpcbox:start_server()),
+    grpcbox:start_server(#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' =>
+                                                            routeguide_route_guide}}}),
 
     {ok, _Feature, _} = routeguide_route_guide_client:get_feature(Ctx, Point).
 

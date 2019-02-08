@@ -20,13 +20,19 @@ start(_StartType, _StartArgs) ->
         _ ->
             ok
     end,
+
+    ServerOpts = application:get_env(grpcbox, servers, []),
+    maybe_start_server(ServerOpts),
+
     {ok, Pid}.
 
-%%--------------------------------------------------------------------
 stop(_State) ->
     ok.
 
-%%====================================================================
-%% Internal functions
-%%====================================================================
+%%
 
+maybe_start_server([]) ->
+    ok;
+maybe_start_server([ServerOpts | Tail]) ->
+    grpcbox_services_simple_sup:start_child(ServerOpts),
+    maybe_start_server(Tail).

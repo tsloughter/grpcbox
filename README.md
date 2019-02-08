@@ -22,7 +22,7 @@ Features
 Implementing a Service Server
 ----
 
-The quickest way to play around is with the test service and client that is used by `grpcbox`. Simply pull up a shell with, `rebar3 as test shell` and `grpcbox:start_server()` will start the route guide service on port 8080 and you'll have the client, `routeguide_route_guide_client`, in the path.
+The quickest way to play around is with the test service and client that is used by `grpcbox`. Simply pull up a shell with, `rebar3 as test shell` and the route guide service will start on port 8080 and you'll have the client, `routeguide_route_guide_client`, in the path.
 
 The easiest way to get started on your own project is using the plugin, [grpcbox_plugin](https://github.com/tsloughter/grpcbox_plugin):
 
@@ -52,14 +52,14 @@ Runtime configuration for `grpcbox` can be done in `sys.config`, specifying the 
 In the interop config the portion for defining services to handle requests for is:
 
 ``` erlrang
-{grpcbox, [{grpc_opts, #{service_protos => [test_pb],
-                         services => #{'grpc.testing.TestService' => grpc_testing_test_service}}},
+{grpcbox, [{servers, [#{grpc_opts => #{service_protos => [test_pb],
+                                       services => #{'grpc.testing.TestService' => grpc_testing_test_service}}}]},
 ...
 ```
 
 `test_pb` is the `gpb` generated module that exports `get_service_names/0`. The results of that function are used to construct the metadata needed for handling requests. The `services` map gives the module to call for handling methods of a service. If a service is not defined in that map it will result in the grpc error code 12, `Unimplemented`.
 
-The server can be started by either running `grpcbox:start_server()`, assuming the services are all configured in the `sys.config` and it is loaded. `start_server/0` will start a `grpcbox_service_sup` supervisor under the `grpcbox_services_simple_sup` simple one for one supervisor. Or get a child spec `grpcbox:child_spec(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts)` to include the service supervisor in your own supervision tree.
+The services will be started when the application starts assuming the services are all configured in the `sys.config` and it is loaded. To manually start a service use either `grpcbox:start_server/1` which will start a `grpcbox_service_sup` supervisor under the `grpcbox_services_simple_sup` simple one for one supervisor, or get a child spec `grpcbox:server_child_spec(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts)` to include the service supervisor in your own supervision tree.
 
 #### Unary RPC
 
@@ -241,8 +241,8 @@ See [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erl
 Statistics are collected by implementing a stats handler module. A handler for OpenCensus stats (be sure to include [OpenCensus](https://hex.pm/packages/opencensus) as a dependency and make sure it starts on boot) is provided and can be enabled for the server with a config option:
 
 ``` erlang
-{grpcbox, [{grpc_opts, #{stats_handler => grpcbox_oc_stats_handler
-                         ...}}]}
+{grpcbox, [{servers, [#{grpc_opts => #{stats_handler => grpcbox_oc_stats_handler
+                                       ...}}]}]}
 ```
 
 For the client the stats handler is a per-channel configuration, see the Defining Channels section below.
@@ -360,8 +360,6 @@ For testing grpcbox's server:
 
 ```
 $ rebar3 as interop shell
-
-> grpcbox:start_server().
 ```
 
 With the shell running the tests can then be run from a script:

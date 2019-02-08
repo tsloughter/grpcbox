@@ -18,9 +18,9 @@ workflows:
   build_and_test:
     jobs:
       - rebar3/compile
-      - rebar3/xref:
-          requires:
-            - rebar3/compile
+      # - rebar3/xref:
+      #     requires:
+      #       - rebar3/compile
       - rebar3/dialyzer:
           requires:
             - rebar3/compile

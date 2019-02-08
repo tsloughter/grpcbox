@@ -1,26 +1,14 @@
 {"1.1.0",
 [{<<"acceptor_pool">>,{pkg,<<"acceptor_pool">>,<<"1.0.0">>},0},
  {<<"chatterbox">>,{pkg,<<"ts_chatterbox">>,<<"0.9.1">>},0},
- {<<"counters">>,{pkg,<<"counters">>,<<"0.2.1">>},1},
  {<<"ctx">>,{pkg,<<"ctx">>,<<"0.5.0">>},0},
  {<<"gproc">>,{pkg,<<"gproc">>,<<"0.8.0">>},0},
- {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.2.3">>},1},
- {<<"jsx">>,{pkg,<<"jsx">>,<<"2.9.0">>},1},
- {<<"opencensus">>,{pkg,<<"opencensus">>,<<"0.7.0">>},0},
- {<<"recon">>,{pkg,<<"recon">>,<<"2.3.6">>},0},
- {<<"rfc3339">>,{pkg,<<"rfc3339">>,<<"0.9.0">>},2},
- {<<"wts">>,{pkg,<<"wts">>,<<"0.3.0">>},1}]}.
+ {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.2.3">>},1}]}.
 [
 {pkg_hash,[
  {<<"acceptor_pool">>, <<"43C20D2ACAE35F0C2BCD64F9D2BDE267E459F0F3FD23DAB26485BF518C281B21">>},
  {<<"chatterbox">>, <<"843557EE729B04B3C1BDAC33FB162DAEFDBF4F7AE0AF0BDC055FB16E91E057E3">>},
- {<<"counters">>, <<"AA3D97E88F92573488987193D0F48EFCE0F3B2CD1443BF4EE760BC7F99322F0C">>},
  {<<"ctx">>, <<"78E0F16712E12D707A7F34277381B8E193D7C71EAA24D37330DC02477C09EDA5">>},
  {<<"gproc">>, <<"CEA02C578589C61E5341FCE149EA36CCEF236CC2ECAC8691FBA408E7EA77EC2F">>},
- {<<"hpack">>, <<"17670F83FF984AE6CD74B1C456EDDE906D27FF013740EE4D9EFAA4F1BF999633">>},
- {<<"jsx">>, <<"D2F6E5F069C00266CAD52FB15D87C428579EA4D7D73A33669E12679E203329DD">>},
- {<<"opencensus">>, <<"B4C5F6A96F2BA2154570F24BB08B65D6EE0FF5B61518ACF706CA760B7696A4E1">>},
- {<<"recon">>, <<"2BCAD0CF621FB277CABBB6413159CD3AA30265C2DEE42C968697988B30108604">>},
- {<<"rfc3339">>, <<"2075653DC9407541C84B1E15F8BDA2ABE95FB17C9694025E079583F2D19C1060">>},
- {<<"wts">>, <<"5CDF22C775CB1EBAE24C326A5DB6074D753C42F4BD12A9AA47CC62D3E2C71AD1">>}]}
+ {<<"hpack">>, <<"17670F83FF984AE6CD74B1C456EDDE906D27FF013740EE4D9EFAA4F1BF999633">>}]}
 ].
