@@ -50,13 +50,10 @@ cacheable_unary_call(Ctx, _SimpleRequest) ->
 -spec streaming_output_call(test_pb:streaming_output_call_request(), grpcbox_stream:t()) ->
                                    ok | grpcbox_stream:grpc_error_response().
 streaming_output_call(#{response_type := ResponseType,
-                        response_parameters := ResponseParameters,
-                        payload := _Payload,
-                        response_status := _Status
+                        response_parameters := ResponseParameters
                        }, Stream) ->
     lists:foreach(fun(#{size := Size,
-                        interval_us := Interval,
-                        compressed := _Compressed}) ->
+                        interval_us := Interval}) ->
                           timer:sleep(erlang:convert_time_unit(Interval, microsecond, millisecond)),
                           Body = << <<0>> || _ <- lists:seq(1, Size) >>,
                           grpcbox_stream:send(#{payload => #{type => ResponseType,
@@ -75,8 +72,7 @@ streaming_input_call(Ref, Data=#{aggregated_payload_size := Size}, GrpcStream) -
         {Ref, eos} ->
             {ok, #{aggregated_payload_size => Size}, GrpcStream};
         {Ref, #{payload := #{type := _Type,
-                             body := Body},
-                expect_compressed := _Compressed}} ->
+                             body := Body}}} ->
             streaming_input_call(Ref, Data#{aggregated_payload_size => Size + size(Body)}, GrpcStream)
     end.
 
@@ -95,13 +91,10 @@ full_duplex_call_(Ref, Stream) ->
                                      message := Message}}} ->
             grpcbox_stream:error(grpcbox_stream:code_to_status(Code), Message);
         {Ref, #{response_type := ResponseType,
-                response_parameters := ResponseParameters,
-                payload := _Payload,
-                response_status := _Status
+                response_parameters := ResponseParameters
                }} ->
             lists:foreach(fun(#{size := Size,
-                                interval_us := Interval,
-                                compressed := _Compressed}) ->
+                                interval_us := Interval}) ->
                                   timer:sleep(erlang:convert_time_unit(Interval, microsecond, millisecond)),
                                   Body = << <<0>> || _ <- lists:seq(1, Size) >>,
                                   grpcbox_stream:send(#{payload => #{type => ResponseType,
