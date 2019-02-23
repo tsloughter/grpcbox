@@ -374,11 +374,11 @@ reflection_service(_Config) ->
                                                   <<"unimplemented method since extensions removed in proto3">>}}}},
                  grpcbox_client:recv_data(S)),
 
-    %% ok = grpcbox_client:send(S, #{message_request => {file_by_filename, <<>>}}),
-    %% ?assertMatch({ok, #{message_response :=
-    %%                         {file_descriptor_response,
-    %%                          #{file_descriptor_proto := []}}}},
-    %%              grpcbox_client:recv_data(S)),
+    ok = grpcbox_client:send(S, #{message_request => {file_by_filename, <<"health">>}}),
+    ?assertMatch({ok, #{message_response :=
+                            {file_descriptor_response,
+                             #{file_descriptor_proto := [_]}}}},
+                 grpcbox_client:recv_data(S)),
 
     ok = grpcbox_client:send(S, #{message_request => {file_containing_symbol, <<"routeguide.RouteGuide">>}}),
     ?assertMatch({ok, #{message_response :=
@@ -504,7 +504,7 @@ chain_interceptor(_Config) ->
 trace_interceptor(_Config) ->
     Point = #{latitude => 409146138, longitude => -746188906},
     Ctx = oc_trace:with_child_span(ctx:background(), <<"grpc-client-call">>),
-    Context = oc_span_ctx_binary:encode(oc_trace:from_ctx(Ctx)),
+    Context = oc_propagation_binary:encode(oc_trace:from_ctx(Ctx)),
     Metadata = #{<<"grpc-trace-bin">> => Context},
     Ctx1 = grpcbox_metadata:append_to_outgoing_ctx(Ctx, Metadata),
     {_, _Feature, #{trailers := Trailers}} = routeguide_route_guide_client:get_feature(Ctx1, Point),

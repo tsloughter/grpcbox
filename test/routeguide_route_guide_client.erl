@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2019-02-07T00:12:38+00:00 and should not be modified manually
+%% this module was generated on 2019-03-09T00:28:59+00:00 and should not be modified manually
 
 -module(routeguide_route_guide_client).
 

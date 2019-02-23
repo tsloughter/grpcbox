@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2019-02-02T20:45:28+00:00 and should not be modified manually
+%% this module was generated on 2019-03-09T00:28:46+00:00 and should not be modified manually
 
 -module(grpcbox_health_bhvr).
 

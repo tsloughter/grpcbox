@@ -66,7 +66,7 @@ trace_context_from_ctx(Ctx) ->
             Ctx;
         Bin ->
             try
-                oc_trace:with_span_ctx(Ctx, oc_span_ctx_binary:decode(Bin))
+                oc_trace:with_span_ctx(Ctx, oc_propagation_binary:decode(Bin))
             catch
                 _:_ ->
                     Ctx

@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2019-02-02T20:45:28+00:00 and should not be modified manually
+%% this module was generated on 2019-03-09T00:28:46+00:00 and should not be modified manually
 
 -module(grpcbox_health_client).
 
@@ -25,23 +25,19 @@
 
 %% @doc Unary RPC
 -spec check(grpcbox_health_pb:health_check_request()) ->
-    {ok, grpcbox_health_pb:health_check_response(), grpcbox:metadata()} |
-                   grpcbox_stream:grpc_error_response().
+    {ok, grpcbox_health_pb:health_check_response(), grpcbox:metadata()} | grpcbox_stream:grpc_error_response().
 check(Input) ->
     check(ctx:new(), Input, #{}).
 
--spec check(ctx:t() | grpcbox_health_pb:health_check_request(),
-            grpcbox_health_pb:health_check_request() | grpcbox_client:options())
-           -> {ok, grpcbox_health_pb:health_check_response(), grpcbox:metadata()} |
-              grpcbox_stream:grpc_error_response().
+-spec check(ctx:t() | grpcbox_health_pb:health_check_request(), grpcbox_health_pb:health_check_request() | grpcbox_client:options()) ->
+    {ok, grpcbox_health_pb:health_check_response(), grpcbox:metadata()} | grpcbox_stream:grpc_error_response().
 check(Ctx, Input) when ?is_ctx(Ctx) ->
     check(Ctx, Input, #{});
 check(Input, Options) ->
     check(ctx:new(), Input, Options).
 
 -spec check(ctx:t(), grpcbox_health_pb:health_check_request(), grpcbox_client:options()) ->
-    {ok, grpcbox_health_pb:health_check_response(), grpcbox:metadata()} |
-                   grpcbox_stream:grpc_error_response().
+    {ok, grpcbox_health_pb:health_check_response(), grpcbox:metadata()} | grpcbox_stream:grpc_error_response().
 check(Ctx, Input, Options) ->
     grpcbox_client:unary(Ctx, <<"/grpc.health.v1.Health/Check">>, Input, ?DEF(health_check_request, health_check_response, <<"grpc.health.v1.HealthCheckRequest">>), Options).
 
