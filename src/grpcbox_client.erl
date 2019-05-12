@@ -92,7 +92,7 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                 Error
         end
     catch
-        error:{badmatch, {error, econnrefused}} ->
+        error:{badmatch, {error, {shutdown,econnrefused}}} ->
             {error, econnrefused};
         throw:{error, _}=E ->
             E

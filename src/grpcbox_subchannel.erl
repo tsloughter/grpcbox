@@ -98,9 +98,7 @@ connect(Data=#data{conn=undefined,
         {ok, Pid} ->
             {next_state, ready, Data#data{conn=Pid}, Actions};
         {error, _}=Error ->
-            {next_state, disconnected, Data#data{conn=undefined}, [{reply, From, Error}]};
-        ignore ->
-            {next_state, disconnected, Data#data{conn=undefined}, [{reply, From, {error,econnrefused}}]}
+            {next_state, disconnected, Data#data{conn=undefined}, [{reply, From, Error}]}
     end;
 connect(Data=#data{conn=Pid}, From, Actions) when is_pid(Pid) ->
     h2_connection:stop(Pid),
