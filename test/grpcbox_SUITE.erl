@@ -26,7 +26,7 @@ all() ->
      unary_interceptor,
      unary_client_interceptor,
      chain_interceptor,
-     trace_interceptor,
+     %% trace_interceptor,
      stream_interceptor,
      bidirectional,
      client_stream,
@@ -45,19 +45,19 @@ end_per_suite(_Config) ->
     ok.
 
 init_per_group(ssl, Config) ->
-    ClientCerts = filename:join(cert_dir(Config), "clients"),
-    Options = [{certfile, cert(Config, "127.0.0.1.crt")},
-               {keyfile, cert(Config, "127.0.0.1.key")},
-               {cacertfile, cert(Config, "My_Root_CA.crt")}
+    ClientCerts = cert_dir(Config),
+    Options = [{certfile, cert(Config, "server1.pem")},
+               {keyfile, cert(Config, "server1.key")},
+               {cacertfile, cert(Config, "ca.pem")}
               ],
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{https, "localhost", 8080, Options}], #{}}]}),
     Servers = [#{grpc_opts => #{service_protos => [route_guide_pb],
                                 services => #{'routeguide.RouteGuide' => routeguide_route_guide},
                                 client_cert_dir => ClientCerts},
                  transport_opts => #{ssl => true,
-                                     keyfile => cert(Config, "localhost.key"),
-                                     certfile => cert(Config, "localhost.crt"),
-                                     cacertfile => cert(Config, "My_Root_CA.crt")}}],
+                                     keyfile => cert(Config, "server1.key"),
+                                     certfile => cert(Config, "server1.pem"),
+                                     cacertfile => cert(Config, "ca.pem")}}],
     application:set_env(grpcbox, servers, Servers),
     application:ensure_all_started(grpcbox),
     Config;
@@ -79,10 +79,10 @@ init_per_group(negative_tests, Config) ->
     application:ensure_all_started(grpcbox),
     Config;
 init_per_group(negative_ssl, Config) ->
-    ClientCerts = filename:join(cert_dir(Config), "clients"),
-    Options = [{certfile, cert(Config, "127.0.0.1.crt")},
-               {keyfile, cert(Config, "127.0.0.1.key")},
-               {cacertfile, cert(Config, "My_Root_CA.crt")}],
+    ClientCerts = cert_dir(Config),
+    Options = [{certfile, cert(Config, "server1.pem")},
+               {keyfile, cert(Config, "server1.key")},
+               {cacertfile, cert(Config, "ca.pem")}],
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{https, "localhost", 8080, Options}], #{}}]}),
 
     Servers = [#{grpc_opts => #{service_protos => [route_guide_pb],
@@ -91,9 +91,9 @@ init_per_group(negative_ssl, Config) ->
                                 auth_fun => fun(_) -> false end
                                },
                  transport_opts => #{ssl => true,
-                                     keyfile => cert(Config, "localhost.key"),
-                                     certfile => cert(Config, "localhost.crt"),
-                                     cacertfile => cert(Config, "My_Root_CA.crt")}}],
+                                     keyfile => cert(Config, "server1.key"),
+                                     certfile => cert(Config, "server1.pem"),
+                                     cacertfile => cert(Config, "ca.pem")}}],
     application:set_env(grpcbox, servers, Servers),
     application:ensure_all_started(grpcbox),
     Config.
