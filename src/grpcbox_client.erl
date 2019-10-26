@@ -142,15 +142,21 @@ send(Stream, Input) ->
 stream(Ctx, Path, Input, Def, Options) ->
     case get_channel(Options, stream) of
         {ok, {Channel, _Interceptor}} ->
-            {ok, Conn, Stream, Pid} = grpcbox_client_stream:send_request(Ctx, Channel, Path,
-                                                                         Input, Def, Options),
-            Ref = erlang:monitor(process, Pid),
-            {ok, #{channel => Conn,
-                   stream_id => Stream,
-                   stream_pid => Pid,
-                   monitor_ref => Ref,
-                   service_def => Def}};
-        {error, _Reason}=Error ->
+            case
+                grpcbox_client_stream:send_request(Ctx, Channel, Path,
+                                                   Input, Def, Options)
+            of
+                {ok, Conn, Stream, Pid} ->
+                    Ref = erlang:monitor(process, Pid),
+                    {ok, #{channel => Conn,
+                        stream_id => Stream,
+                        stream_pid => Pid,
+                        monitor_ref => Ref,
+                        service_def => Def}};
+                {error, _Reason} = Error ->
+                    Error
+            end;
+        {error, _Reason} = Error ->
             Error
     end.
 
@@ -196,14 +202,19 @@ recv_end(#{stream_id := StreamId,
     receive
         {eos, StreamId} ->
             erlang:demonitor(Ref, [flush]),
-            eos;
+            receive
+                {'END_STREAM', StreamId} ->
+                    eos
+            after Timeout -> %% actually, this Timeout will never happen because of outer receive Timeout
+                {error, eos}
+            end;
         {'DOWN', Ref, process, Pid, normal} ->
             %% this is sent by h2_connection after the stream process has ended
             receive
                 {'END_STREAM', StreamId} ->
                     eos
             after Timeout ->
-                    {error, {stream_down, normal}}
+                {error, {stream_down, normal}}
             end;
         {'DOWN', Ref, process, Pid, Reason} ->
             {error, {stream_down, Reason}}
