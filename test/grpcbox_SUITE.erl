@@ -26,7 +26,6 @@ all() ->
      unary_interceptor,
      unary_client_interceptor,
      chain_interceptor,
-     %% trace_interceptor,
      stream_interceptor,
      bidirectional,
      client_stream,
@@ -35,6 +34,7 @@ all() ->
      health_service,
      reflection_service
      %% TODO: rst stream error handling
+     %% %% trace_interceptor
     ].
 
 init_per_suite(Config) ->
@@ -285,7 +285,7 @@ end_per_testcase(_, _Config) ->
 initially_down_service(_Config) ->
     Point = #{latitude => 409146138, longitude => -746188906},
     Ctx = ctx:with_deadline_after(ctx:new(), 5, second),
-    ?assertEqual({error, econnrefused}, routeguide_route_guide_client:get_feature(Ctx, Point)),
+    ?assertMatch({error, econnrefused}, routeguide_route_guide_client:get_feature(Ctx, Point)),
 
     grpcbox:start_server(#{grpc_opts => #{service_protos => [route_guide_pb],
                                           services => #{'routeguide.RouteGuide' =>

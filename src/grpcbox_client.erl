@@ -70,23 +70,27 @@ unary(Ctx, Path, Input, Def, Options) ->
 
 unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
     try
-        {ok, _, Stream, Pid} = grpcbox_client_stream:send_request(Ctx, Channel, Path, Input, Def, Options),
-        Ref = erlang:monitor(process, Pid),
-        S = #{channel => Channel,
-              stream_id => Stream,
-              stream_pid => Pid,
-              monitor_ref => Ref,
-              service_def => Def},
-        case recv_end(S, 5000) of
-            eos ->
-                {ok, Headers} = recv_headers(S, 0),
-                case recv_trailers(S) of
-                    {ok, {<<"0">>, _, Metadata}} ->
-                        {ok, Data} = recv_data(S, 0),
-                        {ok, Data, #{headers => Headers,
-                                     trailers => Metadata}};
-                    {ok, {Status, Message, _Metadata}} ->
-                        {error, {Status, Message}}
+        case grpcbox_client_stream:send_request(Ctx, Channel, Path, Input, Def, Options) of
+            {ok, _, Stream, Pid} ->
+                Ref = erlang:monitor(process, Pid),
+                S = #{channel => Channel,
+                      stream_id => Stream,
+                      stream_pid => Pid,
+                      monitor_ref => Ref,
+                      service_def => Def},
+                case recv_end(S, 5000) of
+                    eos ->
+                        {ok, Headers} = recv_headers(S, 0),
+                        case recv_trailers(S) of
+                            {ok, {<<"0">>, _, Metadata}} ->
+                                {ok, Data} = recv_data(S, 0),
+                                {ok, Data, #{headers => Headers,
+                                             trailers => Metadata}};
+                            {ok, {Status, Message, _Metadata}} ->
+                                {error, {Status, Message}}
+                        end;
+                    {error, _}=Error ->
+                        Error
                 end;
             {error, _}=Error ->
                 Error
