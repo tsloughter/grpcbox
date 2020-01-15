@@ -26,6 +26,7 @@
                      encoding => gprcbox:encoding(),
                      unary_interceptor => grpcbox_client:unary_interceptor(),
                      stream_interceptor => grpcbox_client:stream_interceptor(),
+                     stats_handler => module(),
                      sync_start => boolean()}.
 -type load_balancer() :: round_robin | random | hash | direct | claim.
 -export_type([t/0,
