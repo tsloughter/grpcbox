@@ -28,6 +28,7 @@ all() ->
      chain_interceptor,
      stream_interceptor,
      bidirectional,
+     stress_test,
      client_stream,
      compression,
      stats_handler,
@@ -181,6 +182,15 @@ init_per_testcase(stream_interceptor, Config) ->
     application:ensure_all_started(grpcbox),
     Config;
 init_per_testcase(bidirectional, Config) ->
+    application:load(grpcbox),
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide}}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
+init_per_testcase(stress_test, Config) ->
     application:load(grpcbox),
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
@@ -519,6 +529,36 @@ stream_interceptor(_Config) ->
     ?assertMatch({ok, #{name := <<"Tour Eiffel">>}}, grpcbox_client:recv_data(Stream)),
     ?assertMatch({ok, #{name := <<"Louvre">>}}, grpcbox_client:recv_data(Stream)),
     ?assertMatch({ok, {_, _, #{<<"x-grpc-stream-interceptor">> := <<"true">>}}}, grpcbox_client:recv_trailers(Stream)).
+
+stress_test_function(Fun, Config, Ref, Parent) ->
+    Parent ! {stress_test, Ref, Fun(Config)}.
+
+stress_test(Config) ->
+    stress_test(Config,
+        erlang:list_to_integer(
+            os:getenv("GRPCBOX_STRESS_TEST", "10")
+        )).
+
+stress_test(Config, Count) ->
+    lists:foreach(fun
+        (Ref) ->
+            Parent = self(),
+            spawn(fun() ->
+                stress_test_function(fun bidirectional/1, Config, Ref, Parent) end)
+    end, lists:seq(1, Count)),
+
+    Loop = fun Loop(LoopCount) ->
+        receive
+            {stress_test, _Ref, _Reply} when LoopCount < Count ->
+                Loop(LoopCount + 1);
+            {stress_test, _Ref, _Reply} when LoopCount < Count ->
+                LoopCount + 1
+        after
+            2000 ->
+                LoopCount
+        end
+    end,
+    ?assertEqual(Count, Loop(0)).
 
 %%
 
