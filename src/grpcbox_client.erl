@@ -86,8 +86,9 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                                 {ok, Data} = recv_data(S, 0),
                                 {ok, Data, #{headers => Headers,
                                              trailers => Metadata}};
-                            {ok, {Status, Message, _Metadata}} ->
-                                {error, {Status, Message}}
+                            {ok, {Status, Message, Metadata}} ->
+                                {error, {Status, Message}, #{headers => Headers,
+                                                             trailers => Metadata}}
                         end;
                     {error, _}=Error ->
                         Error
