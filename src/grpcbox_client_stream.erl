@@ -108,8 +108,8 @@ recv_msg(S=#{stream_id := Id,
             case grpcbox_client:recv_trailers(S, 0) of
                 {ok, {<<"0">> = _Status, _Message, _Metadata}} ->
                     stream_finished;
-                {ok, {Status, Message, _Metadata}} ->
-                    {error, {Status, Message}};
+                {ok, {Status, Message, Metadata}} ->
+                    {error, {Status, Message}, #{trailers => Metadata}};
                 timeout ->
                     stream_finished
             end

@@ -89,7 +89,7 @@ status_code_and_message(_Config) ->
                    message => Msg},
     Req = #{response_status => RespStatus},
 
-    ?assertMatch({error, {<<"2">>, Msg}}, grpc_testing_test_service_client:unary_call(ctx:new(), Req)).
+    ?assertMatch({error, {<<"2">>, Msg}, _}, grpc_testing_test_service_client:unary_call(ctx:new(), Req)).
 
 custom_metadata(_Config) ->
     Payload = client_payload(1),
@@ -125,14 +125,14 @@ unimplemented_method(_Config) ->
     Def = #grpcbox_def{service = 'grpc.testing.TestService',
                        marshal_fun = fun(I) -> test_pb:encode_msg(I, simple_request) end,
                        unmarshal_fun = fun(I) -> test_pb:encode_msg(I, simple_response) end},
-    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}},
+    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}, _},
                  grpcbox_client:unary(ctx:new(), <<"/grpc.testing.TestService/NotReal">>, #{}, Def, #{})).
 
 unimplemented_service(_Config) ->
     Def = #grpcbox_def{service = 'grpc.testing.Unimplemented',
                        marshal_fun = fun(I) -> test_pb:encode_msg(I, simple_request) end,
                        unmarshal_fun = fun(I) -> test_pb:encode_msg(I, simple_response) end},
-    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}},
+    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}, _},
                  grpcbox_client:unary(ctx:new(), <<"/grpc.testing.Unimplemented/NotReal">>, #{}, Def, #{})).
 
 client_payload(NumBytes) ->
