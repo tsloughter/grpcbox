@@ -12,7 +12,7 @@
 groups() ->
     [{ssl, [], [unary_authenticated]},
      {tcp, [], [unary_no_auth, multiple_servers]},
-     {negative_tests, [], [unimplemented, closed_stream]},
+     {negative_tests, [], [unimplemented, closed_stream, generate_error]},
      {negative_ssl, [], [unauthorized]},
      {context, [], [%% deadline
                    ]}].
@@ -276,6 +276,8 @@ end_per_testcase(unimplemented, _Config) ->
     ok;
 end_per_testcase(unauthorized, _Config) ->
     ok;
+end_per_testcase(generate_error, _Config) ->
+    ok;
 end_per_testcase(closed_stream, _Config) ->
     ok;
 end_per_testcase(_, _Config) ->
@@ -309,6 +311,12 @@ unauthorized(_Config) ->
     Ctx = ctx:new(),
     {error, {?GRPC_STATUS_UNAUTHENTICATED, _}, #{headers := #{}, trailers := #{}}}
         = routeguide_route_guide_client:get_feature(Ctx, Point).
+
+generate_error(_Config) ->
+    Response = routeguide_route_guide_client:generate_error(#{}),
+    ?assertMatch({error, {?GRPC_STATUS_INTERNAL, <<"error_message">>}, _}, Response),
+    {error, _, #{trailers := Trailers}} = Response,
+    ?assertEqual(<<"error_trailer">>, maps:get(<<"generate_error_trailer">>, Trailers, undefined)).
 
 closed_stream(_Config) ->
     {ok, S} = routeguide_route_guide_client:record_route(ctx:new()),

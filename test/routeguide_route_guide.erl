@@ -1,9 +1,12 @@
 -module(routeguide_route_guide).
 
+-include("grpcbox.hrl").
+
 -export([get_feature/2,
          list_features/2,
          record_route/2,
-         route_chat/2]).
+         route_chat/2,
+         generate_error/2]).
 
 -type route_summary() ::
     #{point_count => integer(),
@@ -76,6 +79,18 @@ route_chat(Ref, Data, GrpcStream) ->
             [grpcbox_stream:send(Message, GrpcStream) || Message <- Messages],
             route_chat(Ref, [{Location, P} | Data], GrpcStream)
     end.
+
+-spec generate_error(Ctx :: ctx:ctx(), Message :: map()) -> grpcbox_stream:grpc_extended_error_response().
+generate_error(_Ctx, _Message) ->
+    {
+        grpc_extended_error, #{
+            status => ?GRPC_STATUS_INTERNAL,
+            message => <<"error_message">>,
+            trailers => #{
+                <<"generate_error_trailer">> => <<"error_trailer">>
+            }
+        }
+    }.
 
 %% Supporting functions
 

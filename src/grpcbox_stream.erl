@@ -30,7 +30,9 @@
               grpc_status/0,
               grpc_status_message/0,
               grpc_error/0,
-              grpc_error_response/0]).
+              grpc_error_response/0,
+              grpc_error_data/0,
+              grpc_extended_error_response/0]).
 
 -record(state, {handler             :: pid(),
                 socket,
@@ -63,6 +65,12 @@
 -type grpc_status() :: 0..16.
 -type grpc_error() :: {grpc_status(), grpc_status_message()}.
 -type grpc_error_response() :: {grpc_error, grpc_error()}.
+-type grpc_error_data() :: #{
+    status := grpc_status(),
+    message := grpc_status_message(),
+    trailers => map()
+}.
+-type grpc_extended_error_response() :: {grpc_extended_error, grpc_error_data()}.
 
 init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                          StreamInterceptor, StatsHandler]) ->
@@ -209,6 +217,10 @@ on_receive_data(Bin, State=#state{request_encoding=Encoding,
     catch
         throw:{grpc_error, {Status, Message}} ->
             end_stream(Status, Message, State);
+        throw:{grpc_extended_error, #{status := Status, message := Message} = ErrorData} ->
+            Trailers = maps:get(trailers, ErrorData, #{}),
+            State2 = update_trailers(maps:to_list(Trailers), State),
+            end_stream(Status, Message, State2);
         C:E:S ->
             ?LOG_INFO("crash: class=~p exception=~p stacktrace=~p", [C, E, S]),
             end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State)
@@ -261,6 +273,8 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
             State1 = from_ctx(Ctx2),
             send(false, Response, State1);
         E={grpc_error, _} ->
+            throw(E);
+        E={grpc_extended_error, _} ->
             throw(E)
     end.
 
