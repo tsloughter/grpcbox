@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2020-07-21T10:30:53+00:00 and should not be modified manually
+%% this module was generated on 2020-10-19T05:10:58+00:00 and should not be modified manually
 
 -module(routeguide_route_guide_bhvr).
 
@@ -26,4 +26,8 @@
 %% @doc Unary RPC
 -callback generate_error(ctx:ctx(), route_guide_pb:empty()) ->
     {ok, route_guide_pb:empty(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
+
+%% @doc 
+-callback streaming_generate_error(route_guide_pb:empty(), grpcbox_stream:t()) ->
+    ok | grpcbox_stream:grpc_error_response().
 

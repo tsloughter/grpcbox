@@ -1812,13 +1812,16 @@ get_service_def('routeguide.RouteGuide') ->
 	output_stream => true, opts => []},
       #{name => 'GenerateError', input => empty,
 	output => empty, input_stream => false,
-	output_stream => false, opts => []}]};
+	output_stream => false, opts => []},
+      #{name => 'StreamingGenerateError', input => empty,
+	output => empty, input_stream => false,
+	output_stream => true, opts => []}]};
 get_service_def(_) -> error.
 
 
 get_rpc_names('routeguide.RouteGuide') ->
     ['GetFeature', 'ListFeatures', 'RecordRoute',
-     'RouteChat', 'GenerateError'];
+     'RouteChat', 'GenerateError', 'StreamingGenerateError'];
 get_rpc_names(_) -> error.
 
 
@@ -1847,6 +1850,10 @@ find_rpc_def(_, _) -> error.
     #{name => 'GenerateError', input => empty,
       output => empty, input_stream => false,
       output_stream => false, opts => []};
+'find_rpc_def_routeguide.RouteGuide'('StreamingGenerateError') ->
+    #{name => 'StreamingGenerateError', input => empty,
+      output => empty, input_stream => false,
+      output_stream => true, opts => []};
 'find_rpc_def_routeguide.RouteGuide'(_) -> error.
 
 
@@ -1887,6 +1894,8 @@ fqbins_to_service_and_rpc_name(<<"routeguide.RouteGuide">>, <<"RouteChat">>) ->
     {'routeguide.RouteGuide', 'RouteChat'};
 fqbins_to_service_and_rpc_name(<<"routeguide.RouteGuide">>, <<"GenerateError">>) ->
     {'routeguide.RouteGuide', 'GenerateError'};
+fqbins_to_service_and_rpc_name(<<"routeguide.RouteGuide">>, <<"StreamingGenerateError">>) ->
+    {'routeguide.RouteGuide', 'StreamingGenerateError'};
 fqbins_to_service_and_rpc_name(S, R) ->
     error({gpb_error, {badservice_or_rpc, {S, R}}}).
 
@@ -1909,6 +1918,9 @@ service_and_rpc_name_to_fqbins('routeguide.RouteGuide',
 service_and_rpc_name_to_fqbins('routeguide.RouteGuide',
 			       'GenerateError') ->
     {<<"routeguide.RouteGuide">>, <<"GenerateError">>};
+service_and_rpc_name_to_fqbins('routeguide.RouteGuide',
+			       'StreamingGenerateError') ->
+    {<<"routeguide.RouteGuide">>, <<"StreamingGenerateError">>};
 service_and_rpc_name_to_fqbins(S, R) ->
     error({gpb_error, {badservice_or_rpc, {S, R}}}).
 
@@ -1991,7 +2003,8 @@ get_rpc_containment("route_guide") ->
      {'routeguide.RouteGuide', 'ListFeatures'},
      {'routeguide.RouteGuide', 'RecordRoute'},
      {'routeguide.RouteGuide', 'RouteChat'},
-     {'routeguide.RouteGuide', 'GenerateError'}];
+     {'routeguide.RouteGuide', 'GenerateError'},
+     {'routeguide.RouteGuide', 'StreamingGenerateError'}];
 get_rpc_containment(P) ->
     error({gpb_error, {badproto, P}}).
 
@@ -2035,7 +2048,7 @@ get_protos_by_pkg_name_as_fqbin(E) ->
 
 
 descriptor() ->
-    <<10, 220, 5, 10, 28, 114, 111, 117, 116, 101, 103, 117,
+    <<10, 160, 6, 10, 28, 114, 111, 117, 116, 101, 103, 117,
       105, 100, 101, 47, 114, 111, 117, 116, 101, 95, 103,
       117, 105, 100, 101, 46, 112, 114, 111, 116, 111, 18, 10,
       114, 111, 117, 116, 101, 103, 117, 105, 100, 101, 34, 7,
@@ -2067,7 +2080,7 @@ descriptor() ->
       10, 8, 100, 105, 115, 116, 97, 110, 99, 101, 24, 3, 32,
       1, 40, 5, 18, 20, 10, 12, 101, 108, 97, 112, 115, 101,
       100, 95, 116, 105, 109, 101, 24, 4, 32, 1, 40, 5, 50,
-      192, 2, 10, 10, 82, 111, 117, 116, 101, 71, 117, 105,
+      132, 3, 10, 10, 82, 111, 117, 116, 101, 71, 117, 105,
       100, 101, 18, 56, 10, 10, 71, 101, 116, 70, 101, 97,
       116, 117, 114, 101, 18, 17, 46, 114, 111, 117, 116, 101,
       103, 117, 105, 100, 101, 46, 80, 111, 105, 110, 116, 26,
@@ -2093,8 +2106,14 @@ descriptor() ->
       114, 111, 114, 18, 17, 46, 114, 111, 117, 116, 101, 103,
       117, 105, 100, 101, 46, 69, 109, 112, 116, 121, 26, 17,
       46, 114, 111, 117, 116, 101, 103, 117, 105, 100, 101,
-      46, 69, 109, 112, 116, 121, 40, 0, 48, 0, 98, 6, 112,
-      114, 111, 116, 111, 51>>.
+      46, 69, 109, 112, 116, 121, 40, 0, 48, 0, 18, 66, 10,
+      22, 83, 116, 114, 101, 97, 109, 105, 110, 103, 71, 101,
+      110, 101, 114, 97, 116, 101, 69, 114, 114, 111, 114, 18,
+      17, 46, 114, 111, 117, 116, 101, 103, 117, 105, 100,
+      101, 46, 69, 109, 112, 116, 121, 26, 17, 46, 114, 111,
+      117, 116, 101, 103, 117, 105, 100, 101, 46, 69, 109,
+      112, 116, 121, 40, 0, 48, 0, 98, 6, 112, 114, 111, 116,
+      111, 51>>.
 
 descriptor("route_guide") ->
     <<10, 28, 114, 111, 117, 116, 101, 103, 117, 105, 100,
@@ -2128,7 +2147,7 @@ descriptor("route_guide") ->
       99, 111, 117, 110, 116, 24, 2, 32, 1, 40, 5, 18, 16, 10,
       8, 100, 105, 115, 116, 97, 110, 99, 101, 24, 3, 32, 1,
       40, 5, 18, 20, 10, 12, 101, 108, 97, 112, 115, 101, 100,
-      95, 116, 105, 109, 101, 24, 4, 32, 1, 40, 5, 50, 192, 2,
+      95, 116, 105, 109, 101, 24, 4, 32, 1, 40, 5, 50, 132, 3,
       10, 10, 82, 111, 117, 116, 101, 71, 117, 105, 100, 101,
       18, 56, 10, 10, 71, 101, 116, 70, 101, 97, 116, 117,
       114, 101, 18, 17, 46, 114, 111, 117, 116, 101, 103, 117,
@@ -2155,8 +2174,14 @@ descriptor("route_guide") ->
       111, 114, 18, 17, 46, 114, 111, 117, 116, 101, 103, 117,
       105, 100, 101, 46, 69, 109, 112, 116, 121, 26, 17, 46,
       114, 111, 117, 116, 101, 103, 117, 105, 100, 101, 46,
-      69, 109, 112, 116, 121, 40, 0, 48, 0, 98, 6, 112, 114,
-      111, 116, 111, 51>>;
+      69, 109, 112, 116, 121, 40, 0, 48, 0, 18, 66, 10, 22,
+      83, 116, 114, 101, 97, 109, 105, 110, 103, 71, 101, 110,
+      101, 114, 97, 116, 101, 69, 114, 114, 111, 114, 18, 17,
+      46, 114, 111, 117, 116, 101, 103, 117, 105, 100, 101,
+      46, 69, 109, 112, 116, 121, 26, 17, 46, 114, 111, 117,
+      116, 101, 103, 117, 105, 100, 101, 46, 69, 109, 112,
+      116, 121, 40, 0, 48, 0, 98, 6, 112, 114, 111, 116, 111,
+      51>>;
 descriptor(X) -> error({gpb_error, {badname, X}}).
 
 

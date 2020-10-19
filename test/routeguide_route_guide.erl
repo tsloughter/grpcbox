@@ -6,7 +6,8 @@
          list_features/2,
          record_route/2,
          route_chat/2,
-         generate_error/2]).
+         generate_error/2,
+         streaming_generate_error/2]).
 
 -type route_summary() ::
     #{point_count => integer(),
@@ -91,6 +92,20 @@ generate_error(_Ctx, _Message) ->
             }
         }
     }.
+
+-spec streaming_generate_error(Message :: map(), GrpcStream :: grpcbox_stream:t()) -> no_return().
+streaming_generate_error(_Message, _GrpcStream) ->
+    exit(
+        {
+            grpc_extended_error, #{
+                status => ?GRPC_STATUS_INTERNAL,
+                message => <<"error_message">>,
+                trailers => #{
+                    <<"generate_error_trailer">> => <<"error_trailer">>
+                }
+            }
+        }
+    ).
 
 %% Supporting functions
 

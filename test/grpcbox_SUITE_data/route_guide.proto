@@ -52,6 +52,9 @@ service RouteGuide {
 
   // A simple RPC, which always generates error response.
   rpc GenerateError(Empty) returns (Empty) {}
+
+  // A simple RPC, which always generates error response.
+  rpc StreamingGenerateError(Empty) returns (stream Empty) {}
 }
 
 // Empty message - use for RPCs without input or output.
