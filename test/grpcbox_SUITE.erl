@@ -12,7 +12,7 @@
 groups() ->
     [{ssl, [], [unary_authenticated]},
      {tcp, [], [unary_no_auth, multiple_servers]},
-     {negative_tests, [], [unimplemented, closed_stream]},
+     {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
      {negative_ssl, [], [unauthorized]},
      {context, [], [%% deadline
                    ]}].
@@ -286,6 +286,10 @@ end_per_testcase(unimplemented, _Config) ->
     ok;
 end_per_testcase(unauthorized, _Config) ->
     ok;
+end_per_testcase(generate_error, _Config) ->
+    ok;
+end_per_testcase(streaming_generate_error, _Config) ->
+    ok;
 end_per_testcase(closed_stream, _Config) ->
     ok;
 end_per_testcase(_, _Config) ->
@@ -307,16 +311,32 @@ unimplemented(_Config) ->
     Def = #grpcbox_def{service = 'routeguide.RouteGuide',
                        marshal_fun = fun(I) -> route_guide_pb:encode_msg(I, point) end,
                        unmarshal_fun = fun(I) -> route_guide_pb:encode_msg(I, feature) end},
-    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}},
+    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}, #{headers := #{}, trailers := #{}}},
                  grpcbox_client:unary(ctx:new(), <<"/routeguide.RouteGuide/NotReal">>, #{}, Def, #{})),
 
     {ok, S} = grpcbox_client:stream(ctx:new(), <<"/routeguide.RouteGuide/NotReal">>, #{}, Def, #{}),
-    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}}, grpcbox_client:recv_data(S)).
+    ?assertMatch({error, {?GRPC_STATUS_UNIMPLEMENTED, _}, #{trailers := #{}}},
+                 grpcbox_client:recv_data(S)).
 
 unauthorized(_Config) ->
     Point = #{latitude => 409146138, longitude => -746188906},
     Ctx = ctx:new(),
-    {error, {?GRPC_STATUS_UNAUTHENTICATED, _}} = routeguide_route_guide_client:get_feature(Ctx, Point).
+    {error, {?GRPC_STATUS_UNAUTHENTICATED, _}, #{headers := #{}, trailers := #{}}}
+        = routeguide_route_guide_client:get_feature(Ctx, Point).
+
+generate_error(_Config) ->
+    Response = routeguide_route_guide_client:generate_error(#{}),
+    ?assertMatch({error, {?GRPC_STATUS_INTERNAL, <<"error_message">>}, _}, Response),
+    {error, _, #{trailers := Trailers}} = Response,
+    ?assertEqual(<<"error_trailer">>, maps:get(<<"generate_error_trailer">>, Trailers, undefined)).
+
+streaming_generate_error(_Config) ->
+    {ok, Stream} = routeguide_route_guide_client:streaming_generate_error(#{}),
+    ?assertMatch({ok, #{<<":status">> := <<"200">>}}, grpcbox_client:recv_headers(Stream)),
+    Response = grpcbox_client:recv_data(Stream),
+    ?assertMatch({error, {?GRPC_STATUS_INTERNAL, <<"error_message">>}, _}, Response),
+    {error, _, #{trailers := Trailers}} = Response,
+    ?assertEqual(<<"error_trailer">>, maps:get(<<"generate_error_trailer">>, Trailers, undefined)).
 
 closed_stream(_Config) ->
     {ok, S} = routeguide_route_guide_client:record_route(ctx:new()),

@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2019-03-09T00:28:59+00:00 and should not be modified manually
+%% this module was generated on 2020-10-19T05:10:58+00:00 and should not be modified manually
 
 -module(routeguide_route_guide_client).
 
@@ -94,4 +94,40 @@ route_chat(Options) ->
     {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
 route_chat(Ctx, Options) ->
     grpcbox_client:stream(Ctx, <<"/routeguide.RouteGuide/RouteChat">>, ?DEF(route_note, route_note, <<"routeguide.RouteNote">>), Options).
+
+%% @doc Unary RPC
+-spec generate_error(route_guide_pb:empty()) ->
+    {ok, route_guide_pb:empty(), grpcbox:metadata()} | grpcbox_stream:grpc_error_response().
+generate_error(Input) ->
+    generate_error(ctx:new(), Input, #{}).
+
+-spec generate_error(ctx:t() | route_guide_pb:empty(), route_guide_pb:empty() | grpcbox_client:options()) ->
+    {ok, route_guide_pb:empty(), grpcbox:metadata()} | grpcbox_stream:grpc_error_response().
+generate_error(Ctx, Input) when ?is_ctx(Ctx) ->
+    generate_error(Ctx, Input, #{});
+generate_error(Input, Options) ->
+    generate_error(ctx:new(), Input, Options).
+
+-spec generate_error(ctx:t(), route_guide_pb:empty(), grpcbox_client:options()) ->
+    {ok, route_guide_pb:empty(), grpcbox:metadata()} | grpcbox_stream:grpc_error_response().
+generate_error(Ctx, Input, Options) ->
+    grpcbox_client:unary(Ctx, <<"/routeguide.RouteGuide/GenerateError">>, Input, ?DEF(empty, empty, <<"routeguide.Empty">>), Options).
+
+%% @doc 
+-spec streaming_generate_error(route_guide_pb:empty()) ->
+    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
+streaming_generate_error(Input) ->
+    streaming_generate_error(ctx:new(), Input, #{}).
+
+-spec streaming_generate_error(ctx:t() | route_guide_pb:empty(), route_guide_pb:empty() | grpcbox_client:options()) ->
+    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
+streaming_generate_error(Ctx, Input) when ?is_ctx(Ctx) ->
+    streaming_generate_error(Ctx, Input, #{});
+streaming_generate_error(Input, Options) ->
+    streaming_generate_error(ctx:new(), Input, Options).
+
+-spec streaming_generate_error(ctx:t(), route_guide_pb:empty(), grpcbox_client:options()) ->
+    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
+streaming_generate_error(Ctx, Input, Options) ->
+    grpcbox_client:stream(Ctx, <<"/routeguide.RouteGuide/StreamingGenerateError">>, Input, ?DEF(empty, empty, <<"routeguide.Empty">>), Options).
 

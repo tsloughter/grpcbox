@@ -49,6 +49,16 @@ service RouteGuide {
   // Accepts a stream of RouteNotes sent while a route is being traversed,
   // while receiving other RouteNotes (e.g. from other users).
   rpc RouteChat(stream RouteNote) returns (stream RouteNote) {}
+
+  // A simple RPC, which always generates error response.
+  rpc GenerateError(Empty) returns (Empty) {}
+
+  // A simple RPC, which always generates error response.
+  rpc StreamingGenerateError(Empty) returns (stream Empty) {}
+}
+
+// Empty message - use for RPCs without input or output.
+message Empty {
 }
 
 // Points are represented as latitude-longitude pairs in the E7 representation
