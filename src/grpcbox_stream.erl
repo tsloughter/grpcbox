@@ -8,6 +8,7 @@
 
 -export([send/2,
          send/3,
+         is_alive/1,
          send_headers/2,
          add_headers/2,
          add_trailers/2,
@@ -422,6 +423,12 @@ update_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
 
 update_trailers(Trailers, State=#state{resp_trailers=RespTrailers}) ->
     State#state{resp_trailers=RespTrailers ++ Trailers}.
+
+is_alive(#state{socket = Socket}) ->
+    case sock:peername(Socket) of
+        {ok,_} -> true;
+        _ -> false
+    end.
 
 send(Message, #state{handler=Pid}) ->
     Pid ! {send_proto, Message}.
