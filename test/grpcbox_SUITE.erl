@@ -477,8 +477,8 @@ multiple_servers(_Config) ->
     unary(_Config),
     unary(_Config).
 
-bidirectional(_Config) ->
-    {ok, S} = routeguide_route_guide_client:route_chat(ctx:new()),
+bidirectional(Config) ->
+    {ok, S} = routeguide_route_guide_client:route_chat(ctx:new(), proplists:get_value(options, Config, #{})),
     %% send 2 before receiving since the server only sends what it already had in its list of messages for the
     %% location of your last send.
     ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
@@ -561,10 +561,30 @@ stress_test(Config) ->
 
 stress_test(Config, Count) ->
     lists:foreach(fun
-        (Ref) ->
+        (ProcId) ->
             Parent = self(),
             spawn(fun() ->
-                stress_test_function(fun bidirectional/1, Config, Ref, Parent) end)
+                Channel = erlang:list_to_atom("proc_" ++ erlang:integer_to_list(ProcId)),
+                erlang:register(Channel, self()),
+                {ok, _Pid} = grpcbox_channel:add_channel(
+                    Channel,
+                    [{http, "localhost", 8080, []}],
+                    #{}
+                ),
+                lists:foldl(fun
+                    (_, not_ready) ->
+                        timer:sleep(10),
+                        grpcbox_channel:is_ready(Channel);
+                    (_,Acc) ->
+                        Acc
+                end, not_ready, lists:seq(1, 100)),
+
+                stress_test_function(fun bidirectional/1,
+                    [{options,#{channel => Channel}} | Config],
+                    ProcId, Parent),
+                ok
+                %% grpcbox_channel:delete_channel(Pid)
+            end)
     end, lists:seq(1, Count)),
 
     Loop = fun Loop(LoopCount) ->

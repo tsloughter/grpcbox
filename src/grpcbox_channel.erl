@@ -5,13 +5,16 @@
 -export([start_link/3,
          is_ready/1,
          pick/2,
-         stop/1]).
+         stop/1,
+         add_channel/3,
+         delete_channel/1]).
 -export([init/1,
          callback_mode/0,
          terminate/3,
          connected/3,
          idle/3]).
 
+-include_lib("stdlib/include/ms_transform.hrl").
 -include("grpcbox.hrl").
 
 -define(CHANNEL(Name), {via, gproc, {n, l, {?MODULE, Name}}}).
@@ -44,6 +47,16 @@
                              | undefined,
                stats_handler :: module() | undefined,
                refresh_interval :: timer:time()}).
+
+%% @doc add a new channel
+-spec add_channel(name(), [endpoint()], options()) ->  {ok, pid()}.
+add_channel(Name, Endpoints, Options) ->
+    grpcbox_channel_sup:start_child(Name, Endpoints, Options).
+
+%% @doc Delete a channel
+-spec delete_channel(pid()) -> any().
+delete_channel(Pid) when is_pid(Pid) ->
+    ok = supervisor:terminate_child(grpcbox_channel_sup, Pid).
 
 -spec start_link(name(), [endpoint()], options()) -> {ok, pid()}.
 start_link(Name, Endpoints, Options) ->
@@ -129,6 +142,12 @@ handle_event(_, _, Data) ->
     {keep_state, Data}.
 
 terminate(_Reason, _State, #data{pool=Name}) ->
+    [ets:delete(?CHANNELS_TAB, Key) || Key <-
+        ets:select(?CHANNELS_TAB, ets:fun2ms(fun
+            ({{N, V}, _}) when N == Name  ->
+                {N, V}
+        end))
+    ],
     gproc_pool:force_delete(Name),
     ok.
 
