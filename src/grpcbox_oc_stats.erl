@@ -40,10 +40,10 @@ register_measures_(client) ->
       bytes},
      {'grpc.io/client/roundtrip_latency',
       "Time between first byte of request sent to last byte of response received, or terminal error.",
-      milli_seconds},
+      millisecond},
      {'grpc.io/client/server_latency',
       "Propagated from the server and should have the same value as grpc.io/server/latency.",
-      milli_seconds},
+      millisecond},
      {'grpc.io/client/started_rpcs',
       "The total number of client RPCs ever opened, including those that have not completed.",
       none}];
@@ -62,7 +62,7 @@ register_measures_(server) ->
       bytes},
      {'grpc.io/server/server_latency',
       "Time between first byte of request received to last byte of response sent, or terminal error.",
-      milli_seconds},
+      millisecond},
      {'grpc.io/server/started_rpcs',
       "The total number of server RPCs ever opened, including those that have not completed.",
       none}].
