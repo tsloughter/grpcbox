@@ -127,13 +127,21 @@ load_services([], _, _) ->
     ok;
 load_services([ServicePbModule | Rest], Services, ServicesTable) ->
     ServiceNames = ServicePbModule:get_service_names(),
+    %% NOTE: Methods value may be a map or a prop depending on gpb options when generating the services
     [begin
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
          %% throws exception if ServiceName isn't in the map or doesn't exist
-         try ServiceModule = maps:get(ServiceName, Services),
+         try
+             ServiceModule = maps:get(ServiceName, Services),
               {ServiceModule, ServiceModule:module_info(exports)} of
              {ServiceModule1, Exports} ->
                  [begin
+                      #{name := Name,
+                        input := Input,
+                        output := Output,
+                        input_stream := InputStream,
+                        output_stream := OutputStream,
+                        opts := Opts} = ensure_map(P),
                       SnakedMethodName = atom_snake_case(Name),
                       case lists:member({SnakedMethodName, 2}, Exports) of
                           true ->
@@ -149,12 +157,7 @@ load_services([ServicePbModule | Rest], Services, ServicesTable) ->
                               %% TODO: error? log? insert into ets as unimplemented?
                               unimplemented_method
                       end
-                  end || #{name := Name,
-                           input := Input,
-                           output := Output,
-                           input_stream := InputStream,
-                           output_stream := OutputStream,
-                           opts := Opts} <- Methods]
+                  end || P <- Methods]
          catch
              _:_ ->
                  %% TODO: error? log? insert into ets as unimplemented?
@@ -179,3 +182,8 @@ atom_snake_case(Name) ->
     Snaked1 = string:replace(Snaked, ".", "_", all),
     Snaked2 = string:replace(Snaked1, "__", "_", all),
     list_to_atom(string:to_lower(unicode:characters_to_list(Snaked2))).
+
+ensure_map(S) when is_map(S)->
+    S;
+ensure_map(S) when is_list(S)->
+    maps:from_list(S).
