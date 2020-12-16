@@ -130,10 +130,17 @@ load_services([ServicePbModule | Rest], Services, ServicesTable) ->
     [begin
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
          %% throws exception if ServiceName isn't in the map or doesn't exist
-         try ServiceModule = maps:get(ServiceName, Services),
+         try
+             ServiceModule = maps:get(ServiceName, Services),
               {ServiceModule, ServiceModule:module_info(exports)} of
              {ServiceModule1, Exports} ->
                  [begin
+                      #{name := Name,
+                        input := Input,
+                        output := Output,
+                        input_stream := InputStream,
+                        output_stream := OutputStream,
+                        opts := Opts} = maps:from_list(P),
                       SnakedMethodName = atom_snake_case(Name),
                       case lists:member({SnakedMethodName, 2}, Exports) of
                           true ->
@@ -149,12 +156,7 @@ load_services([ServicePbModule | Rest], Services, ServicesTable) ->
                               %% TODO: error? log? insert into ets as unimplemented?
                               unimplemented_method
                       end
-                  end || #{name := Name,
-                           input := Input,
-                           output := Output,
-                           input_stream := InputStream,
-                           output_stream := OutputStream,
-                           opts := Opts} <- Methods]
+                  end || P <- Methods]
          catch
              _:_ ->
                  %% TODO: error? log? insert into ets as unimplemented?
