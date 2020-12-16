@@ -127,6 +127,7 @@ load_services([], _, _) ->
     ok;
 load_services([ServicePbModule | Rest], Services, ServicesTable) ->
     ServiceNames = ServicePbModule:get_service_names(),
+    %% NOTE: Methods value may be a map or a prop depending on gpb options when generating the services
     [begin
          %% NOTE: Methods value may be a map or a prop depending on gpb options when generating the services
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
