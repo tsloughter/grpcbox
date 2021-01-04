@@ -11,7 +11,8 @@
 
 groups() ->
     [{ssl, [], [unary_authenticated]},
-     {tcp, [], [unary_no_auth, multiple_servers]},
+     {tcp, [], [unary_no_auth, multiple_servers,
+                unary_garbage_collect_streams]},
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
      {negative_ssl, [], [unauthorized]},
      {context, [], [%% deadline
@@ -29,6 +30,7 @@ all() ->
      stream_interceptor,
      bidirectional,
      client_stream,
+     client_stream_garbage_collect_streams,
      compression,
      stats_handler,
      health_service,
@@ -190,6 +192,14 @@ init_per_testcase(bidirectional, Config) ->
     application:ensure_all_started(grpcbox),
     Config;
 init_per_testcase(client_stream, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide}}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
+init_per_testcase(client_stream_garbage_collect_streams, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
     application:set_env(grpcbox, servers,
@@ -457,6 +467,21 @@ unary_no_auth(_Config) ->
 unary_authenticated(Config) ->
     unary(Config).
 
+%% checks that no closed streams are left around after unary requests
+unary_garbage_collect_streams(Config) ->
+    unary(Config),
+
+    ConnectionStreamSet = connection_stream_set(),
+
+    ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
+
+client_stream_garbage_collect_streams(Config) ->
+    client_stream(Config),
+
+    ConnectionStreamSet = connection_stream_set(),
+
+    ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
+
 multiple_servers(_Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []},
                                                                            {http, "localhost", 8081, []}]},
@@ -541,6 +566,15 @@ stream_interceptor(_Config) ->
     ?assertMatch({ok, {_, _, #{<<"x-grpc-stream-interceptor">> := <<"true">>}}}, grpcbox_client:recv_trailers(Stream)).
 
 %%
+
+connection_stream_set() ->
+    {ok, {Channel, _}} = grpcbox_channel:pick(default_channel, unary),
+    {ok, Conn, _} = grpcbox_subchannel:conn(Channel),
+    {connected, ConnState} = sys:get_state(Conn),
+
+    %% I know, I know, this will fail if the connection record in h2_connection ever has elements
+    %% added before the stream_set field. But for now, it is 14 and thats good enough.
+    element(14, ConnState).
 
 cert_dir(Config) ->
     DataDir = ?config(data_dir, Config),
