@@ -90,7 +90,7 @@ init([Name, Endpoints, Options]) ->
     insert_interceptors(Name, Options),
 
     gproc_pool:new(Name, BalancerType, [{size, length(Endpoints)},
-                                        {autosize, true}]),
+                                        {auto_size, true}]),
     Data = #data{
         pool = Name,
         encoding = Encoding,
