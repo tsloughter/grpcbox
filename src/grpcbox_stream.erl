@@ -154,7 +154,8 @@ handle_service_lookup(_, _, State) ->
 
 handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
                                socket=Socket,
-                               method=#method{input={_, InputStreaming}}}) ->
+                               method=#method{module=Module,
+                                              input={_, InputStreaming}}}) ->
     case authenticate(sock:peercert(Socket), AuthFun) of
         {true, _Identity} ->
             case InputStreaming of
@@ -165,7 +166,9 @@ handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
                     {ok, State#state{input_ref=Ref,
                                      callback_pid=Pid}};
                 _ ->
-                    {ok, State}
+                    %% maybe initialize server side handler state
+                    State0 = maybe_init_handler_state(Module, State),
+                    {ok, State0}
             end;
         _ ->
             end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State)
@@ -432,9 +435,11 @@ handle_info({'EXIT', _, {grpc_extended_error, #{status := Status, message := Mes
 handle_info({'EXIT', _, _Other}, State) ->
     end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
     State;
-handle_info(_, State) ->
-    State.
-
+handle_info(Msg, State=#state{method=#method{module=Module}}) ->
+    case erlang:function_exported(Module, handle_info, 2) of
+        true -> Module:handle_info(Msg, State);
+        false -> State
+    end.
 
 add_headers(Headers, #state{handler=Pid}) ->
     Pid ! {add_headers, Headers}.
@@ -555,3 +560,9 @@ maybe_encode_header_value(K, V) ->
 add_trailers_from_error_data(ErrorData, State) ->
     Trailers = maps:get(trailers, ErrorData, #{}),
     update_trailers(maps:to_list(Trailers), State).
+
+maybe_init_handler_state(Module, State)->
+    case erlang:function_exported(Module, init, 1) of
+        true -> Module:init(State);
+        false -> State
+    end.
