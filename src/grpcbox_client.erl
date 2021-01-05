@@ -202,8 +202,8 @@ recv(Type, #{stream_id := Id,
     end.
 
 recv_end(#{stream_id := StreamId,
-           stream_pid := Pid,
-           monitor_ref := Ref}, Timeout) ->
+            stream_pid := Pid,
+            monitor_ref := Ref}, Timeout) ->
     receive
         {eos, StreamId} ->
             erlang:demonitor(Ref, [flush]),

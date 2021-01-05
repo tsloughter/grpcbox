@@ -133,7 +133,7 @@ metadata_headers(Ctx) ->
 
 %% callbacks
 
-init(_, StreamId, [_, State=#{path := Path}]) ->
+init(_ConnectionPid, StreamId, [_, State=#{path := Path}]) ->
     _ = process_flag(trap_exit, true),
     Ctx1 = ctx:with_value(ctx:new(), grpc_client_method, Path),
     State1 = stats_handler(Ctx1, rpc_begin, {}, State),
