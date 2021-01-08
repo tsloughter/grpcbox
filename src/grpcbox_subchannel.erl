@@ -94,7 +94,8 @@ terminate(_Reason, _State, #data{conn=Pid,
 connect(Data=#data{conn=undefined,
                    endpoint={Transport, Host, Port, SSLOptions}}, From, Actions) ->
     case h2_client:start_link(Transport, Host, Port, options(Transport, SSLOptions),
-                             #{stream_callback_mod => grpcbox_client_stream}) of
+                             #{garbage_on_end => true,
+                               stream_callback_mod => grpcbox_client_stream}) of
         {ok, Pid} ->
             {next_state, ready, Data#data{conn=Pid}, Actions};
         {error, _}=Error ->

@@ -71,7 +71,7 @@ unary(Ctx, Path, Input, Def, Options) ->
 unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
     try
         case grpcbox_client_stream:send_request(Ctx, Channel, Path, Input, Def, Options) of
-            {ok, _, Stream, Pid} ->
+            {ok, _Conn, Stream, Pid} ->
                 Ref = erlang:monitor(process, Pid),
                 S = #{channel => Channel,
                       stream_id => Stream,
@@ -202,8 +202,8 @@ recv(Type, #{stream_id := Id,
     end.
 
 recv_end(#{stream_id := StreamId,
-           stream_pid := Pid,
-           monitor_ref := Ref}, Timeout) ->
+            stream_pid := Pid,
+            monitor_ref := Ref}, Timeout) ->
     receive
         {eos, StreamId} ->
             erlang:demonitor(Ref, [flush]),
