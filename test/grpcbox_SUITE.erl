@@ -422,6 +422,8 @@ reflection_service(_Config) ->
                              #{file_descriptor_proto := [_]}}}},
                  grpcbox_client:recv_data(S)),
 
+    check_stream_state(S),
+
     %% closes the stream, waits for an 'end of stream' message and then returns the received data
     ?assertMatch(ok, grpcbox_client:close_send(S)).
 
@@ -501,6 +503,8 @@ bidirectional(_Config) ->
     ?assertMatch({ok, #{message := <<"hello there">>}}, grpcbox_client:recv_data(S)),
     ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
 
+    check_stream_state(S),
+
     %% closes the stream, waits for an 'end of stream' message and then returns the received data
     ?assertMatch(ok, grpcbox_client:close_send(S)).
 %% TODO: add tests to ensure stream pids are gone and that accidental recvs and such after a close don't hang
@@ -567,6 +571,13 @@ stream_interceptor(_Config) ->
 
 %%
 
+%% verify that the chatterbox stream isn't storing frame data
+check_stream_state(S) ->
+    {_, StreamState} = sys:get_state(maps:get(stream_pid, S)),
+    FrameQueue = element(6, StreamState),
+    ?assert(queue:is_empty(FrameQueue)).
+
+%% return the stream_set of a connection in the channel
 connection_stream_set() ->
     {ok, {Channel, _}} = grpcbox_channel:pick(default_channel, unary),
     {ok, Conn, _} = grpcbox_subchannel:conn(Channel),
