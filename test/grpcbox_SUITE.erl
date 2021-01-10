@@ -12,8 +12,8 @@
 groups() ->
     [{ssl, [], [unary_authenticated]},
      {tcp, [], [unary_no_auth, multiple_servers,
-                unary_garbage_collect_streams,
-                unary_concurrent]},
+                unary_garbage_collect_streams]},
+     {concurrent, [{repeat_until_any_fail, 5}], [unary_concurrent]},
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
      {negative_ssl, [], [unauthorized]},
      {context, [], [%% deadline
@@ -22,6 +22,7 @@ groups() ->
 all() ->
     [{group, ssl},
      {group, tcp},
+     {group, concurrent},
      {group, negative_tests},
      {group, negative_ssl},
      initially_down_service,
@@ -65,6 +66,15 @@ init_per_group(ssl, Config) ->
     application:ensure_all_started(grpcbox),
     Config;
 init_per_group(tcp, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
+                                                         #{}}]}),
+    application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                                            services => #{'routeguide.RouteGuide' =>
+                                                                              routeguide_route_guide}},
+                                             transport_opts => #{}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
+init_per_group(concurrent, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
                                                          #{}}]}),
     application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
