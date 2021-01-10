@@ -12,7 +12,8 @@
 groups() ->
     [{ssl, [], [unary_authenticated]},
      {tcp, [], [unary_no_auth, multiple_servers,
-                unary_garbage_collect_streams]},
+                unary_garbage_collect_streams,
+                unary_concurrent]},
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
      {negative_ssl, [], [unauthorized]},
      {context, [], [%% deadline
@@ -284,6 +285,8 @@ end_per_testcase(multiple_servers, _Config) ->
     ok;
 end_per_testcase(unary_garbage_collect_streams, _Config) ->
     ok;
+end_per_testcase(unary_concurrent, _Config) ->
+    ok;
 end_per_testcase(unimplemented, _Config) ->
     ok;
 end_per_testcase(unauthorized, _Config) ->
@@ -495,6 +498,26 @@ multiple_servers(_Config) ->
                                                  listen_opts => #{port => 8081}})),
     unary(_Config),
     unary(_Config).
+
+unary_concurrent(Config) ->
+    Nrs = lists:seq(1,100),
+    ParentPid = self(),
+    Pids = [spawn_link(fun() ->
+                               unary(Config),
+                               ParentPid ! self()
+                       end) || _ <- Nrs],
+    unary_concurrent_wait_for_processes(Pids).
+
+unary_concurrent_wait_for_processes([]) ->
+    ok;
+unary_concurrent_wait_for_processes(Pids) ->
+    receive
+        Pid ->
+            NewPids = lists:delete(Pid, Pids),
+            unary_concurrent_wait_for_processes(NewPids)
+    after 5000 ->
+            ?assertMatch([], Pids, "Unary concurrency test timed out without receiving all responses")
+    end.
 
 bidirectional(_Config) ->
     {ok, S} = routeguide_route_guide_client:route_chat(ctx:new()),
