@@ -282,6 +282,8 @@ end_per_testcase(unary_no_auth, _Config) ->
     ok;
 end_per_testcase(multiple_servers, _Config) ->
     ok;
+end_per_testcase(unary_garbage_collect_streams, _Config) ->
+    ok;
 end_per_testcase(unimplemented, _Config) ->
     ok;
 end_per_testcase(unauthorized, _Config) ->
