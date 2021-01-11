@@ -159,13 +159,12 @@ handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
         {true, _Identity} ->
             case InputStreaming of
                 true ->
+                    %% TODO - Revisit this, consider scenario where both input and output streaming
+                    %%        make sure not blocking each other
                     Ref = make_ref(),
-                    Pid = proc_lib:spawn_link(?MODULE, handle_streams,
-                                              [Ref, State#state{handler=self()}]),
-                    {ok, State#state{input_ref=Ref,
-                                     callback_pid=Pid}};
+                    State0 = maybe_init_handler_state(Module, State),
+                    {ok, State0#state{input_ref=Ref}};
                 _ ->
-                    %% maybe initialize server side handler state
                     State0 = maybe_init_handler_state(Module, State),
                     {ok, State0}
             end;
@@ -191,33 +190,37 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module,
                                  input_stream => true,
-                                 output_stream => true},
+                                 output_stream => false},
                   StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
           end) of
-
-        ok ->
-            end_stream(?GRPC_STATUS_OK, <<"">>, State);
-        {continue, NewState} ->
-            NewState;
+        {ok, Response, State2} ->
+            send(Response, State2);
         E={grpc_error, _} ->
             throw(E);
         E={grpc_extended_error, _} ->
             throw(E)
     end;
+
 handle_streams(Ref, State=#state{full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
                                  method=#method{module=Module,
                                                 function=Function,
                                                 output={_, true}}}) ->
-    case StreamInterceptor of
-        undefined ->
-            Module:Function(Ref, State);
-        _ ->
-            ServerInfo = #{full_method => FullMethod,
-                           service => Module,
-                           input_stream => true,
-                           output_stream => true},
-            StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+    case (case StreamInterceptor of
+              undefined -> Module:Function(Ref, State);
+              _ ->
+                  ServerInfo = #{full_method => FullMethod,
+                                 service => Module,
+                                 input_stream => true,
+                                 output_stream => true},
+                  StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+          end) of
+        {ok, State2} ->
+            State2;
+        E={grpc_error, _} ->
+            throw(E);
+        E={grpc_extended_error, _} ->
+            throw(E)
     end.
 
 on_send_push_promise(_, State) ->
@@ -251,9 +254,9 @@ on_receive_data(Bin, State=#state{request_encoding=Encoding,
             end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State)
     end.
 
-handle_message(EncodedMessage, State=#state{input_ref=Ref,
+handle_message(EncodedMessage, State=#state{input_ref=_Ref,
                                             ctx=Ctx,
-                                            callback_pid=Pid,
+                                            callback_pid=_Pid,
                                             method=#method{proto=Proto,
                                                            input={Input, InputStream},
                                                            output={_Output, OutputStream}}}) ->
@@ -264,8 +267,7 @@ handle_message(EncodedMessage, State=#state{input_ref=Ref,
                                                  compressed_size => size(EncodedMessage)}, State),
             case {InputStream, OutputStream} of
                 {true, _} ->
-                    Pid ! {Ref, Message},
-                    State1;
+                    handle_streams(Message, State1#state{handler=self()});
                 {false, true} ->
                     _ = proc_lib:spawn_link(?MODULE, handle_streams,
                                             [Message, State1#state{handler=self()}]),
