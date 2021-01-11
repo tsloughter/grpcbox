@@ -196,7 +196,7 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module,
                                  input_stream => true,
-                                 output_stream => true},
+                                 output_stream => false},
                   StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
           end) of
         ok ->
@@ -223,7 +223,6 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                                  output_stream => true},
                   StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
           end) of
-
         ok ->
             end_stream(?GRPC_STATUS_OK, <<"">>, State);
         {continue, NewState} ->
