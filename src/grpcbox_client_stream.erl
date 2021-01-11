@@ -72,6 +72,10 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
             Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
             Headers = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), MessageType, metadata_headers(Ctx)),
 
+            %% headers are sent in the same request as creating a new stream to ensure
+            %% concurrent calls can't end up interleaving the sending of headers in such
+            %% a way that a lower stream id's headers are sent after another's, which results
+            %% in the server closing the connection when it gets them out of order
             case h2_connection:new_stream(Conn, grpcbox_client_stream, [#{service => Service,
                                                                           marshal_fun => MarshalFun,
                                                                           unmarshal_fun => UnMarshalFun,
@@ -79,11 +83,10 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                                           buffer => <<>>,
                                                                           stats_handler => StatsHandler,
                                                                           stats => #{},
-                                                                          client_pid => self()}], self()) of
+                                                                          client_pid => self()}], Headers, [], self()) of
                 {error, _Code} = Err ->
                     Err;
                 {StreamId, Pid} ->
-                    h2_connection:send_headers(Conn, StreamId, Headers),
                     h2_connection:send_body(Conn, StreamId, Body),
                     {ok, Conn, StreamId, Pid}
             end;
