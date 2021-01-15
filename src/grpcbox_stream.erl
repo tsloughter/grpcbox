@@ -79,17 +79,16 @@
 }.
 -type grpc_extended_error_response() :: {grpc_extended_error, grpc_error_data()}.
 
--spec stream_handler_state(t()) -> t().
+-spec stream_handler_state(t()) -> any().
 stream_handler_state(#state{stream_handler_state = StreamHandlerState}) ->
     StreamHandlerState.
--spec stream_handler_state(t(), any()) -> t().
+-spec stream_handler_state(t(), any()) -> any().
 stream_handler_state(State, NewStreamHandlerState) ->
     State#state{stream_handler_state = NewStreamHandlerState}.
 
--spec stream_req_headers(t()) -> t().
+-spec stream_req_headers(t()) -> list().
 stream_req_headers(#state{req_headers = ReqHeaders}) ->
     ReqHeaders.
-
 
 init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                          StreamInterceptor, StatsHandler]) ->
