@@ -93,6 +93,8 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                     {error, _}=Error ->
                         Error
                 end;
+            {error, {shutdown, econnrefused}} ->
+                {error, econnrefused};
             {error, _}=Error ->
                 Error
         end
