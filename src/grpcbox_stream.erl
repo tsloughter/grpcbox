@@ -16,6 +16,7 @@
          error/2,
          ctx/1,
          ctx/2,
+         end_stream/1,
          handle_streams/2,
          handle_call/2,
          handle_info/2]).
