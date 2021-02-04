@@ -29,6 +29,7 @@ all() ->
      chain_interceptor,
      stream_interceptor,
      bidirectional,
+     stress_test,
      client_stream,
      client_stream_garbage_collect_streams,
      compression,
@@ -183,6 +184,15 @@ init_per_testcase(stream_interceptor, Config) ->
     application:ensure_all_started(grpcbox),
     Config;
 init_per_testcase(bidirectional, Config) ->
+    application:load(grpcbox),
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide}}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
+init_per_testcase(stress_test, Config) ->
     application:load(grpcbox),
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
@@ -494,8 +504,8 @@ multiple_servers(_Config) ->
     unary(_Config),
     unary(_Config).
 
-bidirectional(_Config) ->
-    {ok, S} = routeguide_route_guide_client:route_chat(ctx:new()),
+bidirectional(Config) ->
+    {ok, S} = routeguide_route_guide_client:route_chat(ctx:new(), proplists:get_value(options, Config, #{})),
     %% send 2 before receiving since the server only sends what it already had in its list of messages for the
     %% location of your last send.
     ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
@@ -568,6 +578,56 @@ stream_interceptor(_Config) ->
     ?assertMatch({ok, #{name := <<"Tour Eiffel">>}}, grpcbox_client:recv_data(Stream)),
     ?assertMatch({ok, #{name := <<"Louvre">>}}, grpcbox_client:recv_data(Stream)),
     ?assertMatch({ok, {_, _, #{<<"x-grpc-stream-interceptor">> := <<"true">>}}}, grpcbox_client:recv_trailers(Stream)).
+
+stress_test_function(Fun, Config, Ref, Parent) ->
+    Parent ! {stress_test, Ref, Fun(Config)}.
+
+stress_test(Config) ->
+    stress_test(Config,
+        erlang:list_to_integer(
+            os:getenv("GRPCBOX_STRESS_TEST", "10")
+        )).
+
+stress_test(Config, Count) ->
+    lists:foreach(fun
+        (ProcId) ->
+            Parent = self(),
+            spawn(fun() ->
+                Channel = erlang:list_to_atom("proc_" ++ erlang:integer_to_list(ProcId)),
+                erlang:register(Channel, self()),
+                {ok, _Pid} = grpcbox_channel:add_channel(
+                    Channel,
+                    [{http, "localhost", 8080, []}],
+                    #{}
+                ),
+                lists:foldl(fun
+                    (_, not_ready) ->
+                        timer:sleep(10),
+                        grpcbox_channel:is_ready(Channel);
+                    (_,Acc) ->
+                        Acc
+                end, not_ready, lists:seq(1, 100)),
+
+                stress_test_function(fun bidirectional/1,
+                    [{options,#{channel => Channel}} | Config],
+                    ProcId, Parent),
+                ok
+                %% grpcbox_channel:delete_channel(Pid)
+            end)
+    end, lists:seq(1, Count)),
+
+    Loop = fun Loop(LoopCount) ->
+        receive
+            {stress_test, _Ref, _Reply} when LoopCount < Count ->
+                Loop(LoopCount + 1);
+            {stress_test, _Ref, _Reply} when LoopCount < Count ->
+                LoopCount + 1
+        after
+            2000 ->
+                LoopCount
+        end
+    end,
+    ?assertEqual(Count, Loop(0)).
 
 %%
 
