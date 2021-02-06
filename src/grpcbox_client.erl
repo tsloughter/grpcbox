@@ -83,9 +83,14 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                         {ok, Headers} = recv_headers(S, 0),
                         case recv_trailers(S) of
                             {ok, {<<"0">>, _, Metadata}} ->
-                                {ok, Data} = recv_data(S, 0),
-                                {ok, Data, #{headers => Headers,
-                                             trailers => Metadata}};
+                                case recv_data(S, 0) of
+                                    {ok, Data} ->
+                                        {ok, Data, #{headers => Headers,
+                                                     trailers => Metadata}};
+                                    stream_finished ->
+                                        {ok, <<>>, #{headers => Headers,
+                                                     trailers => Metadata}}
+                                end;
                             {ok, {Status, Message, Metadata}} ->
                                 {error, {Status, Message}, #{headers => Headers,
                                                              trailers => Metadata}}
