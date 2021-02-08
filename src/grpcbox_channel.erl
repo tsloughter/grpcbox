@@ -45,7 +45,7 @@
                stats_handler :: module() | undefined,
                refresh_interval :: timer:time()}).
 
--spec start_link(name(), [endpoint()], options()) -> {ok, pid()}.
+-spec start_link(name(), [endpoint()], options()) -> {ok, pid()} | ignore | {error, term()}.
 start_link(Name, Endpoints, Options) ->
     gen_statem:start_link(?CHANNEL(Name), ?MODULE, [Name, Endpoints, Options], []).
 
