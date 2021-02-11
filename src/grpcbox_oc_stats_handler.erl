@@ -23,12 +23,12 @@ handle(Ctx, server, rpc_begin, _, _) ->
     Method = ctx:get(Ctx, grpc_server_method),
     Tags = #{grpc_server_method => Method},
     oc_stat:record(Tags, [{'grpc.io/server/started_rpcs', 1}]),
-    {oc_tags:new(Ctx, Tags), #stats{start_time=erlang:monotonic_time()}};
+    {oc_tags:new(Ctx, Tags), #stats{start_time=erlang:monotonic_time(microsecond)}};
 handle(Ctx, client, rpc_begin, _, _) ->
     Method = ctx:get(Ctx, grpc_client_method),
     Tags = #{grpc_client_method => Method},
     oc_stat:record(Tags, 'grpc.io/client/started_rpcs', 1),
-    {oc_tags:new(Ctx, Tags), #stats{start_time=erlang:monotonic_time()}};
+    {oc_tags:new(Ctx, Tags), #stats{start_time=erlang:monotonic_time(microsecond)}};
 handle(Ctx, _, out_payload, #{uncompressed_size := USize,
                               compressed_size := _CSize}, Stats=#stats{sent_count=SentCount,
                                                                        sent_bytes=SentBytes}) ->
@@ -46,7 +46,7 @@ handle(Ctx, server, rpc_end, _, Stats=#stats{start_time=StartTime,
                                              sent_bytes=SentBytes,
                                              recv_count=RecvCount,
                                              recv_bytes=RecvBytes}) ->
-    EndTime = erlang:monotonic_time(),
+    EndTime = erlang:monotonic_time(microsecond),
     Status = ctx:get(Ctx, grpc_server_status),
     Ctx1 = oc_tags:new(Ctx, #{grpc_server_status => Status}),
     oc_stat:record(Ctx1, [{'grpc.io/server/server_latency', EndTime - StartTime},
@@ -61,7 +61,7 @@ handle(Ctx, client, rpc_end, _, Stats=#stats{start_time=StartTime,
                                              sent_bytes=SentBytes,
                                              recv_count=RecvCount,
                                              recv_bytes=RecvBytes}) ->
-    EndTime = erlang:monotonic_time(),
+    EndTime = erlang:monotonic_time(microsecond),
     Status = ctx:get(Ctx, grpc_client_status),
     Ctx1 = oc_tags:new(Ctx, #{grpc_client_status => Status}),
     oc_stat:record(Ctx1, [{'grpc.io/client/roundtrip_latency', EndTime - StartTime},
