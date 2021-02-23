@@ -128,6 +128,7 @@ load_services([], _, _) ->
 load_services([ServicePbModule | Rest], Services, ServicesTable) ->
     ServiceNames = ServicePbModule:get_service_names(),
     [begin
+         %% NOTE: Methods value may be a map or a prop depending on gpb options when generating the services
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
          %% throws exception if ServiceName isn't in the map or doesn't exist
          try
@@ -140,7 +141,7 @@ load_services([ServicePbModule | Rest], Services, ServicesTable) ->
                         output := Output,
                         input_stream := InputStream,
                         output_stream := OutputStream,
-                        opts := Opts} = maps:from_list(P),
+                        opts := Opts} = ensure_map(P),
                       SnakedMethodName = atom_snake_case(Name),
                       case lists:member({SnakedMethodName, 2}, Exports) of
                           true ->
@@ -181,3 +182,8 @@ atom_snake_case(Name) ->
     Snaked1 = string:replace(Snaked, ".", "_", all),
     Snaked2 = string:replace(Snaked1, "__", "_", all),
     list_to_atom(string:to_lower(unicode:characters_to_list(Snaked2))).
+
+ensure_map(S) when is_map(S)->
+    S;
+ensure_map(S) when is_list(S)->
+    maps:from_list(S).
