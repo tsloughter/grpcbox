@@ -269,9 +269,7 @@ handle_message(EncodedMessage, State=#state{input_ref=_Ref,
                 {true, _} ->
                     handle_streams(Message, State1#state{handler=self()});
                 {false, true} ->
-                    _ = proc_lib:spawn_link(?MODULE, handle_streams,
-                                            [Message, State1#state{handler=self()}]),
-                    State1;
+                    handle_streams(Message, State1#state{handler=self()});
                 {false, false} ->
                     handle_unary(Ctx1, Message, State1)
             end
