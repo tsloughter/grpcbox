@@ -33,6 +33,12 @@
          stream_req_headers/1
 ]).
 
+%% state getters and setters
+-export([stream_handler_state/1,
+         stream_handler_state/2,
+         stream_req_headers/1
+]).
+
 -export_type([t/0,
               grpc_status/0,
               grpc_status_message/0,
