@@ -26,6 +26,12 @@
          on_receive_data/2,
          on_end_stream/1]).
 
+%% state getters and setters
+-export([stream_handler_state/1,
+         stream_handler_state/2,
+         stream_req_headers/1
+]).
+
 -export_type([t/0,
               grpc_status/0,
               grpc_status_message/0,
@@ -35,6 +41,7 @@
               grpc_extended_error_response/0]).
 
 -record(state, {handler             :: pid(),
+                stream_handler_state    :: any(),
                 socket,
                 auth_fun,
                 buffer              :: binary(),
@@ -71,6 +78,17 @@
     trailers => map()
 }.
 -type grpc_extended_error_response() :: {grpc_extended_error, grpc_error_data()}.
+
+-spec stream_handler_state(t()) -> t().
+stream_handler_state(#state{stream_handler_state = StreamHandlerState}) ->
+    StreamHandlerState.
+-spec stream_handler_state(t(), any()) -> t().
+stream_handler_state(State, NewStreamHandlerState) ->
+    State#state{stream_handler_state = NewStreamHandlerState}.
+
+-spec stream_req_headers(t()) -> t().
+stream_req_headers(#state{req_headers = ReqHeaders}) ->
+    ReqHeaders.
 
 init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                          StreamInterceptor, StatsHandler]) ->
