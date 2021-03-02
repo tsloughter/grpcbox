@@ -185,10 +185,10 @@ init_per_testcase(stream_interceptor, Config) ->
                                           services => #{'routeguide.RouteGuide' => routeguide_route_guide},
                                           stream_interceptor =>
                                               fun(Ref, Stream, _ServerInfo, Handler) ->
-                                                      grpcbox_stream:add_trailers([{<<"x-grpc-stream-interceptor">>,
+                                                      Stream2 = grpcbox_stream:update_trailers([{<<"x-grpc-stream-interceptor">>,
                                                                                     <<"true">>}],
                                                                                   Stream),
-                                                      Handler(Ref, Stream)
+                                                      Handler(Ref, Stream2)
                                               end},
                            transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
