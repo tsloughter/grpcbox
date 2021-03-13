@@ -93,7 +93,9 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                                 end;
                             {ok, {Status, Message, Metadata}} ->
                                 {error, {Status, Message}, #{headers => Headers,
-                                                             trailers => Metadata}}
+                                                             trailers => Metadata}};
+                            timeout ->
+                                {error, timeout}
                         end;
                     {error, _}=Error ->
                         Error
