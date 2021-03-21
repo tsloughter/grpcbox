@@ -113,7 +113,7 @@ recv_msg(S=#{stream_id := Id,
                     stream_finished;
                 {ok, {Status, Message, Metadata}} ->
                     {error, {Status, Message}, #{trailers => Metadata}};
-                timeout ->
+                {error, _} ->
                     stream_finished
             end
     after Timeout ->
@@ -144,6 +144,7 @@ init(_ConnectionPid, StreamId, [_, State=#{path := Path}]) ->
 init(_, _, State) ->
     {ok, State}.
 
+%% trailers
 on_receive_headers(H, State=#{resp_headers := _,
                               ctx := Ctx,
                               stream_id := StreamId,
@@ -155,6 +156,7 @@ on_receive_headers(H, State=#{resp_headers := _,
     Ctx1 = ctx:with_value(Ctx, grpc_client_status, grpcbox_utils:status_to_string(Status)),
     {ok, State#{ctx => Ctx1,
                 resp_trailers => H}};
+%% headers
 on_receive_headers(H, State=#{stream_id := StreamId,
                               ctx := Ctx,
                               client_pid := Pid}) ->
