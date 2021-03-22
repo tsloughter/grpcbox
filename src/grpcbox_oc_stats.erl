@@ -40,10 +40,10 @@ register_measures_(client) ->
       bytes},
      {'grpc.io/client/roundtrip_latency',
       "Time between first byte of request sent to last byte of response received, or terminal error.",
-      milli_seconds},
+      microsecond},
      {'grpc.io/client/server_latency',
       "Propagated from the server and should have the same value as grpc.io/server/latency.",
-      milli_seconds},
+      microsecond},
      {'grpc.io/client/started_rpcs',
       "The total number of client RPCs ever opened, including those that have not completed.",
       none}];
@@ -62,7 +62,7 @@ register_measures_(server) ->
       bytes},
      {'grpc.io/server/server_latency',
       "Time between first byte of request received to last byte of response sent, or terminal error.",
-      milli_seconds},
+      microsecond},
      {'grpc.io/server/started_rpcs',
       "The total number of server RPCs ever opened, including those that have not completed.",
       none}].
@@ -88,6 +88,7 @@ default_views(client) ->
        description => "Distribution of time taken by request.",
        tags => [grpc_client_method],
        measure => 'grpc.io/client/roundtrip_latency',
+       unit => microsecond,
        aggregation => default_latency_distribution()},
      #{name => "grpc.io/client/completed_rpcs",
        description => "Total count of completed rpcs",
@@ -114,6 +115,7 @@ default_views(server) ->
        description => "Distribution of time taken by request.",
        tags => [grpc_server_method],
        measure => 'grpc.io/server/server_latency',
+       unit => microsecond,
        aggregation => default_latency_distribution()},
      #{name => "grpc.io/server/completed_rpcs",
        description => "Total count of completed rpcs",
@@ -135,6 +137,7 @@ extra_views(client) ->
        description => "Distribution of messages received per RPC",
        tags => [grpc_client_method],
        measure => 'grpc.io/client/received_messages_per_rpc',
+       unit => microsecond,
        aggregation => default_latency_distribution()},
      #{name => "grpc.io/client/sent_messages_per_rpc",
        description => "Distribution of messages sent per RPC",
@@ -145,12 +148,14 @@ extra_views(client) ->
        description => "Distribution of latency value propagated from the server.",
        tags => [grpc_client_method],
        measure => 'grpc.io/client/server_latency',
+       unit => microsecond,
        aggregation => default_latency_distribution()}];
 extra_views(server) ->
     [#{name => "grpc.io/server/received_messages_per_rpc",
        description => "Distribution of messages received per RPC",
        tags => [grpc_server_method],
        measure => 'grpc.io/server/received_messages_per_rpc',
+       unit => microsecond,
        aggregation => default_latency_distribution()},
      #{name => "grpc.io/server/sent_messages_per_rpc",
        description => "Distribution of messages sent per RPC",
@@ -165,7 +170,9 @@ default_size_distribution() ->
                                                    4294967296]}]}.
 
 default_latency_distribution() ->
-    {oc_stat_aggregation_distribution, [{buckets, [0, 1, 2, 3, 4, 5, 6, 8, 10, 13, 16, 20, 25, 30,
-                                                   40, 50, 65, 80, 100, 130, 160, 200, 250, 300, 400,
-                                                   500, 650, 800, 1000, 2000, 5000, 10000, 20000, 50000,
-                                                   100000]}]}.
+    {oc_stat_aggregation_distribution,
+     [{buckets, [0, 1000, 2000, 3000, 4000, 5000, 6000, 8000,
+                 10000, 13000, 16000, 20000, 25000, 30000, 40000, 50000, 65000, 80000,
+                 100000, 130000, 160000, 200000, 250000, 300000, 400000, 500000, 650000, 800000,
+                 1000000, 2000000, 5000000, 10000000, 20000000, 50000000,
+                 100000000]}]}.

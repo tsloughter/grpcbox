@@ -35,6 +35,7 @@ all() ->
      client_stream_garbage_collect_streams,
      compression,
      stats_handler,
+     server_latency_stats,
      health_service,
      reflection_service
      %% TODO: rst stream error handling
@@ -235,6 +236,16 @@ init_per_testcase(stats_handler, Config) ->
                                           stats_handler => test_stats_handler}}]),
     application:ensure_all_started(grpcbox),
     Config;
+init_per_testcase(server_latency_stats, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                          stats_handler => grpcbox_oc_stats_handler}}]),
+    {ok, _} = application:ensure_all_started(opencensus),
+    application:ensure_all_started(grpcbox),
+    Config;
 init_per_testcase(health_service, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}],
@@ -277,6 +288,12 @@ end_per_testcase(chain_interceptor, _Config) ->
     application:stop(grpcbox),
     ok;
 end_per_testcase(trace_interceptor, _Config) ->
+    application:stop(opencensus),
+    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
+                                                                   port => 8080})),
+    application:stop(grpcbox),
+    ok;
+end_per_testcase(server_latency_stats, _Config) ->
     application:stop(opencensus),
     ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
                                                                    port => 8080})),
@@ -477,6 +494,43 @@ stats_handler(_Config) ->
     ?assert(is_integer(InUSize) andalso is_integer(InCSize)),
 
     ?assert(maps:get(rpc_end, Stats) > maps:get(rpc_begin, Stats)).
+
+-define(server_latency_view(View),
+        {ok, {view, "grpc.io/server/server_latency", _Measure, _, _B, _Help, _M, _Methods, oc_stat_aggregation_distribution, _Buckets} = View}).
+
+server_latency_stats(_Config) ->
+    Registered = grpcbox_oc_stats_handler:init(),
+    Subscribed = grpcbox_oc_stats:subscribe_views(),
+
+    ?assertEqual(ok, Registered),
+    ?assertEqual([], lists:filter(fun ({Ok, _}) -> ok =/= Ok end, Subscribed)),
+
+    [SrvLatencyView] = [View || ?server_latency_view(View) <- Subscribed],
+
+    Args = [ctx:new(), #{latitude => 409146138, longitude => -746188906}, #{encoding => gzip}],
+    {MeasuredTime, {ok, Feature, _}} =
+        timer:tc(routeguide_route_guide_client, get_feature, Args),
+
+    ?assertEqual(#{location =>
+                       #{latitude => 409146138, longitude => -746188906},
+                   name =>
+                       <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature),
+
+    #{data := #{rows :=  [#{value := #{buckets := Bs,
+                            count := Count,
+                            mean := Mean,
+                            sum := Sum}}]}} = oc_stat_view:export(SrvLatencyView),
+
+    {H, T} = lists:splitwith(fun ({_, C}) -> C =:= 0 end, Bs),
+
+    ?assert(element(1, lists:last(H)) =< MeasuredTime), %% Bucket size > Reported time
+    ?assertEqual(element(2, hd(T)), Count), %% Count = 1 = In bucket
+    ?assert(element(1, lists:last(H)) =< Sum), %% Lower bucket < Reported time
+    ?assert(Sum =< MeasuredTime), %% Reported time < Measured time
+    ?assert(element(1, hd(T)) > Sum), %% Higher bucket > Reported time
+    ?assertEqual(Mean*Count, Sum),
+
+    ok.
 
 unary_no_auth(_Config) ->
     unary(_Config).
