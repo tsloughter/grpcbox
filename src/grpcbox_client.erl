@@ -80,22 +80,30 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                       service_def => Def},
                 case recv_end(S, 5000) of
                     eos ->
-                        {ok, Headers} = recv_headers(S, 0),
-                        case recv_trailers(S) of
-                            {ok, {<<"0">>, _, Metadata}} ->
-                                case recv_data(S, 0) of
-                                    {ok, Data} ->
-                                        {ok, Data, #{headers => Headers,
-                                                     trailers => Metadata}};
-                                    stream_finished ->
-                                        {ok, <<>>, #{headers => Headers,
-                                                     trailers => Metadata}}
-                                end;
-                            {ok, {Status, Message, Metadata}} ->
-                                {error, {Status, Message}, #{headers => Headers,
+                        case recv_headers(S, 0) of
+                            {ok, Headers} ->
+                                case recv_trailers(S) of
+                                    {ok, {<<"0">>, _, Metadata}} ->
+                                        case recv_data(S, 0) of
+                                            {ok, Data} ->
+                                                {ok, Data, #{headers => Headers,
                                                              trailers => Metadata}};
-                            timeout ->
-                                {error, timeout}
+                                            stream_finished ->
+                                                {ok, <<>>, #{headers => Headers,
+                                                             trailers => Metadata}}
+                                        end;
+                                    {ok, {Status, Message, Trailers}} ->
+                                        {error, {Status, Message}, #{headers => Headers,
+                                                                     trailers => Trailers}};
+                                    {error, _}=Error ->
+                                        Error
+                                end;
+                            {http_error, Status, Headers} ->
+                                %% different from an `error' in that it isn't from the grpc layer
+                                {http_error, {Status, <<>>}, #{headers => Headers,
+                                                               trailers => #{}}};
+                            {error, _}=Error ->
+                                Error
                         end;
                     {error, _}=Error ->
                         Error
@@ -184,7 +192,18 @@ recv_data(Stream, Timeout) ->
 recv_headers(S) ->
     recv_headers(S, 500).
 recv_headers(S, Timeout) ->
-    recv(headers, S, Timeout).
+    case recv(headers, S, Timeout) of
+        {ok, Headers} ->
+            case maps:get(<<":status">>, Headers, undefined) of
+                <<"200">> ->
+                    {ok, Headers};
+                ErrorStatus ->
+                    {http_error, ErrorStatus, Headers}
+            end;
+        {error, _Reason}=Error ->
+            Error
+    end.
+
 
 recv_trailers(S) ->
     recv_trailers(S, 500).
@@ -199,15 +218,13 @@ recv(Type, #{stream_id := Id,
             {ok, V};
         {'DOWN', Ref, process, Pid, _Reason} ->
             receive
-                {trailers, Id, {<<"0">>, _Message, Metadata}} ->
-                    {ok, #{trailers => Metadata}};
-                {trailers, Id, {Status, Message, _Metadata}} ->
-                    {error, {Status, Message}}
+                {trailers, Id, {Status, Message, Metadata}} ->
+                    {ok, {Status, Message, Metadata}}
             after 0 ->
                     {error, unknown}
             end
     after Timeout ->
-            timeout
+            {error, timeout}
     end.
 
 recv_end(#{stream_id := StreamId,

@@ -63,8 +63,13 @@
 
 -type grpc_status_message() :: unicode:chardata().
 -type grpc_status() :: 0..16.
+-type http_status() :: integer().
 -type grpc_error() :: {grpc_status(), grpc_status_message()}.
--type grpc_error_response() :: {grpc_error, grpc_error()}.
+-type grpc_error_response() :: {error, grpc_error(), #{headers => map(),
+                                                       trailers => #{}}} |
+                               {http_error, {http_status(), unicode:chardata()}, #{headers => map(),
+                                                                                   trailers => #{}}} |
+                               {error, term()}.
 -type grpc_error_data() :: #{
     status := grpc_status(),
     message := grpc_status_message(),
