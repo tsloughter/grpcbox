@@ -9,38 +9,39 @@
          #{error_code => 12,
            error_message => "unimplemented method since extensions removed in proto3"}}).
 
-server_reflection_info(Ref, Stream) ->
-    receive
-        {Ref, eos} ->
-            ok;
-        {Ref, Message} ->
-            handle_message(Message, Stream),
-            server_reflection_info(Ref, Stream)
-    end.
+server_reflection_info(Message, Stream) ->
+    handle_message(Message, Stream).
 
+handle_message(eos=_OriginalRequest, Stream) ->
+    {stop, Stream};
 handle_message(#{message_request := {list_services, _}}=OriginalRequest, Stream) ->
     Services = list_services(),
-    grpcbox_stream:send(#{original_request => OriginalRequest,
+    Stream0 = grpcbox_stream:send(false, #{original_request => OriginalRequest,
                           message_response => {list_services_response,
-                                               #{service => Services}}}, Stream);
+                                               #{service => Services}}}, Stream),
+    {ok, Stream0};
 handle_message(#{message_request := {file_by_filename, Filename}}=OriginalRequest, Stream) ->
     Response = file_by_filename(Filename),
-    grpcbox_stream:send(#{original_request => OriginalRequest,
-                          message_response => Response}, Stream);
+    Stream0 = grpcbox_stream:send(false, #{original_request => OriginalRequest,
+                          message_response => Response}, Stream),
+    {ok, Stream0};
 handle_message(#{message_request := {file_containing_symbol, Symbol}}=OriginalRequest, Stream) ->
     Response = file_containing_symbol(Symbol),
-    grpcbox_stream:send(#{original_request => OriginalRequest,
-                          message_response => Response}, Stream);
+    Stream0 = grpcbox_stream:send(false, #{original_request => OriginalRequest,
+                          message_response => Response}, Stream),
+    {ok, Stream0};
 
 %% proto3 dropped extensions so we'll just return an empty result
 
 handle_message(#{message_request := {all_extension_numbers_of_type, _}}=OriginalRequest, Stream) ->
-    grpcbox_stream:send(#{original_request => OriginalRequest,
+    Stream0 = grpcbox_stream:send(false, #{original_request => OriginalRequest,
                           message_response => ?UNIMPLEMENTED_RESPONSE},
-                        Stream);
+                        Stream),
+    {ok, Stream0};
 handle_message(#{message_request := {file_containing_extension, _}}=OriginalRequest, Stream) ->
-    grpcbox_stream:send(#{original_request => OriginalRequest,
-                          message_response => ?UNIMPLEMENTED_RESPONSE}, Stream).
+    Stream0 = grpcbox_stream:send(false, #{original_request => OriginalRequest,
+                          message_response => ?UNIMPLEMENTED_RESPONSE}, Stream),
+    {ok, Stream0}.
 
 %%
 

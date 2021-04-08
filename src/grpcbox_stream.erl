@@ -6,12 +6,13 @@
 
 -behaviour(h2_stream).
 
--export([send/2,
+-export([
          send/3,
          send_headers/2,
-         add_headers/2,
+         update_headers/2,
          add_trailers/2,
          set_trailers/2,
+         update_trailers/2,
          code_to_status/1,
          error/2,
          ctx/1,
@@ -26,6 +27,12 @@
          on_receive_data/2,
          on_end_stream/1]).
 
+%% state getters and setters
+-export([stream_handler_state/1,
+         stream_handler_state/2,
+         stream_req_headers/1
+]).
+
 -export_type([t/0,
               grpc_status/0,
               grpc_status_message/0,
@@ -35,6 +42,7 @@
               grpc_extended_error_response/0]).
 
 -record(state, {handler             :: pid(),
+                stream_handler_state    :: any(),
                 socket,
                 auth_fun,
                 buffer              :: binary(),
@@ -42,8 +50,6 @@
                 services_table      :: ets:tid(),
                 req_headers=[]      :: list(),
                 full_method         :: binary() | undefined,
-                input_ref           :: reference() | undefined,
-                callback_pid        :: pid() | undefined,
                 connection_pid      :: pid(),
                 request_encoding    :: gzip | identity | undefined,
                 response_encoding   :: gzip | identity | undefined,
@@ -76,6 +82,17 @@
     trailers => map()
 }.
 -type grpc_extended_error_response() :: {grpc_extended_error, grpc_error_data()}.
+
+-spec stream_handler_state(t()) -> any().
+stream_handler_state(#state{stream_handler_state = StreamHandlerState}) ->
+    StreamHandlerState.
+-spec stream_handler_state(t(), any()) -> any().
+stream_handler_state(State, NewStreamHandlerState) ->
+    State#state{stream_handler_state = NewStreamHandlerState}.
+
+-spec stream_req_headers(t()) -> list().
+stream_req_headers(#state{req_headers = ReqHeaders}) ->
+    ReqHeaders.
 
 init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                          StreamInterceptor, StatsHandler]) ->
@@ -140,19 +157,12 @@ handle_service_lookup(_, _, State) ->
 
 handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
                                socket=Socket,
-                               method=#method{input={_, InputStreaming}}}) ->
+                               method=#method{module=Module,
+                                              function=Function}}) ->
     case authenticate(sock:peercert(Socket), AuthFun) of
         {true, _Identity} ->
-            case InputStreaming of
-                true ->
-                    Ref = make_ref(),
-                    Pid = proc_lib:spawn_link(?MODULE, handle_streams,
-                                              [Ref, State#state{handler=self()}]),
-                    {ok, State#state{input_ref=Ref,
-                                     callback_pid=Pid}};
-                _ ->
-                    {ok, State}
-            end;
+            State0 = maybe_init_handler_state(Module, Function, State),
+            {ok, State0};
         _ ->
             end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State)
     end.
@@ -178,27 +188,57 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                                  output_stream => false},
                   StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
           end) of
-        {ok, Response, State2} ->
-            send(Response, State2);
+        {ok, State1} ->
+            State1;
+        {ok, Response, State1} ->
+            State2 = send(false, Response, State1),
+            {ok, State3} = end_stream(State2),
+            State3;
+        {stop, State1} ->
+            {ok, State2} = end_stream(State1),
+            State2;
+        {stop, Response, State1} ->
+            State2 = send(false, Response, State1),
+            {ok, State3} = end_stream(State2),
+            State3;
         E={grpc_error, _} ->
             throw(E);
         E={grpc_extended_error, _} ->
             throw(E)
     end;
+
 handle_streams(Ref, State=#state{full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
                                  method=#method{module=Module,
                                                 function=Function,
                                                 output={_, true}}}) ->
-    case StreamInterceptor of
-        undefined ->
-            Module:Function(Ref, State);
-        _ ->
-            ServerInfo = #{full_method => FullMethod,
-                           service => Module,
-                           input_stream => true,
-                           output_stream => true},
-            StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+    case (case StreamInterceptor of
+              undefined -> Module:Function(Ref, State);
+              _ ->
+                  ServerInfo = #{full_method => FullMethod,
+                                 service => Module,
+                                 input_stream => true,
+                                 output_stream => true},
+                  StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+          end) of
+        {ok, State1} ->
+            State1;
+        {ok, Response, State1} ->
+            send(false, Response, State1);
+        {stop, State1} ->
+            {ok, State2} = end_stream(State1),
+            State2;
+        {stop, Response, State1} ->
+            State2 = send(false, Response, State1),
+            {ok, State3} = end_stream(State2),
+            State3;
+        {grpc_error, {Status, Message}} ->
+            {ok, State2} = end_stream(Status, Message, State),
+            State2;
+        {grpc_extended_error, #{status := Status, message := Message} = ErrorData} ->
+            State1 = add_trailers_from_error_data(ErrorData, State),
+            {ok, State2} = end_stream(Status, Message, State1),
+            State2
     end.
 
 on_send_push_promise(_, State) ->
@@ -232,9 +272,7 @@ on_receive_data(Bin, State=#state{request_encoding=Encoding,
             end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State)
     end.
 
-handle_message(EncodedMessage, State=#state{input_ref=Ref,
-                                            ctx=Ctx,
-                                            callback_pid=Pid,
+handle_message(EncodedMessage, State=#state{ctx=Ctx,
                                             method=#method{proto=Proto,
                                                            input={Input, InputStream},
                                                            output={_Output, OutputStream}}}) ->
@@ -244,15 +282,10 @@ handle_message(EncodedMessage, State=#state{input_ref=Ref,
                 stats_handler(Ctx, in_payload, #{uncompressed_size => erlang:external_size(Message),
                                                  compressed_size => size(EncodedMessage)}, State),
             case {InputStream, OutputStream} of
-                {true, _} ->
-                    Pid ! {Ref, Message},
-                    State1;
-                {false, true} ->
-                    _ = proc_lib:spawn_link(?MODULE, handle_streams,
-                                            [Message, State1#state{handler=self()}]),
-                    State1;
                 {false, false} ->
-                    handle_unary(Ctx1, Message, State1)
+                    handle_unary(Ctx1, Message, State1);
+                {_, _} ->
+                    handle_streams(Message, State1#state{handler=self()})
             end
     catch
         error:{gpb_error, _} ->
@@ -288,19 +321,13 @@ on_end_stream(State) ->
     on_end_stream_(State),
     {ok, State}.
 
-on_end_stream_(#state{input_ref=Ref,
-                      callback_pid=Pid,
-                      method=#method{input={_Input, true},
+on_end_stream_(State=#state{method=#method{input={_Input, true},
                                      output={_Output, false}}}) ->
-    Pid ! {Ref, eos};
-on_end_stream_(#state{input_ref=Ref,
-                      callback_pid=Pid,
-                      method=#method{input={_Input, true},
+    handle_streams(eos, State);
+on_end_stream_(State = #state{method=#method{input={_Input, true},
                                      output={_Output, true}}}) ->
-    Pid ! {Ref, eos};
-on_end_stream_(#state{input_ref=_Ref,
-                      callback_pid=_Pid,
-                      method=#method{input={_Input, false},
+    handle_streams(eos, State);
+on_end_stream_(#state{method=#method{input={_Input, false},
                                      output={_Output, true}}}) ->
     ok;
 on_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
@@ -390,46 +417,31 @@ handle_call(ctx, State=#state{ctx=Ctx}) ->
 handle_call({ctx, Ctx}, State) ->
     {ok, ok, State#state{ctx=Ctx}}.
 
-handle_info({add_headers, Headers}, State) ->
-    update_headers(Headers, State);
-handle_info({add_trailers, Trailers}, State) ->
-    update_trailers(Trailers, State);
-handle_info({send_proto, Message}, State) ->
-    send(false, Message, State);
-handle_info({'EXIT', _, normal}, State) ->
-    end_stream(State),
-    State;
-handle_info({'EXIT', _, {grpc_error, {Status, Message}}}, State) ->
-    end_stream(Status, Message, State),
-    State;
-handle_info({'EXIT', _, {grpc_extended_error, #{status := Status, message := Message} = ErrorData}}, State) ->
-    State1 = add_trailers_from_error_data(ErrorData, State),
-    end_stream(Status, Message, State1),
-    State1;
-handle_info({'EXIT', _, _Other}, State) ->
-    end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
-    State;
-handle_info(_, State) ->
-    State.
-
-
-add_headers(Headers, #state{handler=Pid}) ->
-    Pid ! {add_headers, Headers}.
+handle_info(Msg, State=#state{method=#method{module=Module, function=Function}}) ->
+    %% if the handler module exports handle_info/3, then use that
+    %% the 3 version passes the invoked RPC which can be used
+    %% by the handler to accommodate any function specific handling
+    %% really this is a bespoke use case
+    %% fall back to handle_info/2 if the /3 is not exported
+    case erlang:function_exported(Module, handle_info, 3) of
+        true -> Module:handle_info(Function, Msg, State);
+        false ->
+            case erlang:function_exported(Module, handle_info, 2) of
+                true -> Module:handle_info(Msg, State);
+                false ->
+                    State
+            end
+    end.
 
 add_trailers(Ctx, Trailers=#{}) ->
     State=#state{resp_trailers=RespTrailers} = from_ctx(Ctx),
-    ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers) ++ RespTrailers});
-add_trailers(Headers, #state{handler=Pid}) ->
-    Pid ! {add_trailers, Headers}.
+    ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers) ++ RespTrailers}).
 
 update_headers(Headers, State=#state{resp_headers=RespHeaders}) ->
     State#state{resp_headers=RespHeaders ++ Headers}.
 
 update_trailers(Trailers, State=#state{resp_trailers=RespTrailers}) ->
     State#state{resp_trailers=RespTrailers ++ Trailers}.
-
-send(Message, #state{handler=Pid}) ->
-    Pid ! {send_proto, Message}.
 
 send(End, Message, State=#state{headers_sent=false}) ->
     State1 = send_headers(State),
@@ -532,3 +544,9 @@ maybe_encode_header_value(K, V) ->
 add_trailers_from_error_data(ErrorData, State) ->
     Trailers = maps:get(trailers, ErrorData, #{}),
     update_trailers(maps:to_list(Trailers), State).
+
+maybe_init_handler_state(Module, Function, State)->
+    case erlang:function_exported(Module, init, 2) of
+        true -> Module:init(Function, State);
+        false -> State
+    end.
