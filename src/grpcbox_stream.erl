@@ -412,10 +412,20 @@ handle_call(ctx, State=#state{ctx=Ctx}) ->
 handle_call({ctx, Ctx}, State) ->
     {ok, ok, State#state{ctx=Ctx}}.
 
-handle_info(Msg, State=#state{method=#method{module=Module}}) ->
-    case erlang:function_exported(Module, handle_info, 2) of
-        true -> Module:handle_info(Msg, State);
-        false -> State
+handle_info(Msg, State=#state{method=#method{module=Module, function=Function}}) ->
+    %% if the handler module exports handle_info/3, then use that
+    %% the 3 version passes the invoked RPC which can be used
+    %% by the handler to accommodate any function specific handling
+    %% really this is a bespoke use case
+    %% fall back to handle_info/2 if the /3 is not exported
+    case erlang:function_exported(Module, handle_info, 3) of
+        true -> Module:handle_info(Function, Msg, State);
+        false ->
+            case erlang:function_exported(Module, handle_info, 2) of
+                true -> Module:handle_info(Msg, State);
+                false ->
+                    State
+            end
     end.
 
 add_trailers(Ctx, Trailers=#{}) ->
