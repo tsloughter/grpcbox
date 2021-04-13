@@ -413,6 +413,8 @@ handle_info({'EXIT', _, _Other}, State) ->
     State;
 handle_info({timeout,_Ref,<<"grpc-timeout">>}, State) ->
     end_stream(?GRPC_STATUS_DEADLINE_EXCEEDED, <<"Deadline expired">>, State),
+    State;
+handle_info(_, State) ->
     State.
 
 add_headers(Headers, #state{handler=Pid}) ->
