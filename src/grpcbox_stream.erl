@@ -96,11 +96,13 @@ on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
     %% proplists:get_value(<<":method">>, Headers) =:= <<"POST">>,
     Metadata = grpcbox_utils:headers_to_metadata(Headers),
     Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
-               infinity ->
-                   grpcbox_metadata:new_incoming_ctx(Metadata);
-               D ->
-                   ctx:with_deadline_after(grpcbox_metadata:new_incoming_ctx(Metadata), D, nanosecond)
-           end,
+              infinity ->
+                  grpcbox_metadata:new_incoming_ctx(Metadata);
+              D ->
+                  Deadline = max(0, erlang:convert_time_unit(D, nanosecond, millisecond)),
+                  erlang:start_timer(Deadline, self(), <<"grpc-timeout">>),
+                  ctx:with_deadline_after(grpcbox_metadata:new_incoming_ctx(Metadata), D, nanosecond)
+          end,
 
     FullPath = proplists:get_value(<<":path">>, Headers),
     %% wait to rpc_begin here since we need to know the method
@@ -409,9 +411,9 @@ handle_info({'EXIT', _, {grpc_extended_error, #{status := Status, message := Mes
 handle_info({'EXIT', _, _Other}, State) ->
     end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
     State;
-handle_info(_, State) ->
+handle_info({timeout,_Ref,<<"grpc-timeout">>}, State) ->
+    end_stream(?GRPC_STATUS_DEADLINE_EXCEEDED, <<"Deadline expired">>, State),
     State.
-
 
 add_headers(Headers, #state{handler=Pid}) ->
     Pid ! {add_headers, Headers}.
@@ -472,7 +474,7 @@ timeout_to_duration(T, <<"m">>) ->
 timeout_to_duration(T, <<"u">>) ->
     erlang:convert_time_unit(T, microsecond, nanosecond);
 timeout_to_duration(T, <<"n">>) ->
-    timer:seconds(T).
+    T.
 
 parse_options(<<"grpc-timeout">>, Headers) ->
     case proplists:get_value(<<"grpc-timeout">>, Headers, infinity) of
