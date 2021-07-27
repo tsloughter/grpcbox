@@ -3,7 +3,8 @@
 -behaviour(acceptor_pool).
 
 -export([start_link/4,
-         accept_socket/3]).
+         accept_socket/3,
+         pool_sockets/1]).
 
 -export([init/1]).
 
@@ -12,6 +13,9 @@ start_link(Name, ServerOpts, ChatterboxOpts, TransportOpts) ->
 
 accept_socket(Pool, Socket, Acceptors) ->
     acceptor_pool:accept_socket(Pool, Socket, Acceptors).
+
+pool_sockets(Pool) ->
+    acceptor_pool:which_sockets(Pool).
 
 init([ServerOpts, ChatterboxOpts, TransportOpts]) ->
     {Transport, SslOpts} = case TransportOpts of
