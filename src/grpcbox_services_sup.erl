@@ -49,7 +49,7 @@ init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts, ServiceSupName]
     %% unique name for pool based on the ip and port it will listen on
     Name = pool_name(ListenOpts),
 
-    RestartStrategy = #{strategy => rest_for_one},
+    RestartStrategy = #{strategy => rest_for_one, intensity => 5, period => 2},
     Pool = #{id => grpcbox_pool,
              start => {grpcbox_pool, start_link, [Name, chatterbox:settings(server, ServerOpts),
                                                   ChatterboxOpts, TransportOpts]}},
