@@ -163,7 +163,16 @@ handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
     case authenticate(sock:peercert(Socket), AuthFun) of
         {true, _Identity} ->
             State0 = maybe_init_handler_state(Module, Function, State),
-            {ok, State0};
+            %% send resp headers after verifying client request
+            %% some clients require grpc headers to be sent within a defined time period
+            %% otherwise they assume the request has failed and bail out
+            %% previously server would only return headers upon first data msg send
+            %% this can cause issues with streaming connections, for example
+            %% if a client connects and there are no data msgs ready to be sent back to them
+            %% TODO: check what grpc spec says about this
+            %% TODO: sending the headers here negates update_headers/2 usefullness ? somewhere better to send em?
+            State1 = send_headers(State0),
+            {ok, State1};
         _ ->
             end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State)
     end.
