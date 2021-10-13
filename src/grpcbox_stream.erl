@@ -61,8 +61,8 @@
 
 -type t() :: #state{}.
 
--type grpc_status_message() :: unicode:chardata().
--type grpc_status() :: 0..16.
+-type grpc_status_message() :: unicode:chardata() | undefined.
+-type grpc_status() :: binary() | undefined.
 -type http_status() :: integer().
 -type grpc_error() :: {grpc_status(), grpc_status_message()}.
 -type grpc_error_response() :: {error, grpc_error(), #{headers => map(),
