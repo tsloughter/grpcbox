@@ -13,15 +13,15 @@
 
 -include("grpcbox.hrl").
 
--define(headers(Scheme, Host, Path, Encoding, MessageType, MD), [{<<":method">>, <<"POST">>},
-                                                                 {<<":path">>, Path},
-                                                                 {<<":scheme">>, Scheme},
-                                                                 {<<":authority">>, Host},
-                                                                 {<<"grpc-encoding">>, Encoding},
-                                                                 {<<"grpc-message-type">>, MessageType},
-                                                                 {<<"content-type">>, <<"application/grpc+proto">>},
-                                                                 {<<"user-agent">>, <<"grpc-erlang/0.9.2">>},
-                                                                 {<<"te">>, <<"trailers">>} | MD]).
+-define(default_headers(Scheme, Host, Path, Encoding, MessageType), [{<<":method">>, <<"POST">>},
+                                                                     {<<":path">>, Path},
+                                                                     {<<":scheme">>, Scheme},
+                                                                     {<<":authority">>, Host},
+                                                                     {<<"grpc-encoding">>, Encoding},
+                                                                     {<<"grpc-message-type">>, MessageType},
+                                                                     {<<"content-type">>, <<"application/grpc+proto">>},
+                                                                     {<<"user-agent">>, <<"grpc-erlang/0.9.2">>},
+                                                                     {<<"te">>, <<"trailers">>}]).
 
 new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 message_type=MessageType,
@@ -33,8 +33,8 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                      encoding := DefaultEncoding,
                      stats_handler := StatsHandler}} ->
             Encoding = maps:get(encoding, Options, DefaultEncoding),
-            RequestHeaders = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
-                                      MessageType, metadata_headers(Ctx)),
+            RequestHeaders = merge_headers(?default_headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
+                                                            MessageType), metadata_headers(Ctx)),
             case h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
                                                             marshal_fun => MarshalFun,
                                                             unmarshal_fun => UnMarshalFun,
@@ -70,7 +70,8 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                      stats_handler := StatsHandler}} ->
             Encoding = maps:get(encoding, Options, DefaultEncoding),
             Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
-            Headers = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), MessageType, metadata_headers(Ctx)),
+            Headers = merge_headers(?default_headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
+                                                     MessageType), metadata_headers(Ctx)),
 
             %% headers are sent in the same request as creating a new stream to ensure
             %% concurrent calls can't end up interleaving the sending of headers in such
@@ -223,3 +224,8 @@ encoding_to_binary(deflate) -> <<"deflate">>;
 encoding_to_binary(snappy) -> <<"snappy">>;
 encoding_to_binary(Custom) -> atom_to_binary(Custom, latin1).
 
+merge_headers(Defaults, MD) ->
+    Map1 = proplists:to_map(Defaults),
+    Map2 = proplists:to_map(MD),
+    Merged = maps:merge(Map1, Map2),
+    proplists:from_map(Merged).
