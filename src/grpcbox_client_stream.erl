@@ -245,9 +245,7 @@ merge_header_field({K, V}, HeadersAcc) ->
 join_header_values({Name, Val}, HeadersAcc) ->
     OrigVal = proplists:get_value(Name, HeadersAcc),
     NewValue = <<OrigVal/binary, <<", ">>/binary, Val/binary>>,
-    io:fwrite("~1p~n", [NewValue]),
     NewList = lists:keyreplace(Name, 1, HeadersAcc, {Name, NewValue}),
-    io:fwrite("new list: ~1p~n", [NewList]),
     NewList.
 
 is_protected_header(Name) ->
