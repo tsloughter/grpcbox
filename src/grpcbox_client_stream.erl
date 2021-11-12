@@ -35,8 +35,8 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                      encoding := DefaultEncoding,
                      stats_handler := StatsHandler}} ->
             Encoding = maps:get(encoding, Options, DefaultEncoding),
-            RequestHeaders = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
-                                      MessageType, metadata_headers(Ctx)),
+            RequestHeaders = merge_headers(?headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
+                                                    MessageType, metadata_headers(Ctx))),
             case h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
                                                             marshal_fun => MarshalFun,
                                                             unmarshal_fun => UnMarshalFun,
@@ -72,8 +72,8 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                      stats_handler := StatsHandler}} ->
             Encoding = maps:get(encoding, Options, DefaultEncoding),
             Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
-            Headers = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
-                               MessageType, metadata_headers(Ctx)),
+            Headers = merge_headers(?headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
+                                             MessageType, metadata_headers(Ctx))),
 
             %% headers are sent in the same request as creating a new stream to ensure
             %% concurrent calls can't end up interleaving the sending of headers in such
