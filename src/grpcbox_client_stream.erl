@@ -13,17 +13,16 @@
 
 -include("grpcbox.hrl").
 
--define(protected_headers, [<<":method">>, <<":path">>, <<":scheme">>, <<":authority">>, <<"content-type">>, <<"te">>]).
--define(headers(Scheme, Host, Path, Encoding, MessageType, MD), MD ++
-                                                                 [{<<":method">>, <<"POST">>},
-                                                                 {<<":path">>, Path},
-                                                                 {<<":scheme">>, Scheme},
-                                                                 {<<":authority">>, Host},
-                                                                 {<<"grpc-encoding">>, Encoding},
-                                                                 {<<"grpc-message-type">>, MessageType},
-                                                                 {<<"content-type">>, <<"application/grpc+proto">>},
-                                                                 {<<"user-agent">>, <<"grpc-erlang/0.9.2">>},
-                                                                 {<<"te">>, <<"trailers">>}]).
+-define(protected_headers, [<<"content-type">>, <<"te">>]).
+-define(pseudoheaders(Path, Scheme, Authority), [{<<":method">>, <<"POST">>},
+                          {<<":path">>, Path},
+                          {<<":scheme">>, Scheme},
+                          {<<":authority">>, Authority}]).
+-define(headers(Encoding, MessageType, MD), MD ++ [{<<"grpc-encoding">>, Encoding},
+                                                   {<<"grpc-message-type">>, MessageType},
+                                                   {<<"content-type">>, <<"application/grpc+proto">>},
+                                                   {<<"user-agent">>, <<"grpc-erlang/0.9.2">>},
+                                                   {<<"te">>, <<"trailers">>}]).
 
 new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 message_type=MessageType,
@@ -35,8 +34,9 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                      encoding := DefaultEncoding,
                      stats_handler := StatsHandler}} ->
             Encoding = maps:get(encoding, Options, DefaultEncoding),
-            RequestHeaders = merge_headers(?headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
-                                                    MessageType, metadata_headers(Ctx))),
+            UserHeaders = merge_headers(?headers(encoding_to_binary(Encoding), MessageType, metadata_headers(Ctx))),
+            RequestHeaders = ?pseudoheaders(Path, Scheme, Authority) ++ UserHeaders,
+
             case h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
                                                             marshal_fun => MarshalFun,
                                                             unmarshal_fun => UnMarshalFun,
@@ -72,8 +72,8 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                      stats_handler := StatsHandler}} ->
             Encoding = maps:get(encoding, Options, DefaultEncoding),
             Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
-            Headers = merge_headers(?headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
-                                             MessageType, metadata_headers(Ctx))),
+            UserHeaders = merge_headers(?headers(encoding_to_binary(Encoding), MessageType, metadata_headers(Ctx))),
+            RequestHeaders = ?pseudoheaders(Path, Scheme, Authority) ++ UserHeaders,
 
             %% headers are sent in the same request as creating a new stream to ensure
             %% concurrent calls can't end up interleaving the sending of headers in such
@@ -86,7 +86,7 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                                           buffer => <<>>,
                                                                           stats_handler => StatsHandler,
                                                                           stats => #{},
-                                                                          client_pid => self()}], Headers, [], self()) of
+                                                                          client_pid => self()}], RequestHeaders, [], self()) of
                 {error, _Code} = Err ->
                     Err;
                 {StreamId, Pid} ->
@@ -255,23 +255,41 @@ is_protected_header(Name) ->
 -include_lib("eunit/include/eunit.hrl").
 
 merge_headers_test() ->
-    {Scheme, Host, Path, Encoding, MsgType} = {<<"http">>, <<"localhost:9898">>, <<"/grpc.Test/Test">>, <<"identity">>, <<"grpc.TestRequest">>},
+    {Encoding, MsgType} = {<<"identity">>, <<"grpc.TestRequest">>},
     Ctx = ctx:new(),
     Ctx1 = grpcbox_metadata:append_to_outgoing_ctx(Ctx, #{<<"content-type">> => <<"application/grpc">>,
                                                           <<"user-agent">> => <<"custom-grpc-client">>}),
-    Headers0 = ?headers(Scheme, Host, Path, Encoding, MsgType, metadata_headers(Ctx1)),
-    Headers = merge_headers(Headers0),
+    Headers0 = ?headers(Encoding, MsgType, metadata_headers(Ctx1)),
+    Headers1 = merge_headers(Headers0),
 
     ?assertEqual([{<<"content-type">>, <<"application/grpc">>},
                   {<<"user-agent">>, <<"custom-grpc-client, grpc-erlang/0.9.2">>},
-                  {<<":method">>, <<"POST">>},
-                  {<<":path">>, <<"/grpc.Test/Test">>},
-                  {<<":scheme">>, <<"http">>},
-                  {<<":authority">>, <<"localhost:9898">>},
+                  %{<<":method">>, <<"POST">>},
+                  %{<<":path">>, <<"/grpc.Test/Test">>},
+                  %{<<":scheme">>, <<"http">>},
+                  %{<<":authority">>, <<"localhost:9898">>},
                   {<<"grpc-encoding">>, <<"identity">>},
                   {<<"grpc-message-type">>, <<"grpc.TestRequest">>},
                   {<<"te">>, <<"trailers">>}
-                 ], lists:reverse(Headers)),
+                 ], lists:reverse(Headers1)),
+    ok.
+
+merge_headers_empty_ctx_test() ->
+    {Encoding, MsgType} = {<<"identity">>, <<"grpc.TestRequest">>},
+    Ctx = ctx:new(),
+    Headers0 = ?headers(Encoding, MsgType, metadata_headers(Ctx)),
+    Headers1 = merge_headers(Headers0),
+
+    ?assertEqual([%{<<":method">>, <<"POST">>},
+                  %{<<":path">>, <<"/grpc.Test/Test">>},
+                  %{<<":scheme">>, <<"http">>},
+                  %{<<":authority">>, <<"localhost:9898">>},
+                  {<<"grpc-encoding">>, <<"identity">>},
+                  {<<"grpc-message-type">>, <<"grpc.TestRequest">>},
+                  {<<"content-type">>, <<"application/grpc+proto">>},
+                  {<<"user-agent">>, <<"grpc-erlang/0.9.2">>},
+                  {<<"te">>, <<"trailers">>}
+                 ], lists:reverse(Headers1)),
     ok.
 
 -endif.
