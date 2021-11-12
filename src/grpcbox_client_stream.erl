@@ -13,6 +13,7 @@
 
 -include("grpcbox.hrl").
 
+-define(protected_headers, [<<":method">>, <<":path">>, <<":scheme">>, <<":authority">>, <<"content-type">>, <<"te">>]).
 -define(headers(Scheme, Host, Path, Encoding, MessageType, MD), MD ++
                                                                  [{<<":method">>, <<"POST">>},
                                                                  {<<":path">>, Path},
@@ -225,28 +226,54 @@ encoding_to_binary(deflate) -> <<"deflate">>;
 encoding_to_binary(snappy) -> <<"snappy">>;
 encoding_to_binary(Custom) -> atom_to_binary(Custom, latin1).
 
+merge_headers(Headers) ->
+    lists:foldl(fun merge_header_field/2, [], Headers).
+
+merge_header_field({K, V}, HeadersAcc) ->
+    case {is_protected_header(K), proplists:is_defined(K, HeadersAcc)} of
+        {true, true} ->
+            % is protected and already exists, skip
+            HeadersAcc;
+        {false, true} ->
+            % isn't protected and already exists, join
+            join_header_values({K, V}, HeadersAcc);
+        {_, false} ->
+            % doesn't exist, add
+            [{K, V} | HeadersAcc]
+    end.
+
+join_header_values({Name, Val}, HeadersAcc) ->
+    OrigVal = proplists:get_value(Name, HeadersAcc),
+    NewValue = <<OrigVal/binary, <<", ">>/binary, Val/binary>>,
+    io:fwrite("~1p~n", [NewValue]),
+    NewList = lists:keyreplace(Name, 1, HeadersAcc, {Name, NewValue}),
+    io:fwrite("new list: ~1p~n", [NewList]),
+    NewList.
+
+is_protected_header(Name) ->
+    lists:member(Name, ?protected_headers).
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
-headers_test() ->
+merge_headers_test() ->
     {Scheme, Host, Path, Encoding, MsgType} = {<<"http">>, <<"localhost:9898">>, <<"/grpc.Test/Test">>, <<"identity">>, <<"grpc.TestRequest">>},
     Ctx = ctx:new(),
-    Ctx1 = grpcbox_metadata:append_to_outgoing_ctx(Ctx, #{<<"x-custom-header">> => <<"the-first-shall-be-first">>,
-                                                          <<"content-type">> => <<"application/grpc">>}),
-    Headers = ?headers(Scheme, Host, Path, Encoding, MsgType, metadata_headers(Ctx1)),
+    Ctx1 = grpcbox_metadata:append_to_outgoing_ctx(Ctx, #{<<"content-type">> => <<"application/grpc">>,
+                                                          <<"user-agent">> => <<"custom-grpc-client">>}),
+    Headers0 = ?headers(Scheme, Host, Path, Encoding, MsgType, metadata_headers(Ctx1)),
+    Headers = merge_headers(Headers0),
 
     ?assertEqual([{<<"content-type">>, <<"application/grpc">>},
-                  {<<"x-custom-header">>, <<"the-first-shall-be-first">>},
+                  {<<"user-agent">>, <<"custom-grpc-client, grpc-erlang/0.9.2">>},
                   {<<":method">>, <<"POST">>},
                   {<<":path">>, <<"/grpc.Test/Test">>},
                   {<<":scheme">>, <<"http">>},
                   {<<":authority">>, <<"localhost:9898">>},
                   {<<"grpc-encoding">>, <<"identity">>},
                   {<<"grpc-message-type">>, <<"grpc.TestRequest">>},
-                  {<<"content-type">>, <<"application/grpc+proto">>},
-                  {<<"user-agent">>, <<"grpc-erlang/0.9.2">>},
                   {<<"te">>, <<"trailers">>}
-                 ], Headers),
+                 ], lists:reverse(Headers)),
     ok.
 
 -endif.
