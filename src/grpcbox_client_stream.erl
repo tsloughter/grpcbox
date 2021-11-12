@@ -15,9 +15,9 @@
 
 -define(protected_headers, [<<"content-type">>, <<"te">>]).
 -define(pseudoheaders(Path, Scheme, Authority), [{<<":method">>, <<"POST">>},
-                          {<<":path">>, Path},
-                          {<<":scheme">>, Scheme},
-                          {<<":authority">>, Authority}]).
+                                                 {<<":path">>, Path},
+                                                 {<<":scheme">>, Scheme},
+                                                 {<<":authority">>, Authority}]).
 -define(headers(Encoding, MessageType, MD), MD ++ [{<<"grpc-encoding">>, Encoding},
                                                    {<<"grpc-message-type">>, MessageType},
                                                    {<<"content-type">>, <<"application/grpc+proto">>},
