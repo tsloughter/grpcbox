@@ -18,11 +18,11 @@
                                                  {<<":path">>, Path},
                                                  {<<":scheme">>, Scheme},
                                                  {<<":authority">>, Authority}]).
--define(headers(Encoding, MessageType, MD), MD ++ [{<<"grpc-encoding">>, Encoding},
+-define(headers(Encoding, MessageType, MD), (MD ++ [{<<"grpc-encoding">>, Encoding},
                                                    {<<"grpc-message-type">>, MessageType},
                                                    {<<"content-type">>, <<"application/grpc+proto">>},
                                                    {<<"user-agent">>, <<"grpc-erlang/0.9.2">>},
-                                                   {<<"te">>, <<"trailers">>}]).
+                                                   {<<"te">>, <<"trailers">>}])).
 
 new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 message_type=MessageType,
