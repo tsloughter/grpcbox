@@ -36,6 +36,24 @@ init([Name, Channel, Endpoint, Encoding, StatsHandler]) ->
                              endpoint=Endpoint,
                              channel=Channel}}.
 
+%% In case of unix socket transport
+%% (defined as tuple {local, _UnixPath} in gen_tcp),
+%% there is no standard on what the authority field value
+%% should be, as HTTP/2 over UDS is not formally specified.
+%% To follow other gRPC implementations' behavior,
+%% the "localhost" value is used.
+info_map({Scheme, {local, _UnixPath} = Host, Port, _}, Encoding, StatsHandler) ->
+    case {Scheme, Port} of
+        %% The ssl layer is not functional over unix sockets currently,
+        %% and the port is strictly required to be 0 by gen_tcp.
+        {http, 0} ->
+            #{authority => <<"localhost">>,
+              scheme => <<"http">>,
+              encoding => Encoding,
+              stats_handler => StatsHandler};
+        _ ->
+            error({badarg, [Scheme, Host, Port]})
+    end;
 info_map({http, Host, 80, _}, Encoding, StatsHandler) ->
     #{authority => list_to_binary(Host),
       scheme => <<"http">>,

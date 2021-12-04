@@ -9,7 +9,7 @@
                  acceptor_pool,
                  gproc,
                  ctx]},
-  {env, [{client, #{channels => [%% {default_channel, round_robin, [{http, "localhost", 8080, []}], #{}}
+  {env, [{client, #{channels => [%% {default_channel, [{http, "localhost", 8080, []}], #{}}
                                 ]}},
 
          {grpc_opts, #{service_protos => [],
