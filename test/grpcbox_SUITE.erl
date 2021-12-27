@@ -11,7 +11,9 @@
 
 groups() ->
     [{ssl, [], [unary_authenticated]},
-     {tcp, [], [unary_no_auth, multiple_servers]},
+     {tcp, [], [unary_no_auth, multiple_servers,
+                unary_garbage_collect_streams]},
+     {concurrent, [{repeat_until_any_fail, 5}], [unary_concurrent]},
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
      {negative_ssl, [], [unauthorized]},
      {context, [], [%% deadline
@@ -20,6 +22,7 @@ groups() ->
 all() ->
     [{group, ssl},
      {group, tcp},
+     {group, concurrent},
      {group, negative_tests},
      {group, negative_ssl},
      initially_down_service,
@@ -30,8 +33,10 @@ all() ->
      bidirectional,
      stress_test,
      client_stream,
+     client_stream_garbage_collect_streams,
      compression,
      stats_handler,
+     server_latency_stats,
      health_service,
      reflection_service
      %% TODO: rst stream error handling
@@ -63,6 +68,15 @@ init_per_group(ssl, Config) ->
     application:ensure_all_started(grpcbox),
     Config;
 init_per_group(tcp, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
+                                                         #{}}]}),
+    application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                                            services => #{'routeguide.RouteGuide' =>
+                                                                              routeguide_route_guide}},
+                                             transport_opts => #{}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
+init_per_group(concurrent, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
                                                          #{}}]}),
     application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
@@ -207,6 +221,14 @@ init_per_testcase(client_stream, Config) ->
                                           services => #{'routeguide.RouteGuide' => routeguide_route_guide}}}]),
     application:ensure_all_started(grpcbox),
     Config;
+init_per_testcase(client_stream_garbage_collect_streams, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide}}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
 init_per_testcase(compression, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
@@ -222,6 +244,16 @@ init_per_testcase(stats_handler, Config) ->
                         [#{grpc_opts => #{service_protos => [route_guide_pb],
                                           services => #{'routeguide.RouteGuide' => routeguide_route_guide},
                                           stats_handler => test_stats_handler}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
+init_per_testcase(server_latency_stats, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                          stats_handler => grpcbox_oc_stats_handler}}]),
+    {ok, _} = application:ensure_all_started(opencensus),
     application:ensure_all_started(grpcbox),
     Config;
 init_per_testcase(health_service, Config) ->
@@ -271,6 +303,12 @@ end_per_testcase(trace_interceptor, _Config) ->
                                                                    port => 8080})),
     application:stop(grpcbox),
     ok;
+end_per_testcase(server_latency_stats, _Config) ->
+    application:stop(opencensus),
+    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
+                                                                   port => 8080})),
+    application:stop(grpcbox),
+    ok;
 end_per_testcase(health_service, _Config) ->
     ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
                                                                    port => 8080})),
@@ -281,6 +319,10 @@ end_per_testcase(unary_authenticated, _Config) ->
 end_per_testcase(unary_no_auth, _Config) ->
     ok;
 end_per_testcase(multiple_servers, _Config) ->
+    ok;
+end_per_testcase(unary_garbage_collect_streams, _Config) ->
+    ok;
+end_per_testcase(unary_concurrent, _Config) ->
     ok;
 end_per_testcase(unimplemented, _Config) ->
     ok;
@@ -422,6 +464,8 @@ reflection_service(_Config) ->
                              #{file_descriptor_proto := [_]}}}},
                  grpcbox_client:recv_data(S)),
 
+    check_stream_state(S),
+
     %% closes the stream, waits for an 'end of stream' message and then returns the received data
     ?assertMatch(ok, grpcbox_client:close_send(S)).
 
@@ -461,11 +505,63 @@ stats_handler(_Config) ->
 
     ?assert(maps:get(rpc_end, Stats) > maps:get(rpc_begin, Stats)).
 
+-define(server_latency_view(View),
+        {ok, {view, "grpc.io/server/server_latency", _Measure, _, _B, _Help, _M, _Methods, oc_stat_aggregation_distribution, _Buckets} = View}).
+
+server_latency_stats(_Config) ->
+    Registered = grpcbox_oc_stats_handler:init(),
+    Subscribed = grpcbox_oc_stats:subscribe_views(),
+
+    ?assertEqual(ok, Registered),
+    ?assertEqual([], lists:filter(fun ({Ok, _}) -> ok =/= Ok end, Subscribed)),
+
+    [SrvLatencyView] = [View || ?server_latency_view(View) <- Subscribed],
+
+    Args = [ctx:new(), #{latitude => 409146138, longitude => -746188906}, #{encoding => gzip}],
+    {MeasuredTime, {ok, Feature, _}} =
+        timer:tc(routeguide_route_guide_client, get_feature, Args),
+
+    ?assertEqual(#{location =>
+                       #{latitude => 409146138, longitude => -746188906},
+                   name =>
+                       <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature),
+
+    #{data := #{rows :=  [#{value := #{buckets := Bs,
+                            count := Count,
+                            mean := Mean,
+                            sum := Sum}}]}} = oc_stat_view:export(SrvLatencyView),
+
+    {H, T} = lists:splitwith(fun ({_, C}) -> C =:= 0 end, Bs),
+
+    ?assert(element(1, lists:last(H)) =< MeasuredTime), %% Bucket size > Reported time
+    ?assertEqual(element(2, hd(T)), Count), %% Count = 1 = In bucket
+    ?assert(element(1, lists:last(H)) =< Sum), %% Lower bucket < Reported time
+    ?assert(Sum =< MeasuredTime), %% Reported time < Measured time
+    ?assert(element(1, hd(T)) > Sum), %% Higher bucket > Reported time
+    ?assertEqual(Mean*Count, Sum),
+
+    ok.
+
 unary_no_auth(_Config) ->
     unary(_Config).
 
 unary_authenticated(Config) ->
     unary(Config).
+
+%% checks that no closed streams are left around after unary requests
+unary_garbage_collect_streams(Config) ->
+    unary(Config),
+
+    ConnectionStreamSet = connection_stream_set(),
+
+    ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
+
+client_stream_garbage_collect_streams(Config) ->
+    client_stream(Config),
+
+    ConnectionStreamSet = connection_stream_set(),
+
+    ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
 
 multiple_servers(_Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []},
@@ -477,6 +573,26 @@ multiple_servers(_Config) ->
     unary(_Config),
     unary(_Config).
 
+unary_concurrent(Config) ->
+    Nrs = lists:seq(1,100),
+    ParentPid = self(),
+    Pids = [spawn_link(fun() ->
+                               unary(Config),
+                               ParentPid ! self()
+                       end) || _ <- Nrs],
+    unary_concurrent_wait_for_processes(Pids).
+
+unary_concurrent_wait_for_processes([]) ->
+    ok;
+unary_concurrent_wait_for_processes(Pids) ->
+    receive
+        Pid ->
+            NewPids = lists:delete(Pid, Pids),
+            unary_concurrent_wait_for_processes(NewPids)
+    after 5000 ->
+            ?assertMatch([], Pids, "Unary concurrency test timed out without receiving all responses")
+    end.
+
 bidirectional(_Config) ->
     {ok, S} = routeguide_route_guide_client:route_chat(ctx:new()),
     %% send 2 before receiving since the server only sends what it already had in its list of messages for the
@@ -485,6 +601,8 @@ bidirectional(_Config) ->
     ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
     ?assertMatch({ok, #{message := <<"hello there">>}}, grpcbox_client:recv_data(S)),
     ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, message => <<"hello there">>}),
+
+    check_stream_state(S),
 
     %% closes the stream, waits for an 'end of stream' message and then returns the received data
     ?assertMatch(ok, grpcbox_client:close_send(S)).
@@ -581,6 +699,22 @@ stress_test(Config, Count) ->
     ?assertEqual(Count, Loop(0)).
 
 %%
+
+%% verify that the chatterbox stream isn't storing frame data
+check_stream_state(S) ->
+    {_, StreamState} = sys:get_state(maps:get(stream_pid, S)),
+    FrameQueue = element(6, StreamState),
+    ?assert(queue:is_empty(FrameQueue)).
+
+%% return the stream_set of a connection in the channel
+connection_stream_set() ->
+    {ok, {Channel, _}} = grpcbox_channel:pick(default_channel, unary),
+    {ok, Conn, _} = grpcbox_subchannel:conn(Channel),
+    {connected, ConnState} = sys:get_state(Conn),
+
+    %% I know, I know, this will fail if the connection record in h2_connection ever has elements
+    %% added before the stream_set field. But for now, it is 14 and thats good enough.
+    element(14, ConnState).
 
 cert_dir(Config) ->
     DataDir = ?config(data_dir, Config),

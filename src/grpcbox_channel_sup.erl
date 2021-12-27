@@ -20,7 +20,7 @@ start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 %% @doc Start a channel under the grpcbox channel supervisor.
--spec start_child(atom(), [grpcbox_channel:endpoint()], grpcbox_channel:options()) -> {ok, pid()}.
+-spec start_child(atom(), [grpcbox_channel:endpoint()], grpcbox_channel:options()) -> supervisor:startchild_ret().
 start_child(Name, Endpoints, Options) ->
     supervisor:start_child(?SERVER, [Name, Endpoints, Options]).
 

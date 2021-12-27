@@ -1,8 +1,9 @@
 grpcbox
 =====
 
-[![CircleCI](https://circleci.com/gh/tsloughter/grpcbox.svg?style=svg)](https://circleci.com/gh/tsloughter/grpcbox)
-[![codecov](https://codecov.io/gh/tsloughter/grpcbox/branch/master/graph/badge.svg)](https://codecov.io/gh/tsloughter/grpcbox)
+
+![Tests](https://github.com/tsloughter/grpcbox/workflows/Common%20Test/badge.svg)
+[![codecov](https://codecov.io/gh/tsloughter/grpcbox/branch/main/graph/badge.svg)](https://codecov.io/gh/tsloughter/grpcbox)
 [![Hex.pm](https://img.shields.io/hexpm/v/grpcbox.svg?maxAge=2592000)](https://hex.pm/packages/grpcbox)
 [![Hex.pm](https://img.shields.io/hexpm/dt/grpcbox.svg?maxAge=2592000)](https://hex.pm/packages/grpcbox)
 

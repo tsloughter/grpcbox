@@ -72,6 +72,10 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
             Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
             Headers = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), MessageType, metadata_headers(Ctx)),
 
+            %% headers are sent in the same request as creating a new stream to ensure
+            %% concurrent calls can't end up interleaving the sending of headers in such
+            %% a way that a lower stream id's headers are sent after another's, which results
+            %% in the server closing the connection when it gets them out of order
             case h2_connection:new_stream(Conn, grpcbox_client_stream, [#{service => Service,
                                                                           marshal_fun => MarshalFun,
                                                                           unmarshal_fun => UnMarshalFun,
@@ -79,11 +83,10 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                                           buffer => <<>>,
                                                                           stats_handler => StatsHandler,
                                                                           stats => #{},
-                                                                          client_pid => self()}], self()) of
+                                                                          client_pid => self()}], Headers, [], self()) of
                 {error, _Code} = Err ->
                     Err;
                 {StreamId, Pid} ->
-                    h2_connection:send_headers(Conn, StreamId, Headers),
                     h2_connection:send_body(Conn, StreamId, Body),
                     {ok, Conn, StreamId, Pid}
             end;
@@ -110,7 +113,7 @@ recv_msg(S=#{stream_id := Id,
                     stream_finished;
                 {ok, {Status, Message, Metadata}} ->
                     {error, {Status, Message}, #{trailers => Metadata}};
-                timeout ->
+                {error, _} ->
                     stream_finished
             end
     after Timeout ->
@@ -127,13 +130,13 @@ metadata_headers(Ctx) ->
         D when D =:= undefined ; D =:= infinity ->
             grpcbox_utils:encode_headers(maps:to_list(grpcbox_metadata:from_outgoing_ctx(Ctx)));
         {T, _} ->
-            Timeout = {<<"grpc-timeout">>, <<(integer_to_binary(T - erlang:monotonic_time()))/binary, "S">>},
+            Timeout = {<<"grpc-timeout">>, <<(integer_to_binary(T - erlang:monotonic_time()))/binary, "n">>},
             grpcbox_utils:encode_headers([Timeout | maps:to_list(grpcbox_metadata:from_outgoing_ctx(Ctx))])
     end.
 
 %% callbacks
 
-init(_, StreamId, [_, State=#{path := Path}]) ->
+init(_ConnectionPid, StreamId, [_, State=#{path := Path}]) ->
     _ = process_flag(trap_exit, true),
     Ctx1 = ctx:with_value(ctx:new(), grpc_client_method, Path),
     State1 = stats_handler(Ctx1, rpc_begin, {}, State),
@@ -141,6 +144,7 @@ init(_, StreamId, [_, State=#{path := Path}]) ->
 init(_, _, State) ->
     {ok, State}.
 
+%% trailers
 on_receive_headers(H, State=#{resp_headers := _,
                               ctx := Ctx,
                               stream_id := StreamId,
@@ -152,6 +156,7 @@ on_receive_headers(H, State=#{resp_headers := _,
     Ctx1 = ctx:with_value(Ctx, grpc_client_status, grpcbox_utils:status_to_string(Status)),
     {ok, State#{ctx => Ctx1,
                 resp_trailers => H}};
+%% headers
 on_receive_headers(H, State=#{stream_id := StreamId,
                               ctx := Ctx,
                               client_pid := Pid}) ->

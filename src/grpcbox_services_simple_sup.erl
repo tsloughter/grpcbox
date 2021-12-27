@@ -28,7 +28,12 @@ start_child(Opts) ->
     supervisor:start_child(?SERVER, [ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts]).
 
 terminate_child(ListenOpts) ->
-    supervisor:terminate_child(?SERVER, whereis(grpcbox_services_sup:services_sup_name(ListenOpts))).
+    case whereis(grpcbox_services_sup:services_sup_name(ListenOpts)) of
+        undefined ->
+            ok;
+        Pid ->
+            supervisor:terminate_child(?SERVER, Pid)
+    end.
 
 init(_Args) ->
     SupFlags = #{strategy => simple_one_for_one,
