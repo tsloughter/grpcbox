@@ -170,15 +170,16 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
                                  method=#method{module=Module,
                                                 function=Function,
+                                                additional_args=AdditionalArgs,
                                                 output={_, false}}}) ->
     case (case StreamInterceptor of
-              undefined -> Module:Function(Ref, State);
+              undefined -> Module:Function(Ref, State, AdditionalArgs);
               _ ->
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module,
                                  input_stream => true,
                                  output_stream => false},
-                  StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+                  StreamInterceptor(Ref, State, ServerInfo, fun(R, S) -> Module:Function(R, S, AdditionalArgs) end)
           end) of
         {ok, Response, State2} ->
             send(Response, State2);
@@ -191,16 +192,17 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
                                  method=#method{module=Module,
                                                 function=Function,
+                                                additional_args=AdditionalArgs,
                                                 output={_, true}}}) ->
     case StreamInterceptor of
         undefined ->
-            Module:Function(Ref, State);
+            Module:Function(Ref, State, AdditionalArgs);
         _ ->
             ServerInfo = #{full_method => FullMethod,
                            service => Module,
                            input_stream => true,
                            output_stream => true},
-            StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+            StreamInterceptor(Ref, State, ServerInfo, fun(R, S) ->  Module:Function(R, S, AdditionalArgs) end)
     end.
 
 on_send_push_promise(_, State) ->
@@ -265,17 +267,18 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
                                         full_method=FullMethod,
                                         method=#method{module=Module,
                                                        function=Function,
+                                                       additional_args=AdditionalArgs,
                                                        proto=_Proto,
                                                        input={_Input, _InputStream},
                                                        output={_Output, _OutputStream}}}) ->
     Ctx1 = ctx_with_stream(Ctx, State),
     case (case UnaryInterceptor of
-              undefined -> Module:Function(Ctx1, Message);
+              undefined -> Module:Function(Ctx1, Message, AdditionalArgs);
               _ ->
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module},
                   UnaryInterceptor(Ctx1, Message, ServerInfo,
-                                   fun Module:Function/2)
+                                   fun (C, S) -> Module:Function(C, S, AdditionalArgs) end)
           end) of
         {ok, Response, Ctx2} ->
             State1 = from_ctx(Ctx2),
@@ -348,7 +351,7 @@ send_headers(State) ->
 
 send_headers(Ctx, Headers) when is_map(Headers) ->
     State = from_ctx(Ctx),
-    send_headers(maps:to_list(maybe_encode_headers(Headers)), State);
+    ctx_with_stream(Ctx, send_headers(maps:to_list(maybe_encode_headers(Headers)), State));
 
 send_headers(_Metadata, State=#state{headers_sent=true}) ->
     State;

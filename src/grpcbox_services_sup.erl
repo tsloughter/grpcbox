@@ -130,12 +130,15 @@ load_services([ServicePbModule | Rest], Services, ServicesTable) ->
     [begin
          {{service, _}, Methods} = ServicePbModule:get_service_def(ServiceName),
          %% throws exception if ServiceName isn't in the map or doesn't exist
-         try ServiceModule = maps:get(ServiceName, Services),
-              {ServiceModule, ServiceModule:module_info(exports)} of
-             {ServiceModule1, Exports} ->
+         try {ServiceModule, AdditionalArgs} = case maps:get(ServiceName, Services) of
+                                                   {A, B} -> {A, B};
+                                                   A -> {A, undefined}
+                                               end,
+              {ServiceModule, AdditionalArgs, ServiceModule:module_info(exports)} of
+             {ServiceModule1, AdditionalArgs1, Exports} ->
                  [begin
                       SnakedMethodName = atom_snake_case(Name),
-                      case lists:member({SnakedMethodName, 2}, Exports) of
+                      case lists:member({SnakedMethodName, 3}, Exports) of
                           true ->
                               ets:insert(ServicesTable, #method{key={atom_to_binary(ServiceName, utf8),
                                                                      atom_to_binary(Name, utf8)},
@@ -144,7 +147,9 @@ load_services([ServicePbModule | Rest], Services, ServicesTable) ->
                                                                 proto=ServicePbModule,
                                                                 input={Input, InputStream},
                                                                 output={Output, OutputStream},
-                                                                opts=Opts});
+                                                                opts=Opts,
+                                                                additional_args = AdditionalArgs1
+                                                               });
                           false ->
                               %% TODO: error? log? insert into ets as unimplemented?
                               unimplemented_method

@@ -1,6 +1,6 @@
 -module(grpcbox_reflection_service).
 
--export([server_reflection_info/2]).
+-export([server_reflection_info/3]).
 
 -include("grpcbox.hrl").
 
@@ -9,13 +9,13 @@
          #{error_code => 12,
            error_message => "unimplemented method since extensions removed in proto3"}}).
 
-server_reflection_info(Ref, Stream) ->
+server_reflection_info(Ref, Stream, OptionalArgs) ->
     receive
         {Ref, eos} ->
             ok;
         {Ref, Message} ->
             handle_message(Message, Stream),
-            server_reflection_info(Ref, Stream)
+            server_reflection_info(Ref, Stream, OptionalArgs)
     end.
 
 handle_message(#{message_request := {list_services, _}}=OriginalRequest, Stream) ->
