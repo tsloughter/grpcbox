@@ -335,7 +335,7 @@ end_stream(Status, Message, State=#state{connection_pid=ConnPid,
                                          ctx=Ctx,
                                          resp_trailers=Trailers}) ->
     EncodedTrailers = grpcbox_utils:encode_headers(Trailers),
-    h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
+    h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, if is_integer(Status) -> integer_to_binary(Status); true -> Status end},
                                                     {<<"grpc-message">>, Message} | EncodedTrailers],
                                 [{send_end_stream, true}]),
     Ctx1 = ctx:with_value(Ctx, grpc_server_status, grpcbox_utils:status_to_string(Status)),
