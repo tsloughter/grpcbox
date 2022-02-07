@@ -293,24 +293,25 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
     end.
 
 on_end_stream(State) ->
-    on_end_stream_(State),
-    {ok, State}.
+    on_end_stream_(State).
 
-on_end_stream_(#state{input_ref=Ref,
-                      callback_pid=Pid,
-                      method=#method{input={_Input, true},
-                                     output={_Output, false}}}) ->
-    Pid ! {Ref, eos};
-on_end_stream_(#state{input_ref=Ref,
-                      callback_pid=Pid,
-                      method=#method{input={_Input, true},
-                                     output={_Output, true}}}) ->
-    Pid ! {Ref, eos};
-on_end_stream_(#state{input_ref=_Ref,
-                      callback_pid=_Pid,
-                      method=#method{input={_Input, false},
-                                     output={_Output, true}}}) ->
-    ok;
+on_end_stream_(State=#state{input_ref=Ref,
+                            callback_pid=Pid,
+                            method=#method{input={_Input, true},
+                                           output={_Output, false}}}) ->
+    Pid ! {Ref, eos},
+    {ok, State};
+on_end_stream_(State=#state{input_ref=Ref,
+                            callback_pid=Pid,
+                            method=#method{input={_Input, true},
+                                           output={_Output, true}}}) ->
+    Pid ! {Ref, eos},
+    {ok, State};
+on_end_stream_(State=#state{input_ref=_Ref,
+                            callback_pid=_Pid,
+                            method=#method{input={_Input, false},
+                                           output={_Output, true}}}) ->
+    {ok, State};
 on_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
     end_stream(State);
 on_end_stream_(State) ->
