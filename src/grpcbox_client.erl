@@ -69,6 +69,13 @@ unary(Ctx, Path, Input, Def, Options) ->
     end.
 
 unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
+    DeadLine =
+        case ctx:time_to_deadline(Ctx, millisecond) of
+            undefined ->
+                0;
+            DL ->
+                DL
+        end,
     try
         case grpcbox_client_stream:send_request(Ctx, Channel, Path, Input, Def, Options) of
             {ok, _Conn, Stream, Pid} ->
@@ -78,7 +85,7 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                       stream_pid => Pid,
                       monitor_ref => Ref,
                       service_def => Def},
-                case recv_end(S, 5000) of
+                case recv_end(S, max(DeadLine, 5000)) of
                     eos ->
                         case recv_headers(S, 0) of
                             {ok, Headers} ->
