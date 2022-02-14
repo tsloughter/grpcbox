@@ -11,6 +11,8 @@
          stream/5,
 
          send/2,
+         recv_any/1,
+         recv_any/2,
          recv_headers/1,
          recv_headers/2,
          recv_data/1,
@@ -181,6 +183,55 @@ stream(Ctx, Path, Input, Def, Options) ->
         {error, _Reason} = Error ->
             Error
     end.
+
+recv_any(Stream) ->
+    recv_any(Stream, 500).
+
+recv_any(Stream = #{ stream_id := Id
+                   , stream_pid := Pid
+                   , monitor_ref := Ref}, Timeout) ->
+    receive
+        {headers, Id, Headers} ->
+            case maps:get(<<":status">>, Headers, undefined) of
+                <<"200">> ->
+                    {ok, {headers, Headers}};
+                ErrorStatus ->
+                    {http_error, ErrorStatus, Headers}
+            end;
+
+        {trailers, Id, Trailers} ->
+            dispatch_trailers(Trailers);
+
+        {data, Id, Data} ->
+            case maps:get(stream_interceptor, Stream, undefined) of
+                undefined ->
+                    {ok, {data, Data}};
+                #{recv_msg := RecvMsg} ->
+                    RecvMsg(Stream, fun(_, _) -> {ok, Data} end, Timeout)
+            end;
+
+        {'DOWN', Ref, process, Pid, _Reason} ->
+            receive
+                {trailers, Id, Trailers} ->
+                    dispatch_trailers(Trailers);
+                {error, _} ->
+                    stream_finished
+            after 0 ->
+                    {error, connectionLost}
+            end
+    after Timeout ->
+            case erlang:is_process_alive(Pid) of
+                true ->
+                    timeout;
+                false ->
+                    stream_finished
+            end
+    end.
+
+dispatch_trailers({<<"0">>, _Message, _Metadata}) ->
+    stream_finished;
+dispatch_trailers({Status, Message, Metadata}) ->
+    {error, {Status, Message}, #{trailers => Metadata}}.
 
 recv_data(Stream) ->
     recv_data(Stream, 500).

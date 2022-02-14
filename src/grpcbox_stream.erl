@@ -196,7 +196,10 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                                                 output={_, true}}}) ->
     case StreamInterceptor of
         undefined ->
-            Module:Function(Ref, State, AdditionalArgs);
+            case Module:Function(Ref, State, AdditionalArgs) of
+                ok -> ok;
+                Error -> exit(Error)
+            end;
         _ ->
             ServerInfo = #{full_method => FullMethod,
                            service => Module,
@@ -417,7 +420,7 @@ handle_info({'EXIT', _, _Other}, State) ->
 handle_info({timeout,_Ref,<<"grpc-timeout">>}, State) ->
     end_stream(?GRPC_STATUS_DEADLINE_EXCEEDED, <<"Deadline expired">>, State),
     State;
-handle_info(_, State) ->
+handle_info(_Other, State) ->
     State.
 
 add_headers(Headers, #state{handler=Pid}) ->
