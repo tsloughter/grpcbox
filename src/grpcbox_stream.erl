@@ -184,9 +184,9 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
         {ok, Response, State2} ->
             send(Response, State2);
         E={grpc_error, _} ->
-            throw(E);
+            exit(E);
         E={grpc_extended_error, _} ->
-            throw(E)
+            exit(E)
     end;
 handle_streams(Ref, State=#state{full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
