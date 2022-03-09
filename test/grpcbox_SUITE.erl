@@ -673,7 +673,7 @@ connection_stream_set() ->
     {connected, ConnState} = sys:get_state(Conn),
 
     %% I know, I know, this will fail if the connection record in h2_connection ever has elements
-    %% added before the stream_set field. But for now, it is 14 and thats good enough.
+    %% added before the stream_set field. But for now, it is 14 and that's good enough.
     element(14, ConnState).
 
 cert_dir(Config) ->
