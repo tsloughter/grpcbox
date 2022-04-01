@@ -36,17 +36,17 @@ init([Name, Channel, Endpoint, Encoding, StatsHandler]) ->
                              endpoint=Endpoint,
                              channel=Channel}}.
 
-info_map({http, Host, 80, _}, Encoding, StatsHandler) ->
+info_map({http, Host, 80, _, _}, Encoding, StatsHandler) ->
     #{authority => list_to_binary(Host),
       scheme => <<"http">>,
       encoding => Encoding,
       stats_handler => StatsHandler};
-info_map({https, Host, 443, _}, Encoding, StatsHandler) ->
+info_map({https, Host, 443, _, _}, Encoding, StatsHandler) ->
     #{authority => list_to_binary(Host),
       scheme => <<"https">>,
       encoding => Encoding,
       stats_handler => StatsHandler};
-info_map({Scheme, Host, Port, _}, Encoding, StatsHandler) ->
+info_map({Scheme, Host, Port, _, _}, Encoding, StatsHandler) ->
     #{authority => list_to_binary(Host ++ ":" ++ integer_to_list(Port)),
       scheme => atom_to_binary(Scheme, utf8),
       encoding => Encoding,
@@ -92,8 +92,8 @@ terminate(_Reason, _State, #data{conn=Pid,
     ok.
 
 connect(Data=#data{conn=undefined,
-                   endpoint={Transport, Host, Port, SSLOptions}}, From, Actions) ->
-    case h2_client:start_link(Transport, Host, Port, options(Transport, SSLOptions),
+                   endpoint={Transport, Host, Port, SocketOptions, SSLOptions}}, From, Actions) ->
+    case h2_client:start_link(Transport, Host, Port, SocketOptions, ssl_options(Transport, SSLOptions),
                              #{garbage_on_end => true,
                                stream_callback_mod => grpcbox_client_stream}) of
         {ok, Pid} ->
@@ -105,7 +105,7 @@ connect(Data=#data{conn=Pid}, From, Actions) when is_pid(Pid) ->
     h2_connection:stop(Pid),
     connect(Data#data{conn=undefined}, From, Actions).
 
-options(https, Options) ->
+ssl_options(https, Options) ->
     [{client_preferred_next_protocols, {client, [<<"h2">>]}} | Options];
-options(http, Options) ->
+ssl_options(http, Options) ->
     Options.

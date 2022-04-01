@@ -16,6 +16,7 @@
          error/2,
          ctx/1,
          ctx/2,
+         handler_pid/1,
          handle_streams/2,
          handle_call/2,
          handle_info/2]).
@@ -57,7 +58,8 @@
                 stream_id           :: stream_id(),
                 method              :: #method{} | undefined,
                 stats_handler       :: module() | undefined,
-                stats               :: term() | undefined}).
+                stats               :: term() | undefined
+                                          }).
 
 -type t() :: #state{}.
 
@@ -166,12 +168,14 @@ authenticate({ok, Cert}, Fun) ->
 authenticate(_, _) ->
     false.
 
-handle_streams(Ref, State=#state{full_method=FullMethod,
+handle_streams(Ref, State=#state{handler=Handler,
+                                 full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
                                  method=#method{module=Module,
                                                 function=Function,
                                                 additional_args=AdditionalArgs,
                                                 output={_, false}}}) ->
+    process_flag(trap_exit, true),
     case (case StreamInterceptor of
               undefined -> Module:Function(Ref, State, AdditionalArgs);
               _ ->
@@ -188,12 +192,14 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
         E={grpc_extended_error, _} ->
             exit(E)
     end;
-handle_streams(Ref, State=#state{full_method=FullMethod,
+handle_streams(Ref, State=#state{handler=Handler,
+                                 full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
                                  method=#method{module=Module,
                                                 function=Function,
                                                 additional_args=AdditionalArgs,
                                                 output={_, true}}}) ->
+    process_flag(trap_exit, true),
     case StreamInterceptor of
         undefined ->
             case Module:Function(Ref, State, AdditionalArgs) of
@@ -393,6 +399,12 @@ ctx(#state{handler=Pid}) ->
 ctx(#state{handler=Pid}, Ctx) ->
     h2_stream:call(Pid, {ctx, Ctx}).
 
+handler_pid(#state{handler=Pid}) ->
+    Pid;
+handler_pid(Ctx) ->
+    #state{handler=Pid} = from_ctx(Ctx),
+    Pid.
+
 handle_call(ctx, State=#state{ctx=Ctx}) ->
     {ok, Ctx, State};
 handle_call({ctx, Ctx}, State) ->
@@ -404,17 +416,17 @@ handle_info({add_trailers, Trailers}, State) ->
     update_trailers(Trailers, State);
 handle_info({send_proto, Message}, State) ->
     send(false, Message, State);
-handle_info({'EXIT', _, normal}, State) ->
+handle_info({'EXIT', _Pid, normal}, State) ->
     end_stream(State),
     State;
-handle_info({'EXIT', _, {grpc_error, {Status, Message}}}, State) ->
+handle_info({'EXIT', _Pid, {grpc_error, {Status, Message}}}, State) ->
     end_stream(Status, Message, State),
     State;
-handle_info({'EXIT', _, {grpc_extended_error, #{status := Status, message := Message} = ErrorData}}, State) ->
+handle_info({'EXIT', _Pid, {grpc_extended_error, #{status := Status, message := Message} = ErrorData}}, State) ->
     State1 = add_trailers_from_error_data(ErrorData, State),
     end_stream(Status, Message, State1),
     State1;
-handle_info({'EXIT', _, _Other}, State) ->
+handle_info({'EXIT', _Pid, _Other}, State) ->
     end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
     State;
 handle_info({timeout,_Ref,<<"grpc-timeout">>}, State) ->
