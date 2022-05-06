@@ -98,7 +98,7 @@ stream_req_headers(#state{req_headers = ReqHeaders}) ->
 
 init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                          StreamInterceptor, StatsHandler]) ->
-    process_flag(trap_exit, true),
+%%    process_flag(trap_exit, true),
     State = #state{connection_pid=ConnPid,
                    stream_id=StreamId,
                    services_table=ServicesTable,
@@ -148,13 +148,16 @@ handle_service_lookup(Ctx, [Service, Method], State=#state{services_table=Servic
                                  method=M},
             handle_auth(Ctx, State1);
         _ ->
-            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State)
+            {ok, State1} = end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State),
+            _ = stop_stream(?REFUSED_STREAM, State1),
+            {ok, State1}
     end;
 handle_service_lookup(_, _, State) ->
     State1 = State#state{resp_headers=[{<<":status">>, <<"200">>},
                                        {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]},
-    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State1),
-    {ok, State1}.
+    {ok, State2} = end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State1),
+    _ = stop_stream(?REFUSED_STREAM, State2),
+    {ok, State2}.
 
 handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
                                socket=Socket,
@@ -174,7 +177,9 @@ handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
             State1 = send_headers(State0),
             {ok, State1};
         _ ->
-            end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State)
+            {ok, State1} = end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State),
+            _ = stop_stream(?REFUSED_STREAM, State1),
+            {ok, State1}
     end.
 
 authenticate(_, undefined) ->
@@ -212,7 +217,7 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
         {stop, Response, State1} ->
             State2 = send(false, Response, State1),
             {ok, State3} = end_stream(State2),
-            _ = stop_stream(?STREAM_CLOSED, State3)
+            _ = stop_stream(?STREAM_CLOSED, State3),
             {ok, State3};
         E={grpc_error, _} ->
             throw(E);
@@ -226,7 +231,8 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
                                                 function=Function,
                                                 output={_, true}}}) ->
     case (case StreamInterceptor of
-              undefined -> Module:Function(Ref, State);
+              undefined ->
+                  Module:Function(Ref, State);
               _ ->
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module,
@@ -280,13 +286,21 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
         {ok, State1#state{buffer=NewBuffer}}
     catch
         throw:{grpc_error, {Status, Message}} ->
-            end_stream(Status, Message, State);
+            {ok, State2} = end_stream(Status, Message, State),
+            _ = stop_stream(?STREAM_CLOSED, State2),
+            {ok, State2};
         throw:{grpc_extended_error, #{status := Status, message := Message} = ErrorData} ->
             State2 = add_trailers_from_error_data(ErrorData, State),
-            end_stream(Status, Message, State2);
+            {ok, State3} = end_stream(Status, Message, State2),
+            _ = stop_stream(?INTERNAL_ERROR, State3),
+            {ok, State3};
         C:E:S ->
+            %% if we dont catch exceptions here, it ends up taking the h2 connection down
+            %% and thus one stream going down pulls ev thing down
             ?LOG_INFO("crash: class=~p exception=~p stacktrace=~p", [C, E, S]),
-            end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State)
+            {ok, State2} = end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State),
+            _ = stop_stream(?INTERNAL_ERROR, State2),
+            {ok, State2}
     end.
 
 handle_message(EncodedMessage, State=#state{ctx=Ctx,
@@ -318,7 +332,8 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
                                                        output={_Output, _OutputStream}}}) ->
     Ctx1 = ctx_with_stream(Ctx, State),
     case (case UnaryInterceptor of
-              undefined -> Module:Function(Ctx1, Message);
+              undefined ->
+                  Module:Function(Ctx1, Message);
               _ ->
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module},
@@ -380,6 +395,11 @@ end_stream(Status, Message, State=#state{connection_pid=ConnPid,
     Ctx1 = ctx:with_value(Ctx, grpc_server_status, grpcbox_utils:status_to_string(Status)),
     State1 = stats_handler(Ctx1, rpc_end, {}, State),
     {ok, State1#state{trailers_sent=true}}.
+
+stop_stream(Status, State=#state{ connection_pid=ConnPid,
+                                 stream_id=StreamId}) ->
+    h2_connection:rst_stream(ConnPid, StreamId, Status),
+    {ok, State}.
 
 set_trailers(Ctx, Trailers) ->
     State = from_ctx(Ctx),
