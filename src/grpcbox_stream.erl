@@ -98,7 +98,7 @@ stream_req_headers(#state{req_headers = ReqHeaders}) ->
 
 init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                          StreamInterceptor, StatsHandler]) ->
-%%    process_flag(trap_exit, true),
+    process_flag(trap_exit, true),
     State = #state{connection_pid=ConnPid,
                    stream_id=StreamId,
                    services_table=ServicesTable,
@@ -292,7 +292,7 @@ on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
         throw:{grpc_extended_error, #{status := Status, message := Message} = ErrorData} ->
             State2 = add_trailers_from_error_data(ErrorData, State),
             {ok, State3} = end_stream(Status, Message, State2),
-            _ = stop_stream(?INTERNAL_ERROR, State3),
+            _ = stop_stream(?STREAM_CLOSED, State3),
             {ok, State3};
         C:E:S ->
             %% if we dont catch exceptions here, it ends up taking the h2 connection down
