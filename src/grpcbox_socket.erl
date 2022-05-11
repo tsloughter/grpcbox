@@ -30,7 +30,8 @@ init([Pool, ListenOpts, PoolOpts]) ->
     %% Trapping exit so can close socket in terminate/2
     _ = process_flag(trap_exit, true),
     Opts = [{active, false}, {mode, binary}, {packet, raw}, {ip, IPAddress} | SocketOpts],
-    case gen_tcp:listen(Port, Opts) of
+    {LPort, LOpts} = maybe_adjust_port_opts_for_fdopt(Port, Opts),
+    case gen_tcp:listen(LPort, LOpts) of
         {ok, Socket} ->
             %% acceptor could close the socket if there is a problem
             MRef = monitor(port, Socket),
@@ -38,6 +39,17 @@ init([Pool, ListenOpts, PoolOpts]) ->
             {ok, {Socket, MRef}};
         {error, Reason} ->
             {stop, Reason}
+    end.
+
+maybe_adjust_port_opts_for_fdopt(Port, Opts) ->
+    case lists:keymember(fd, 1, Opts) of
+        true ->
+            %% If an already opened (bound) file descriptor is passed,
+            %% we must not set port or ip, or there will be an error
+            %% when it would have gotten bound again.
+            {0, lists:keydelete(ip, 1, Opts)};
+        false ->
+            {Port, Opts}
     end.
 
 handle_call(Req, _, State) ->
