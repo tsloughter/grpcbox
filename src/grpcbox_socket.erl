@@ -11,14 +11,62 @@
          code_change/3,
          terminate/2]).
 
-%% public api
+-record(state, {
+    pool,
+    listen_opts,
+    pool_opts,
+    socket,
+    mref
+}).
 
+%% public api
 start_link(Pool, ListenOpts, AcceptorOpts) ->
     gen_server:start_link(?MODULE, [Pool, ListenOpts, AcceptorOpts], []).
 
 %% gen_server api
 
 init([Pool, ListenOpts, PoolOpts]) ->
+    {ok, #state{pool = Pool, pool_opts = PoolOpts, listen_opts = ListenOpts}, 0}.
+
+handle_call(Req, _, State) ->
+    {stop, {bad_call, Req}, State}.
+
+handle_cast(Req, State) ->
+    {stop, {bad_cast, Req}, State}.
+handle_info(timeout, State) ->
+    case start_listener(State) of
+        {ok, {Socket, MRef}} ->
+            {noreply, State#state{socket = Socket, mref = MRef}};
+        _ ->
+            erlang:send_after(5000, self(), timeout),
+            {noreply, State}
+    end;
+handle_info({'DOWN', MRef, port, Socket, _Reason}, #state{mref = MRef, socket = Socket} = State) ->
+    catch gen_tcp:close(Socket),
+    erlang:send_after(5000, self(), timeout),
+    {noreply, State};
+handle_info(_Msg, State) ->
+    {noreply, State}.
+
+code_change(_, State, _) ->
+    {ok, State}.
+
+terminate(_Reason, {Socket, MRef}) ->
+    %% Socket may already be down but need to ensure it is closed to avoid
+    %% eaddrinuse error on restart
+    %% this takes care of that, unless of course this process is killed...
+    case demonitor(MRef, [flush, info]) of
+        true  -> gen_tcp:close(Socket);
+        false -> ok
+    end.
+
+%% ------------------------------------------------------------------
+%% Internal functions
+%% ------------------------------------------------------------------
+start_listener(#state{
+        pool = Pool,
+        listen_opts = ListenOpts,
+        pool_opts = PoolOpts} = _State) ->
     Port = maps:get(port, ListenOpts, 8080),
     IPAddress = maps:get(ip, ListenOpts, {0, 0, 0, 0}),
     AcceptorPoolSize = maps:get(size, PoolOpts, 10),
@@ -27,8 +75,7 @@ init([Pool, ListenOpts, PoolOpts]) ->
                                                        {reuseaddr, true},
                                                        {backlog, 32768},
                                                        {keepalive, true}]),
-    %% Trapping exit so can close socket in terminate/2
-    _ = process_flag(trap_exit, true),
+
     Opts = [{active, false}, {mode, binary}, {packet, raw}, {ip, IPAddress} | SocketOpts],
     case gen_tcp:listen(Port, Opts) of
         {ok, Socket} ->
@@ -78,30 +125,7 @@ init([Pool, ListenOpts, PoolOpts]) ->
                 socket_not_found ->
                     noop
             end,
-            {stop, eaddrinuse};
+            {error, eaddrinuse};
         {error, Reason} ->
-            {stop, Reason}
-    end.
-
-handle_call(Req, _, State) ->
-    {stop, {bad_call, Req}, State}.
-
-handle_cast(Req, State) ->
-    {stop, {bad_cast, Req}, State}.
-
-handle_info({'DOWN', MRef, port, Socket, Reason}, {Socket, MRef} = State) ->
-    {stop, Reason, State};
-handle_info(_, State) ->
-    {noreply, State}.
-
-code_change(_, State, _) ->
-    {ok, State}.
-
-terminate(_Reason, {Socket, MRef}) ->
-    %% Socket may already be down but need to ensure it is closed to avoid
-    %% eaddrinuse error on restart
-    %% this takes care of that, unless of course this process is killed...
-    case demonitor(MRef, [flush, info]) of
-        true  -> gen_tcp:close(Socket);
-        false -> ok
+            {error, Reason}
     end.
