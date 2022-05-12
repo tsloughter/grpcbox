@@ -31,6 +31,7 @@
               grpc_status_message/0,
               grpc_error/0,
               grpc_error_response/0,
+              grpc_callback_error/0,
               grpc_error_data/0,
               grpc_extended_error_response/0]).
 
@@ -61,15 +62,19 @@
 
 -type t() :: #state{}.
 
--type grpc_status_message() :: unicode:chardata().
+-type grpc_status_message() :: unicode:unicode_binary().
 -type grpc_status() :: 0..16.
 -type http_status() :: integer().
--type grpc_error() :: {grpc_status(), grpc_status_message()}.
+-type grpc_error() :: {unicode:unicode_binary(), % containing a grpc_status() value as text
+                       grpc_status_message()}.
 -type grpc_error_response() :: {error, grpc_error(), #{headers => map(),
                                                        trailers => #{}}} |
                                {http_error, {http_status(), unicode:chardata()}, #{headers => map(),
                                                                                    trailers => #{}}} |
                                {error, term()}.
+-type grpc_callback_error() :: {error, grpc_error(), #{headers => map(),
+                                                       trailers => #{}}}.
+
 -type grpc_error_data() :: #{
     status := grpc_status(),
     message := grpc_status_message(),
