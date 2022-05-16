@@ -17,22 +17,15 @@
          error/2,
          ctx/1,
          ctx/2,
-         end_stream/1,
          handle_streams/2,
          handle_call/2,
          handle_info/2]).
 
 -export([init/3,
-         on_receive_request_headers/2,
+         on_receive_headers/2,
          on_send_push_promise/2,
-         on_receive_request_data/2,
-         on_request_end_stream/1]).
-
-%% state getters and setters
--export([stream_handler_state/1,
-         stream_handler_state/2,
-         stream_req_headers/1
-]).
+         on_receive_data/2,
+         on_end_stream/1]).
 
 %% state getters and setters
 -export([stream_handler_state/1,
@@ -111,7 +104,8 @@ init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                    stats_handler=StatsHandler},
     {ok, State}.
 
-on_receive_request_headers(Headers, State=#state{ctx=_Ctx}) ->
+on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
+    %% proplists:get_value(<<":method">>, Headers) =:= <<"POST">>,
     Metadata = grpcbox_utils:headers_to_metadata(Headers),
     Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
                infinity ->
@@ -273,9 +267,9 @@ ctx_with_stream(Ctx, Stream) ->
 from_ctx(Ctx) ->
     ctx:get(Ctx, ctx_stream_key).
 
-on_receive_request_data(_, State=#state{method=undefined}) ->
+on_receive_data(_, State=#state{method=undefined}) ->
     {ok, State};
-on_receive_request_data(Bin, State=#state{request_encoding=Encoding,
+on_receive_data(Bin, State=#state{request_encoding=Encoding,
                                   buffer=Buffer}) ->
     try
         {NewBuffer, Messages} = grpcbox_frame:split(<<Buffer/binary, Bin/binary>>, Encoding),
@@ -362,9 +356,9 @@ on_end_stream_(State = #state{method=#method{input={_Input, true},
 on_end_stream_(#state{method=#method{input={_Input, false},
                                      output={_Output, true}}}) ->
     ok;
-on_request_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
+on_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
     end_stream(State);
-on_request_end_stream_(State) ->
+on_end_stream_(State) ->
     end_stream(State).
 
 %% Internal
