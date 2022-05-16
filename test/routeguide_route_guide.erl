@@ -2,7 +2,9 @@
 
 -include("grpcbox.hrl").
 
--export([get_feature/2,
+-export([
+         init/2,
+         get_feature/2,
          list_features/2,
          record_route/2,
          route_chat/2,
@@ -31,6 +33,25 @@
     #{name => string(),
       location => point()}.
 
+%% define init functions required for each RPC, if required
+init(_RPC=record_route, GrpcStream)->
+    grpcbox_stream:stream_handler_state(
+        GrpcStream,
+        #{t_start => erlang:system_time(1), acc => []}
+    );
+init(_RPC=route_chat, GrpcStream)->
+    grpcbox_stream:stream_handler_state(
+        GrpcStream,
+        []
+    );
+init(_RPC=closed_stream, GrpcStream)->
+    grpcbox_stream:stream_handler_state(
+        GrpcStream,
+        #{t_start => erlang:system_time(1), acc => []}
+    );
+init(_RPC, GrpcStream)->
+    GrpcStream.
+
 -spec get_feature(Ctx :: ctx:ctx(), Message :: point()) -> {ok, feature(), ctx:ctx()}.
 get_feature(Ctx, Message) ->
     Feature = #{name => find_point(Message, data()),
@@ -39,47 +60,51 @@ get_feature(Ctx, Message) ->
 
 -spec list_features(Message::rectangle(), GrpcStream :: grpcbox_stream:t()) -> ok.
 list_features(_Message, GrpcStream) ->
-    grpcbox_stream:add_headers([{<<"info">>, <<"this is a test-implementation">>}], GrpcStream),
-    grpcbox_stream:send(#{name => <<"Tour Eiffel">>,
+    GrpcStream0 = grpcbox_stream:update_headers([{<<"info">>, <<"this is a test-implementation">>}], GrpcStream),
+    GrpcStream1 = grpcbox_stream:send(false, #{name => <<"Tour Eiffel">>,
                                         location => #{latitude => 3,
-                                                      longitude => 5}}, GrpcStream),
-    grpcbox_stream:send(#{name => <<"Louvre">>,
+                                                      longitude => 5}}, GrpcStream0),
+    GrpcStream2 = grpcbox_stream:send(false, #{name => <<"Louvre">>,
                           location => #{latitude => 4,
-                                        longitude => 5}}, GrpcStream),
+                                        longitude => 5}}, GrpcStream1),
+    GrpcStream3 = grpcbox_stream:update_trailers([{<<"nr_of_points_sent">>, <<"2">>}], GrpcStream2),
+    {stop, GrpcStream3}.
 
-    grpcbox_stream:add_trailers([{<<"nr_of_points_sent">>, <<"2">>}], GrpcStream),
-    ok.
+-spec record_route(ReqMessage :: any(), GrpcStream :: grpcbox_stream:t()) -> {stop, route_summary(), grpcbox_stream:t()} | {ok, grpcbox_stream:t()}.
+record_route(ReqMessage, GrpcStream) ->
+    HandlerState = grpcbox_stream:stream_handler_state(GrpcStream),
+    record_route(ReqMessage, HandlerState, GrpcStream).
 
--spec record_route(reference(), GrpcStream :: grpcbox_stream:t()) -> {ok, route_summary(), grpcbox_stream:t()}.
-record_route(Ref, GrpcStream) ->
-    record_route(Ref, #{t_start => erlang:system_time(1),
-                        acc => []}, GrpcStream).
+-spec record_route(ReqMessage :: any(), HandlerState :: any(), GrpcStream :: grpcbox_stream:t()) -> {stop, route_summary(), grpcbox_stream:t()} | {ok, grpcbox_stream:t()}.
+record_route(eos, _HandlerState=#{t_start := T0, acc := Points}, GrpcStream) ->
+    %% receiving 'eos' tells us that we need to return a result.
+    {stop, #{elapsed_time => erlang:system_time(1) - T0,
+           point_count => length(Points),
+           feature_count => count_features(Points),
+           distance => distance(Points)}, GrpcStream};
+record_route(ReqMessage, HandlerState=#{t_start := _T0, acc := Points}, GrpcStream) ->
+    NewStreamState0 = grpcbox_stream:stream_handler_state(
+        GrpcStream,
+        HandlerState#{acc => [ReqMessage | Points]}
+    ),
+    {ok, NewStreamState0}.
 
-record_route(Ref, Data=#{t_start := T0, acc := Points}, GrpcStream) ->
-    receive
-        {Ref, eos} ->
-            %% receiving 'eos' tells us that we need to return a result.
-            {ok, #{elapsed_time => erlang:system_time(1) - T0,
-                   point_count => length(Points),
-                   feature_count => count_features(Points),
-                   distance => distance(Points)}, GrpcStream};
-        {Ref, Point} ->
-            record_route(Ref, Data#{acc => [Point | Points]}, GrpcStream)
-    end.
+-spec route_chat(ReqMessage :: any(), GrpcStream :: grpcbox_stream:t()) -> {stop, grpcbox_stream:t()} | {ok, grpcbox_stream:t()}.
+route_chat(ReqMessage, GrpcStream) ->
+    HandlerState = grpcbox_stream:stream_handler_state(GrpcStream),
+    route_chat(ReqMessage, HandlerState, GrpcStream).
 
--spec route_chat(reference(), GrpcStream :: grpcbox_stream:t()) -> ok.
-route_chat(Ref, GrpcStream) ->
-    route_chat(Ref, [], GrpcStream).
-
-route_chat(Ref, Data, GrpcStream) ->
-    receive
-        {Ref, eos} ->
-            ok;
-        {Ref, #{location := Location} = P} ->
-            Messages = proplists:get_all_values(Location, Data),
-            [grpcbox_stream:send(Message, GrpcStream) || Message <- Messages],
-            route_chat(Ref, [{Location, P} | Data], GrpcStream)
-    end.
+-spec route_chat(ReqMessage :: any(), HandlerState :: any(), GrpcStream :: grpcbox_stream:t()) -> {stop, grpcbox_stream:t()} | {ok, grpcbox_stream:t()}.
+route_chat(eos, _HandlerState, GrpcStream) ->
+    {stop, GrpcStream};
+route_chat(ReqMessage=#{location := Location}, HandlerState, GrpcStream) ->
+    Messages = proplists:get_all_values(Location, HandlerState),
+    [grpcbox_stream:send(false, Message, GrpcStream) || Message <- Messages],
+    NewStreamState0 = grpcbox_stream:stream_handler_state(
+        GrpcStream,
+        [{Location, ReqMessage} | HandlerState]
+    ),
+    {ok, NewStreamState0}.
 
 -spec generate_error(Ctx :: ctx:ctx(), Message :: map()) -> grpcbox_stream:grpc_extended_error_response().
 generate_error(_Ctx, _Message) ->
@@ -95,7 +120,7 @@ generate_error(_Ctx, _Message) ->
 
 -spec streaming_generate_error(Message :: map(), GrpcStream :: grpcbox_stream:t()) -> no_return().
 streaming_generate_error(_Message, _GrpcStream) ->
-    exit(
+%%    exit(
         {
             grpc_extended_error, #{
                 status => ?GRPC_STATUS_INTERNAL,
@@ -104,8 +129,8 @@ streaming_generate_error(_Message, _GrpcStream) ->
                     <<"generate_error_trailer">> => <<"error_trailer">>
                 }
             }
-        }
-    ).
+        }.
+%%    ).
 
 %% Supporting functions
 
