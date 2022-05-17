@@ -239,6 +239,9 @@ See [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erl
 
 #### Statistics
 
+OpenCensus
+----
+
 Statistics are collected by implementing a stats handler module. A handler for OpenCensus stats (be sure to include [OpenCensus](https://hex.pm/packages/opencensus) as a dependency and make sure it starts on boot) is provided and can be enabled for the server with a config option:
 
 ``` erlang
@@ -257,6 +260,13 @@ You can verify it is working by enabling the stdout exporter:
 For actual use, an [exporter for Prometheus](https://github.com/opencensus-beam/prometheus) is available.
 
 Details on all the metrics that are collected can be found in the [OpenCensus gRPC Stats specification](https://github.com/census-instrumentation/opencensus-specs/blob/master/stats/gRPC.md).
+
+Telemetry
+----
+
+Metrics can also be collected and emitted for downstream handling by your application using the [Telemetry](https://hex.pm/packages/telemetry) Erlang/Elixir library. When you include Telemetry among your application's dependencies and attach handlers to grpcbox events (and any others emitted by your app or its instrumented dependencies) you can send those events and their metadata to any monitoring and aggregation services by way of those handlers.
+
+The Telemetry handler can be used the same way as the OpenCensus handler, by setting the value of the `stats_handler` key in the `grpc_opts` config map to `grpcbox_telemetry_stats_handler`. The Telemetry handler and OpenCensus handlers are mutually exclusive and cannot be used in conjunction.
 
 #### Metadata
 
