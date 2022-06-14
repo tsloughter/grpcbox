@@ -129,6 +129,7 @@ handle_event(_, _, Data) ->
     {keep_state, Data}.
 
 terminate(_Reason, _State, #data{pool=Name}) ->
+    lists:foreach(fun({_Name, Pid}) -> gen_statem:stop(Pid, normal, 1000) end, gproc_pool:active_workers(Name)),
     gproc_pool:force_delete(Name),
     ok.
 
