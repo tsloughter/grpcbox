@@ -20,7 +20,7 @@ defmodule GrpcBox.MixProject do
 
   def package do
     [
-      name: :grpcbox_test
+      name: :grpcbox
     ]
   end
 end
