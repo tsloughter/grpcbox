@@ -1,38 +1,53 @@
-{application, grpcbox,
- [{description,"Erlang grpc library based on chatterbox"},
-  {vsn,"git"},
-  {registered,[]},
-  {mod,{grpcbox_app,[]}},
-  {applications,[kernel,
-                 stdlib,
-                 chatterbox,
-                 acceptor_pool,
-                 gproc,
-                 ctx]},
-  {env, [{client, #{channels => [%% {default_channel, round_robin, [{http, "localhost", 8080, []}], #{}}
-                                ]}},
+{application, grpcbox, [
+    {description, "Erlang grpc library based on chatterbox"},
+    {vsn, "git"},
+    {registered, []},
+    {mod, {grpcbox_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        chatterbox,
+        acceptor_pool,
+        gproc,
+        ctx
+    ]},
+    %% {default_channel, round_robin, [{http, "localhost", 8080, []}], #{}}
+    {env, [
+        {client, #{channels => []}},
 
-         {grpc_opts, #{service_protos => [],
-                       client_cert_dir => ""}},
+        {grpc_opts, #{
+            service_protos => [],
+            client_cert_dir => ""
+        }},
 
-         {transport_opts, #{ssl => false,
-                            keyfile => "",
-                            certfile => "",
-                            cacertfile => ""}},
+        {transport_opts, #{
+            ssl => false,
+            keyfile => "",
+            certfile => "",
+            cacertfile => ""
+        }},
 
-         {listen_opts, #{port => 8080,
-                         ip => {0,0,0,0}}},
+        {listen_opts, #{
+            port => 8080,
+            ip => {0, 0, 0, 0}
+        }},
 
-         %% server acceptors
-         {pool_opts, #{size => 10}},
+        %% server acceptors
+        {pool_opts, #{size => 10}},
 
-         %% chatterbox options
-         {server_opts, #{header_table_size => 4096,
-                         enable_push => 1,
-                         max_concurrent_streams => unlimited,
-                         initial_window_size => 65535,
-                         max_frame_size => 16384,
-                         max_header_list_size => unlimited}}]},
-  {modules,[]},
-  {licenses,["Apache 2.0"]},
-  {links,[{"Github","https://github.com/tsloughter/grpcbox"}]}]}.
+        %% chatterbox options
+        {server_opts, #{
+            header_table_size => 4096,
+            enable_push => 1,
+            max_concurrent_streams => unlimited,
+            initial_window_size => 65535,
+            max_frame_size => 16384,
+            max_header_list_size => unlimited
+        }}
+    ]},
+    {modules, []},
+    {licenses, ["Apache 2.0"]},
+    {links, [{"Github", "https://github.com/tsloughter/grpcbox"}]},
+    {doc, "doc"},
+    {include_files, ["mix.exs"]}
+]}.
