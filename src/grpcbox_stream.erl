@@ -291,7 +291,7 @@ on_receive_data(Bin, State=#state{request_encoding=Encoding,
         C:E:S ->
             %% if we dont catch exceptions here, it ends up taking the h2 connection down
             %% and thus one stream going down pulls ev thing down
-            ?LOG_INFO("crash: class=~p exception=~p stacktrace=~p", [C, E, S]),
+            ?LOG_WARNING("crash: class=~p exception=~p stacktrace=~p", [C, E, S]),
             {ok, State2} = end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State),
             _ = stop_stream(?INTERNAL_ERROR, State2),
             {ok, State2}
@@ -454,15 +454,24 @@ handle_info(Msg, State=#state{method=#method{module=Module, function=Function}})
     %% by the handler to accommodate any function specific handling
     %% really this is a bespoke use case
     %% fall back to handle_info/2 if the /3 is not exported
-    case erlang:function_exported(Module, handle_info, 3) of
-        true -> Module:handle_info(Function, Msg, State);
-        false ->
-            case erlang:function_exported(Module, handle_info, 2) of
-                true -> Module:handle_info(Msg, State);
-                false ->
-                    State
-            end
+    try
+        case erlang:function_exported(Module, handle_info, 3) of
+            true ->
+                Module:handle_info(Function, Msg, State);
+            false ->
+                case erlang:function_exported(Module, handle_info, 2) of
+                    true -> Module:handle_info(Msg, State);
+                    false ->
+                        State
+                end
+        end
+    catch C:E:S ->
+        ?LOG_WARNING("crash: class=~p exception=~p stacktrace=~p", [C, E, S]),
+        {ok, State2} = end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State),
+        _ = stop_stream(?INTERNAL_ERROR, State2),
+        State2
     end.
+
 
 add_trailers(Ctx, Trailers=#{}) ->
     State=#state{resp_trailers=RespTrailers} = from_ctx(Ctx),
@@ -577,7 +586,14 @@ add_trailers_from_error_data(ErrorData, State) ->
     update_trailers(maps:to_list(Trailers), State).
 
 maybe_init_handler_state(Module, Function, State)->
-    case erlang:function_exported(Module, init, 2) of
-        true -> Module:init(Function, State);
-        false -> State
+    try
+        case erlang:function_exported(Module, init, 2) of
+            true -> Module:init(Function, State);
+            false -> State
+        end
+    catch C:E:S ->
+        ?LOG_WARNING("crash: class=~p exception=~p stacktrace=~p", [C, E, S]),
+        {ok, State2} = end_stream(?GRPC_STATUS_UNKNOWN, <<>>, State),
+        _ = stop_stream(?INTERNAL_ERROR, State2),
+        State2
     end.
