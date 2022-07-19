@@ -38,4 +38,4 @@ init([ServerOpts, ChatterboxOpts, TransportOpts]) ->
     Conn = #{id => grpcbox_acceptor,
              start => {grpcbox_acceptor, {Transport, ServerOpts, ChatterboxOpts, SslOpts}, []},
              grace => 5000},
-    {ok, {#{}, [Conn]}}.
+    {ok, {#{intensity => 50, period => 2}, [Conn]}}.
