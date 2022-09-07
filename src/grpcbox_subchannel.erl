@@ -92,10 +92,18 @@ terminate(_Reason, _State, #data{conn=Pid,
     ok.
 
 connect(Data=#data{conn=undefined,
-                   endpoint={Transport, Host, Port, SSLOptions}}, From, Actions) ->
-    case h2_client:start_link(Transport, Host, Port, options(Transport, SSLOptions),
-                             #{garbage_on_end => true,
-                               stream_callback_mod => grpcbox_client_stream}) of
+                   endpoint={Transport, Host, Port, EndpointOptions}}, From, Actions) ->
+    % Get and delete non-ssl options from endpoint options, these are passed as connection settings
+    ConnectTimeout = proplists:get_value(connect_timeout, EndpointOptions, 5000),
+    TcpUserTimeout = proplists:get_value(tcp_user_timeout, EndpointOptions, 0),
+    EndpointOptions2 = proplists:delete(connect_timeout, EndpointOptions),
+    EndpointOptions3 = proplists:delete(tcp_user_timeout, EndpointOptions2),
+
+    case h2_client:start_link(Transport, Host, Port, options(Transport, EndpointOptions3),
+                              #{garbage_on_end => true,
+                                stream_callback_mod => grpcbox_client_stream,
+                                connect_timeout => ConnectTimeout,
+                                tcp_user_timeout => TcpUserTimeout}) of
         {ok, Pid} ->
             {next_state, ready, Data#data{conn=Pid}, Actions};
         {error, _}=Error ->

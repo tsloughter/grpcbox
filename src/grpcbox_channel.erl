@@ -19,8 +19,11 @@
 -type t() :: any().
 -type name() :: t().
 -type transport() :: http | https.
+-type endpoint_options() :: [ssl:ssl_option() |
+                             {connect_timeout, integer()} |
+                             {tcp_user_timeout, integer()}].
 -type host() :: inet:ip_address() | inet:hostname().
--type endpoint() :: {transport(), host(), inet:port_number(), ssl:ssl_option()}.
+-type endpoint() :: {transport(), host(), inet:port_number(), endpoint_options()}.
 
 -type options() :: #{balancer => load_balancer(),
                      encoding => gprcbox:encoding(),
@@ -82,7 +85,6 @@ stop(Name) ->
 
 init([Name, Endpoints, Options]) ->
     process_flag(trap_exit, true),
-
     BalancerType = maps:get(balancer, Options, round_robin),
     Encoding = maps:get(encoding, Options, identity),
     StatsHandler = maps:get(stats_handler, Options, undefined),
@@ -165,8 +167,8 @@ insert_stream_interceptor(Name, _Type, Interceptors) ->
 start_workers(Pool, StatsHandler, Encoding, Endpoints) ->
     [begin
          gproc_pool:add_worker(Pool, Endpoint),
-         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SSLOptions},
+         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, EndpointOptions},
              Encoding, StatsHandler),
          Pid
-     end || Endpoint={Transport, Host, Port, SSLOptions} <- Endpoints].
+     end || Endpoint={Transport, Host, Port, EndpointOptions} <- Endpoints].
 
