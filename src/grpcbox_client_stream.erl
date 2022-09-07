@@ -27,7 +27,7 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 message_type=MessageType,
                                                 marshal_fun=MarshalFun,
                                                 unmarshal_fun=UnMarshalFun}, Options) ->
-    case grpcbox_subchannel:conn(Channel) of
+    case grpcbox_subchannel:conn(Channel, grpcbox_utils:get_timeout_from_ctx(Ctx, infinity)) of
         {ok, Conn, #{scheme := Scheme,
                      authority := Authority,
                      encoding := DefaultEncoding,
@@ -62,7 +62,7 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                      message_type=MessageType,
                                                      marshal_fun=MarshalFun,
                                                      unmarshal_fun=UnMarshalFun}, Options) ->
-    case grpcbox_subchannel:conn(Channel) of
+    case grpcbox_subchannel:conn(Channel, grpcbox_utils:get_timeout_from_ctx(Ctx, infinity)) of
         {ok, Conn, #{scheme := Scheme,
                      authority := Authority,
                      encoding := DefaultEncoding,
