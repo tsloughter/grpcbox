@@ -129,7 +129,8 @@ metadata_headers(Ctx) ->
         D when D =:= undefined ; D =:= infinity ->
             grpcbox_utils:encode_headers(maps:to_list(grpcbox_metadata:from_outgoing_ctx(Ctx)));
         {T, _} ->
-            Timeout = {<<"grpc-timeout">>, <<(integer_to_binary(T - erlang:monotonic_time()))/binary, "n">>},
+            TimeMs = erlang:convert_time_unit(T - erlang:monotonic_time(), native, millisecond),
+            Timeout = {<<"grpc-timeout">>, <<(integer_to_binary(TimeMs))/binary, "m">>},
             grpcbox_utils:encode_headers([Timeout | maps:to_list(grpcbox_metadata:from_outgoing_ctx(Ctx))])
     end.
 
