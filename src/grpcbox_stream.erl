@@ -24,7 +24,8 @@
          on_receive_headers/2,
          on_send_push_promise/2,
          on_receive_data/2,
-         on_end_stream/1]).
+         on_end_stream/1,
+         terminate/1]).
 
 -export_type([t/0,
               grpc_status/0,
@@ -314,6 +315,9 @@ on_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
     end_stream(State);
 on_end_stream_(State) ->
     end_stream(State).
+
+terminate(State) ->
+    on_end_stream(State).
 
 %% Internal
 
