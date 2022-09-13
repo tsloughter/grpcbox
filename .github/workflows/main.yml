@@ -12,19 +12,21 @@ jobs:
   build:
     name: Test on OTP ${{ matrix.otp_version }} and ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
-        otp_version: ['23.1']
+        otp_version: ['24.1.2', '23.3.4.16']
+        rebar3_version: ['3.19.0']
         os: [ubuntu-18.04]
+    env:
+      OTP_VERSION: ${{ matrix.otp_version }}
 
     steps:
     - uses: actions/checkout@v2
 
-    - uses: erlef/setup-elixir@v1
+    - uses: erlef/setup-beam@v1
       with:
         otp-version: ${{ matrix.otp_version }}
-        elixir-version: '1.11.1'
+        rebar3-version: ${{ matrix.rebar3_version }}
 
     - name: Compile
       run: rebar3 compile
@@ -34,7 +36,8 @@ jobs:
       run: rebar3 dialyzer
     - name: Covertool
       run: rebar3 covertool generate
-
-    - uses: codecov/codecov-action@v1
+    - uses: codecov/codecov-action@v2
+      if: ${{ always() }}
       with:
         file: _build/test/covertool/grpcbox.covertool.xml
+        env_vars: OTP_VERSION
