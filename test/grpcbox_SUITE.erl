@@ -541,9 +541,13 @@ unary_authenticated(Config) ->
 %% checks that no closed streams are left around after unary requests
 unary_garbage_collect_streams(Config) ->
     unary(Config),
+    unary(Config),
+    unary(Config),
 
     ConnectionStreamSet = connection_stream_set(),
+    Links = connection_pid_links(),
 
+    ?assertEqual(0, Links),
     ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
 
 client_stream_garbage_collect_streams(Config) ->
@@ -675,6 +679,12 @@ connection_stream_set() ->
     %% I know, I know, this will fail if the connection record in h2_connection ever has elements
     %% added before the stream_set field. But for now, it is 14 and that's good enough.
     element(14, ConnState).
+
+connection_pid_links() ->
+    {ok, {Channel, _}} = grpcbox_channel:pick(default_channel, unary),
+    {ok, Conn, _} = grpcbox_subchannel:conn(Channel),
+    {links, Links} = erlang:process_info(Conn, links),
+    Links.
 
 cert_dir(Config) ->
     DataDir = ?config(data_dir, Config),
