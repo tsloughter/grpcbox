@@ -99,12 +99,12 @@ status_to_string(Code) ->
     <<"CODE_", Code/binary>>.
 
 get_timeout_from_ctx(Ctx, DefaultTimeout) ->
-    Ret = case ctx:deadline(Ctx) of
-              undefined ->
-                  DefaultTimeout;
-              infinity ->
-                  infinity;
-              {Deadline, _} ->
-                  erlang:convert_time_unit(Deadline - erlang:monotonic_time(), native, millisecond)
-          end,
-    Ret.
+    case ctx:deadline(Ctx) of
+        undefined ->
+            DefaultTimeout;
+        infinity ->
+            infinity;
+        {Deadline, _} ->
+           erlang:convert_time_unit(Deadline - erlang:monotonic_time(), native, millisecond)
+    end.
+
