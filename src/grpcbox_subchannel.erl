@@ -3,7 +3,8 @@
 -behaviour(gen_statem).
 
 -export([start_link/5,
-         conn/1]).
+         conn/1,
+         conn/2]).
 -export([init/1,
          callback_mode/0,
          terminate/3,
@@ -26,7 +27,13 @@ start_link(Name, Channel, Endpoint, Encoding, StatsHandler) ->
     gen_statem:start_link(?MODULE, [Name, Channel, Endpoint, Encoding, StatsHandler], []).
 
 conn(Pid) ->
-    gen_statem:call(Pid, conn).
+    conn(Pid, infinity).
+conn(Pid, Timeout) ->
+    try
+        gen_statem:call(Pid, conn, Timeout)
+    catch
+        exit:{timeout, _} -> {error, timeout}
+    end.
 
 init([Name, Channel, Endpoint, Encoding, StatsHandler]) ->
     process_flag(trap_exit, true),
