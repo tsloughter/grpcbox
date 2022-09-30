@@ -5,7 +5,8 @@
 -export([start_link/3,
          is_ready/1,
          pick/2,
-         stop/1]).
+         stop/1,
+         stop/2]).
 -export([init/1,
          callback_mode/0,
          terminate/3,
@@ -78,7 +79,9 @@ interceptor(Name, CallType) ->
     end.
 
 stop(Name) ->
-    gen_statem:stop(?CHANNEL(Name)).
+    stop(Name, {shutdown, force_delete}).
+stop(Name, Reason) ->
+    gen_statem:stop(?CHANNEL(Name), Reason, infinity).
 
 init([Name, Endpoints, Options]) ->
     process_flag(trap_exit, true),
@@ -128,8 +131,11 @@ idle(EventType, EventContent, Data) ->
 handle_event(_, _, Data) ->
     {keep_state, Data}.
 
-terminate(_Reason, _State, #data{pool=Name}) ->
-    gproc_pool:force_delete(Name),
+terminate({shutdown, force_delete}, _State, #data{pool=Name}) ->
+    gproc_pool:force_delete(Name);
+terminate(Reason, _State, #data{pool=Name}) ->
+    [grpcbox_subchannel:stop(Pid, Reason) || {_Channel, Pid} <- gproc_pool:active_workers(Name)],
+    gproc_pool:delete(Name),
     ok.
 
 insert_interceptors(Name, Interceptors) ->

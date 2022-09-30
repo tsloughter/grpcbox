@@ -4,7 +4,8 @@
 
 -export([start_link/5,
          conn/1,
-         conn/2]).
+         conn/2,
+         stop/2]).
 -export([init/1,
          callback_mode/0,
          terminate/3,
@@ -34,6 +35,9 @@ conn(Pid, Timeout) ->
     catch
         exit:{timeout, _} -> {error, timeout}
     end.
+
+stop(Pid, Reason) ->
+    gen_statem:stop(Pid, Reason, infinity).
 
 init([Name, Channel, Endpoint, Encoding, StatsHandler]) ->
     process_flag(trap_exit, true),
@@ -90,10 +94,17 @@ terminate(_Reason, _State, #data{conn=undefined,
     gproc_pool:disconnect_worker(Channel, Endpoint),
     gproc_pool:remove_worker(Channel, Endpoint),
     ok;
-terminate(_Reason, _State, #data{conn=Pid,
+terminate(normal, _State, #data{conn=Pid,
                                  endpoint=Endpoint,
                                  channel=Channel}) ->
     h2_connection:stop(Pid),
+    gproc_pool:disconnect_worker(Channel, Endpoint),
+    gproc_pool:remove_worker(Channel, Endpoint),
+    ok;
+terminate(Reason, _State, #data{conn=Pid,
+                                 endpoint=Endpoint,
+                                 channel=Channel}) ->
+    exit(Pid, Reason),
     gproc_pool:disconnect_worker(Channel, Endpoint),
     gproc_pool:remove_worker(Channel, Endpoint),
     ok.
