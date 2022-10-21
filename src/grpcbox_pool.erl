@@ -4,12 +4,14 @@
 
 -export([start_link/4,
          accept_socket/3,
-         pool_sockets/1]).
+         pool_sockets/1,
+         connection_count/1]).
 
 -export([init/1]).
 
-start_link(Name, ServerOpts, ChatterboxOpts, TransportOpts) ->
-    acceptor_pool:start_link({local, Name}, ?MODULE, [ServerOpts, ChatterboxOpts, TransportOpts]).
+start_link(PoolName, ServerOpts, ChatterboxOpts, TransportOpts) ->
+    acceptor_pool:start_link({local, PoolName}, PoolName, ?MODULE,
+        [PoolName, ServerOpts, ChatterboxOpts, TransportOpts]).
 
 accept_socket(Pool, Socket, Acceptors) ->
     acceptor_pool:accept_socket(Pool, Socket, Acceptors).
@@ -17,7 +19,10 @@ accept_socket(Pool, Socket, Acceptors) ->
 pool_sockets(Pool) ->
     acceptor_pool:which_sockets(Pool).
 
-init([ServerOpts, ChatterboxOpts, TransportOpts]) ->
+connection_count(Pool) ->
+    acceptor_pool:num_conns(Pool).
+
+init([PoolName, ServerOpts, ChatterboxOpts, TransportOpts]) ->
     {Transport, SslOpts} = case TransportOpts of
                                #{ssl := true,
                                  keyfile := KeyFile,
@@ -36,6 +41,6 @@ init([ServerOpts, ChatterboxOpts, TransportOpts]) ->
                            end,
 
     Conn = #{id => grpcbox_acceptor,
-             start => {grpcbox_acceptor, {Transport, ServerOpts, ChatterboxOpts, SslOpts}, []},
+             start => {grpcbox_acceptor, {PoolName, Transport, ServerOpts, ChatterboxOpts, SslOpts}, []},
              grace => 5000},
     {ok, {#{intensity => 50, period => 2}, [Conn]}}.
