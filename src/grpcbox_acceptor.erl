@@ -16,7 +16,8 @@ acceptor_continue(_PeerName, Socket, {ssl, _MRef, PoolName, ServerOpts, Chatterb
     case ssl:negotiated_protocol(AcceptSocket) of
         {ok, <<"h2">>} ->
             MaxConns = maps:get(max_connections, ServerOpts, unlimited),
-            case connection_allowed(PoolName, MaxConns) of
+            {ok, {PeerName, _PeerPort}} = ssl:peername(AcceptSocket),
+            case connection_allowed(PeerName, PoolName, MaxConns) of
                 true ->
                     h2_connection:become({ssl, AcceptSocket}, chatterbox:settings(server, ServerOpts), ChatterboxOpts);
                 false ->
@@ -28,7 +29,8 @@ acceptor_continue(_PeerName, Socket, {ssl, _MRef, PoolName, ServerOpts, Chatterb
 
 acceptor_continue(_PeerName, Socket, {gen_tcp, _MRef, PoolName, ServerOpts, ChatterboxOpts, _SslOpts}) ->
     MaxConns = maps:get(max_connections, ServerOpts, unlimited),
-    case connection_allowed(PoolName, MaxConns) of
+    {ok, {PeerName, _PeerPort}} = inet:peername(Socket),
+    case connection_allowed(PeerName, PoolName, MaxConns) of
         true ->
             h2_connection:become({gen_tcp, Socket}, chatterbox:settings(server, ServerOpts), ChatterboxOpts);
         false ->
@@ -40,8 +42,25 @@ acceptor_terminate(Reason, _) ->
     % accept failed.
     exit(Reason).
 
-connection_allowed(_PoolName, unlimited) ->
-    true;
-connection_allowed(PoolName, MaxConns) ->
-    grpcbox_pool:connection_count(PoolName) =< MaxConns .
+connection_allowed(PeerName, PoolName, unlimited) ->
+    check_peer_allowed(PeerName, PoolName);
+connection_allowed(PeerName, PoolName, MaxConns) ->
+    grpcbox_pool:connection_count(PoolName) =< MaxConns andalso
+    check_peer_allowed(PeerName, PoolName).
+
+check_peer_allowed(PeerName, PoolName) ->
+    case throttle:check(PoolName, PeerName) of
+        {ok, _, _} ->
+            check_any_allowed(PoolName);
+        rate_not_set ->
+            check_any_allowed(PoolName);
+        {limit_exceeded, _, _} -> false
+    end.
+
+check_any_allowed(PoolName) ->
+    case throttle:check({PoolName, all}, all) of
+        {ok, _, _} -> true;
+        rate_not_set -> false;
+        {limit_exceeded, _, _} -> false
+    end.
 
