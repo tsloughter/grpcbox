@@ -48,16 +48,16 @@ init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts, ServiceSupName]
 
     %% unique name for pool based on the ip and port it will listen on
     PoolName = pool_name(ListenOpts),
-    case {maps:get(accept_rate, ListenOpts, undefined),
-          maps:get(accept_rate_interval, ListenOpts, undefined)} of
+    case {maps:get(accept_rate, ServerOpts, undefined),
+          maps:get(accept_rate_interval, ServerOpts, undefined)} of
         {ThrottleRate, ThrottleInterval} when is_integer(ThrottleRate)
                                               andalso ThrottleInterval /= undefined ->
             throttle:setup({PoolName, any}, ThrottleRate, ThrottleInterval);
         _ ->
             ok
     end,
-    case {maps:get(accept_rate_by_ip, ListenOpts, undefined),
-          maps:get(accept_rate_by_ip_interval, ListenOpts, undefined)} of
+    case {maps:get(accept_rate_by_ip, ServerOpts, undefined),
+          maps:get(accept_rate_by_ip_interval, ServerOpts, undefined)} of
         {IPThrottleRate, IPThrottleInterval} when is_integer(IPThrottleRate)
                                               andalso IPThrottleInterval /= undefined ->
             throttle:setup(PoolName, IPThrottleRate, IPThrottleInterval);
