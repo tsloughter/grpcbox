@@ -1,7 +1,7 @@
 {"1.2.0",
 [{<<"acceptor_pool">>,
   {git,"https://github.com/novalabsxyz/acceptor_pool",
-       {ref,"2580c6580975c565f1cff890c800506e3b45888c"}},
+       {ref,"7e53c5cec2c867838576237c6d016e1eb5501f03"}},
   0},
  {<<"chatterbox">>,
   {git,"https://github.com/novalabsxyz/chatterbox",
