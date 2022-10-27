@@ -47,14 +47,31 @@ init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts, ServiceSupName]
                                                 StreamInterceptor, StatsHandler]},
 
     %% unique name for pool based on the ip and port it will listen on
-    Name = pool_name(ListenOpts),
+    PoolName = pool_name(ListenOpts),
+    case {maps:get(accept_rate, ServerOpts, undefined),
+          maps:get(accept_rate_interval, ServerOpts, undefined)} of
+        {ThrottleRate, ThrottleInterval} when is_integer(ThrottleRate)
+                                              andalso ThrottleInterval /= undefined ->
+            throttle:setup({PoolName, any}, ThrottleRate, ThrottleInterval);
+        _ ->
+            ok
+    end,
+    case {maps:get(accept_rate_by_ip, ServerOpts, undefined),
+          maps:get(accept_rate_by_ip_interval, ServerOpts, undefined)} of
+        {IPThrottleRate, IPThrottleInterval} when is_integer(IPThrottleRate)
+                                              andalso IPThrottleInterval /= undefined ->
+            throttle:setup(PoolName, IPThrottleRate, IPThrottleInterval);
+        _ ->
+            ok
+    end,
+
 
     RestartStrategy = #{strategy => rest_for_one, intensity => 50, period => 2},
     Pool = #{id => grpcbox_pool,
-             start => {grpcbox_pool, start_link, [Name, chatterbox:settings(server, ServerOpts),
+             start => {grpcbox_pool, start_link, [PoolName, ServerOpts,
                                                   ChatterboxOpts, TransportOpts]}},
     Socket = #{id => grpcbox_socket,
-               start => {grpcbox_socket, start_link, [Name, ListenOpts, PoolOpts]}},
+               start => {grpcbox_socket, start_link, [PoolName, ListenOpts, PoolOpts]}},
     {ok, {RestartStrategy, [Pool, Socket]}}.
 
 %%

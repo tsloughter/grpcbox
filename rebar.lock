@@ -1,7 +1,7 @@
 {"1.2.0",
 [{<<"acceptor_pool">>,
   {git,"https://github.com/novalabsxyz/acceptor_pool",
-       {ref,"56d676e00c11fd071a6bcc4059e3454960900af7"}},
+       {ref,"7e53c5cec2c867838576237c6d016e1eb5501f03"}},
   0},
  {<<"chatterbox">>,
   {git,"https://github.com/novalabsxyz/chatterbox",
@@ -9,14 +9,17 @@
   0},
  {<<"ctx">>,{pkg,<<"ctx">>,<<"0.6.0">>},0},
  {<<"gproc">>,{pkg,<<"gproc">>,<<"0.8.0">>},0},
- {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.2.3">>},1}]}.
+ {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.2.3">>},1},
+ {<<"throttle">>,{pkg,<<"lambda_throttle">>,<<"0.2.0">>},0}]}.
 [
 {pkg_hash,[
  {<<"ctx">>, <<"8FF88B70E6400C4DF90142E7F130625B82086077A45364A78D208ED3ED53C7FE">>},
  {<<"gproc">>, <<"CEA02C578589C61E5341FCE149EA36CCEF236CC2ECAC8691FBA408E7EA77EC2F">>},
- {<<"hpack">>, <<"17670F83FF984AE6CD74B1C456EDDE906D27FF013740EE4D9EFAA4F1BF999633">>}]},
+ {<<"hpack">>, <<"17670F83FF984AE6CD74B1C456EDDE906D27FF013740EE4D9EFAA4F1BF999633">>},
+ {<<"throttle">>, <<"E881B46D9836AFB70F3E2FA3BE9B0140805BA324ED26AA734FF6C5C1568C6CA7">>}]},
 {pkg_hash_ext,[
  {<<"ctx">>, <<"A14ED2D1B67723DBEBBE423B28D7615EB0BDCBA6FF28F2D1F1B0A7E1D4AA5FC2">>},
  {<<"gproc">>, <<"580ADAFA56463B75263EF5A5DF4C86AF321F68694E7786CB057FD805D1E2A7DE">>},
- {<<"hpack">>, <<"06F580167C4B8B8A6429040DF36CC93BBA6D571FAEAEC1B28816523379CBB23A">>}]}
+ {<<"hpack">>, <<"06F580167C4B8B8A6429040DF36CC93BBA6D571FAEAEC1B28816523379CBB23A">>},
+ {<<"throttle">>, <<"3EACFAAC1C2EBD0F17D77D9E96B1029BF07DED4AC233BA38883D70CDF1FFF740">>}]}
 ].
