@@ -10,7 +10,7 @@
 -export([init/1]).
 
 start_link(PoolName, ServerOpts, ChatterboxOpts, TransportOpts) ->
-    acceptor_pool:start_link({local, PoolName}, PoolName, ?MODULE,
+    acceptor_pool:start_link({local, PoolName}, ?MODULE,
         [PoolName, ServerOpts, ChatterboxOpts, TransportOpts]).
 
 accept_socket(Pool, Socket, Acceptors) ->
