@@ -58,7 +58,7 @@ check_peer_allowed(PeerName, PoolName) ->
     end.
 
 check_any_allowed(PoolName) ->
-    case throttle:check({PoolName, all}, all) of
+    case throttle:check({PoolName, any}, any) of
         {ok, _, _} -> true;
         rate_not_set -> false;
         {limit_exceeded, _, _} -> false
