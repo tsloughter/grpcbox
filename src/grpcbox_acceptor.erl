@@ -34,7 +34,7 @@ acceptor_continue(_PeerName, Socket, {gen_tcp, _MRef, PoolName, ServerOpts, Chat
         true ->
             h2_connection:become({gen_tcp, Socket}, chatterbox:settings(server, ServerOpts), ChatterboxOpts);
         false ->
-            exit(max_connections_exceeded)
+            exit(normal)
     end.
 
 acceptor_terminate(Reason, _) ->
