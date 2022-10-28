@@ -51,7 +51,7 @@ handle_info(_Msg, State) ->
 code_change(_, State, _) ->
     {ok, State}.
 
-terminate(_Reason, {Socket, MRef}) ->
+terminate(_Reason, #state{mref = MRef, socket = Socket} = _State) ->
     %% Socket may already be down but need to ensure it is closed to avoid
     %% eaddrinuse error on restart
     %% this takes care of that, unless of course this process is killed...
