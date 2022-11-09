@@ -105,6 +105,10 @@ get_timeout_from_ctx(Ctx, DefaultTimeout) ->
         infinity ->
             infinity;
         {Deadline, _} ->
-           erlang:convert_time_unit(Deadline - erlang:monotonic_time(), native, millisecond)
+            Timeout = erlang:convert_time_unit(Deadline - erlang:monotonic_time(), native, millisecond),
+            case Timeout < 0 of
+                true -> 0;
+                false -> Timeout
+            end
     end.
 
