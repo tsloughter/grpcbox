@@ -549,6 +549,7 @@ unary_garbage_collect_streams(Config) ->
 client_stream_garbage_collect_streams(Config) ->
     client_stream(Config),
 
+    timer:sleep(100),
     ConnectionStreamSet = connection_stream_set(),
 
     ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
