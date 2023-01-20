@@ -8,6 +8,6 @@
 -module(grpc_testing_unimplemented_service_bhvr).
 
 %% @doc Unary RPC
--callback unimplemented_call(ctx:ctx(), test_pb:empty()) ->
-    {ok, test_pb:empty(), ctx:ctx()} | grpcbox_stream:grpc_error_response().
+-callback unimplemented_call(ctx:t(), test_pb:empty()) ->
+    {ok, test_pb:empty(), ctx:t()} | grpcbox_stream:grpc_error_response().
 

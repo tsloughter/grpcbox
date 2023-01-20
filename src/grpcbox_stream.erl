@@ -40,7 +40,7 @@
                 socket,
                 auth_fun,
                 buffer              :: binary(),
-                ctx                 :: ctx:ctx(),
+                ctx                 :: ctx:t() | undefined,
                 services_table      :: ets:tid(),
                 req_headers=[]      :: list(),
                 full_method         :: binary() | undefined,
