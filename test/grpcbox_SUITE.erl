@@ -549,6 +549,7 @@ unary_garbage_collect_streams(Config) ->
 client_stream_garbage_collect_streams(Config) ->
     client_stream(Config),
 
+    timer:sleep(100),
     ConnectionStreamSet = connection_stream_set(),
 
     ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
@@ -673,7 +674,7 @@ connection_stream_set() ->
     {connected, ConnState} = sys:get_state(Conn),
 
     %% I know, I know, this will fail if the connection record in h2_connection ever has elements
-    %% added before the stream_set field. But for now, it is 14 and thats good enough.
+    %% added before the stream_set field. But for now, it is 14 and that's good enough.
     element(14, ConnState).
 
 cert_dir(Config) ->

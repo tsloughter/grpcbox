@@ -5,7 +5,8 @@
          decode_header/1,
          encode_headers/1,
          is_reserved_header/1,
-         status_to_string/1]).
+         status_to_string/1,
+         get_timeout_from_ctx/2]).
 
 -include("grpcbox.hrl").
 
@@ -98,3 +99,18 @@ status_to_string(?GRPC_STATUS_UNAUTHENTICATED) ->
     <<"UNAUTHENTICATED">>;
 status_to_string(Code) ->
     <<"CODE_", Code/binary>>.
+
+get_timeout_from_ctx(Ctx, DefaultTimeout) ->
+    case ctx:deadline(Ctx) of
+        undefined ->
+            DefaultTimeout;
+        infinity ->
+            infinity;
+        {Deadline, _} ->
+            Timeout = erlang:convert_time_unit(Deadline - erlang:monotonic_time(), native, millisecond),
+            case Timeout < 0 of
+                true -> 0;
+                false -> Timeout
+            end
+    end.
+

@@ -31,7 +31,7 @@
     #{name => string(),
       location => point()}.
 
--spec get_feature(Ctx :: ctx:ctx(), Message :: point(), term()) -> {ok, feature(), ctx:ctx()}.
+-spec get_feature(Ctx :: ctx:t(), Message :: point(), term()) -> {ok, feature(), ctx:t()}.
 get_feature(Ctx, Message, _) ->
     Feature = #{name => find_point(Message, data()),
                 location => Message},
@@ -81,8 +81,13 @@ route_chat_loop(Ref, Data, GrpcStream) ->
             route_chat_loop(Ref, [{Location, P} | Data], GrpcStream)
     end.
 
+<<<<<<< HEAD
 -spec generate_error(Ctx :: ctx:ctx(), Message :: map(), term()) -> grpcbox_stream:grpc_extended_error_response().
 generate_error(_Ctx, _Message, _) ->
+=======
+-spec generate_error(Ctx :: ctx:t(), Message :: map()) -> grpcbox_stream:grpc_extended_error_response().
+generate_error(_Ctx, _Message) ->
+>>>>>>> a5aa6e918a2ddbff40e8ebb3c12b1453fe953e03
     {
         grpc_extended_error, #{
             status => ?GRPC_STATUS_INTERNAL,

@@ -25,13 +25,15 @@
          on_receive_headers/2,
          on_send_push_promise/2,
          on_receive_data/2,
-         on_end_stream/1]).
+         on_end_stream/1,
+         terminate/1]).
 
 -export_type([t/0,
               grpc_status/0,
               grpc_status_message/0,
               grpc_error/0,
               grpc_error_response/0,
+              grpc_callback_error/0,
               grpc_error_data/0,
               grpc_extended_error_response/0]).
 
@@ -39,7 +41,7 @@
                 socket,
                 auth_fun,
                 buffer              :: binary(),
-                ctx                 :: ctx:ctx(),
+                ctx                 :: ctx:t() | undefined,
                 services_table      :: ets:tid(),
                 req_headers=[]      :: list(),
                 full_method         :: binary() | undefined,
@@ -63,15 +65,19 @@
 
 -type t() :: #state{}.
 
--type grpc_status_message() :: unicode:chardata().
+-type grpc_status_message() :: unicode:unicode_binary().
 -type grpc_status() :: 0..16.
 -type http_status() :: integer().
--type grpc_error() :: {grpc_status(), grpc_status_message()}.
+-type grpc_error() :: {unicode:unicode_binary(), % containing a grpc_status() value as text
+                       grpc_status_message()}.
 -type grpc_error_response() :: {error, grpc_error(), #{headers => map(),
                                                        trailers => #{}}} |
                                {http_error, {http_status(), unicode:chardata()}, #{headers => map(),
                                                                                    trailers => #{}}} |
                                {error, term()}.
+-type grpc_callback_error() :: {error, grpc_error(), #{headers => map(),
+                                                       trailers => #{}}}.
+
 -type grpc_error_data() :: #{
     status := grpc_status(),
     message := grpc_status_message(),
@@ -299,28 +305,32 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
     end.
 
 on_end_stream(State) ->
-    on_end_stream_(State),
-    {ok, State}.
+    on_end_stream_(State).
 
-on_end_stream_(#state{input_ref=Ref,
-                      callback_pid=Pid,
-                      method=#method{input={_Input, true},
-                                     output={_Output, false}}}) ->
-    Pid ! {Ref, eos};
-on_end_stream_(#state{input_ref=Ref,
-                      callback_pid=Pid,
-                      method=#method{input={_Input, true},
-                                     output={_Output, true}}}) ->
-    Pid ! {Ref, eos};
-on_end_stream_(#state{input_ref=_Ref,
-                      callback_pid=_Pid,
-                      method=#method{input={_Input, false},
-                                     output={_Output, true}}}) ->
-    ok;
+on_end_stream_(State=#state{input_ref=Ref,
+                            callback_pid=Pid,
+                            method=#method{input={_Input, true},
+                                           output={_Output, false}}}) ->
+    Pid ! {Ref, eos},
+    {ok, State};
+on_end_stream_(State=#state{input_ref=Ref,
+                            callback_pid=Pid,
+                            method=#method{input={_Input, true},
+                                           output={_Output, true}}}) ->
+    Pid ! {Ref, eos},
+    {ok, State};
+on_end_stream_(State=#state{input_ref=_Ref,
+                            callback_pid=_Pid,
+                            method=#method{input={_Input, false},
+                                           output={_Output, true}}}) ->
+    {ok, State};
 on_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
     end_stream(State);
 on_end_stream_(State) ->
     end_stream(State).
+
+terminate(State) ->
+    on_end_stream(State).
 
 %% Internal
 

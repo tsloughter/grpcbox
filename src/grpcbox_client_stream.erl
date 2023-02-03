@@ -27,7 +27,7 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 message_type=MessageType,
                                                 marshal_fun=MarshalFun,
                                                 unmarshal_fun=UnMarshalFun}, Options) ->
-    case grpcbox_subchannel:conn(Channel) of
+    case grpcbox_subchannel:conn(Channel, grpcbox_utils:get_timeout_from_ctx(Ctx, infinity)) of
         {ok, Conn, #{scheme := Scheme,
                      authority := Authority,
                      encoding := DefaultEncoding,
@@ -42,11 +42,10 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                             buffer => <<>>,
                                                             stats_handler => StatsHandler,
                                                             stats => #{},
-                                                            client_pid => self()}], self()) of
+                                                            client_pid => self()}], RequestHeaders, [], self()) of
                 {error, _Code} = Err ->
                     Err;
                 {StreamId, Pid} ->
-                    h2_connection:send_headers(Conn, StreamId, RequestHeaders),
                     Ref = erlang:monitor(process, Pid),
                     {ok, #{channel => Conn,
                            stream_id => StreamId,
@@ -63,7 +62,7 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                      message_type=MessageType,
                                                      marshal_fun=MarshalFun,
                                                      unmarshal_fun=UnMarshalFun}, Options) ->
-    case grpcbox_subchannel:conn(Channel) of
+    case grpcbox_subchannel:conn(Channel, grpcbox_utils:get_timeout_from_ctx(Ctx, infinity)) of
         {ok, Conn, #{scheme := Scheme,
                      authority := Authority,
                      encoding := DefaultEncoding,
@@ -130,7 +129,8 @@ metadata_headers(Ctx) ->
         D when D =:= undefined ; D =:= infinity ->
             grpcbox_utils:encode_headers(maps:to_list(grpcbox_metadata:from_outgoing_ctx(Ctx)));
         {T, _} ->
-            Timeout = {<<"grpc-timeout">>, <<(integer_to_binary(T - erlang:monotonic_time()))/binary, "n">>},
+            TimeMs = erlang:convert_time_unit(T - erlang:monotonic_time(), native, millisecond),
+            Timeout = {<<"grpc-timeout">>, <<(integer_to_binary(TimeMs))/binary, "m">>},
             grpcbox_utils:encode_headers([Timeout | maps:to_list(grpcbox_metadata:from_outgoing_ctx(Ctx))])
     end.
 
