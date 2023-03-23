@@ -118,6 +118,8 @@ init([Name, Endpoints, Options]) ->
 
     gproc_pool:new(Name, BalancerType, [{size, length(Endpoints)},
                                         {auto_size, true}]),
+    gproc_pool:new({Name, active}, BalancerType, [{size, length(Endpoints)},
+                                        {auto_size, true}]),
     Data = #data{
         pool = Name,
         encoding = Encoding,
@@ -173,10 +175,12 @@ handle_event(_, _, Data) ->
     {keep_state, Data}.
 
 terminate({shutdown, force_delete}, _State, #data{pool=Name}) ->
-    gproc_pool:force_delete(Name);
+    gproc_pool:force_delete(Name),
+    gproc_pool:force_delete({Name, active});
 terminate(Reason, _State, #data{pool=Name}) ->
     [grpcbox_subchannel:stop(Pid, Reason) || {_Channel, Pid} <- gproc_pool:active_workers(Name)],
     gproc_pool:delete(Name),
+    gproc_pool:delete({Name, active}),
     ok.
 
 insert_interceptors(Name, Interceptors) ->
@@ -212,6 +216,7 @@ insert_stream_interceptor(Name, _Type, Interceptors) ->
 start_workers(Pool, StatsHandler, Encoding, Endpoints) ->
     [begin
         gproc_pool:add_worker(Pool, Endpoint),
+        gproc_pool:add_worker({Pool, active}, Endpoint),
         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint,
                                                     Pool, Endpoint, Encoding, StatsHandler),
         Pid
