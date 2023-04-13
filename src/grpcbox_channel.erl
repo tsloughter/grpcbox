@@ -4,6 +4,7 @@
 
 -export([start_link/3,
          is_ready/1,
+         get/3,
          pick/2,
          pick/3,
          add_endpoints/2,
@@ -59,6 +60,16 @@ start_link(Name, Endpoints, Options) ->
 -spec is_ready(name()) -> boolean().
 is_ready(Name) ->
     gen_statem:call(?CHANNEL(Name), is_ready).
+
+-spec get(name(), unary | stream, term()) ->
+    {ok, {pid(), grpcbox_client:interceptor() | undefined}} |
+    {error, undefined_channel | not_found_endpoint}.
+get(Name, CallType, Key) ->
+    case lists:keyfind(Key, 1, gproc_pool:active_workers(Name)) of
+        {_, Pid} -> {ok, {Pid, interceptor(Name, CallType)}};
+        false -> {error, not_found_endpoint}
+    end.
+
 
 %% @doc Picks a subchannel from a pool using the configured strategy.
 -spec pick(name(), unary | stream) ->

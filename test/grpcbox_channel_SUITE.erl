@@ -6,7 +6,8 @@
          add_and_remove_endpoints/1,
          add_and_remove_endpoints_active_workers/1,
          pick_worker_strategy/1,
-         pick_active_worker_strategy/1
+         pick_active_worker_strategy/1,
+         pick_specify_worker_strategy/1
         ]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -16,7 +17,8 @@ all() ->
         add_and_remove_endpoints,
         add_and_remove_endpoints_active_workers,
         pick_worker_strategy,
-        pick_active_worker_strategy
+        pick_active_worker_strategy,
+        pick_specify_worker_strategy
     ].
 init_per_suite(_Config) ->
     application:set_env(grpcbox, client, #{channel => []}),
@@ -96,6 +98,12 @@ pick_active_worker_strategy(_Config) ->
     ?assertEqual(error, pick_worker({random_channel, active}, 1)),
     ?assertEqual(error, pick_worker({direct_channel, active})),
     ?assertEqual(error, pick_worker({hash_channel, active})),
+    ok.
+
+pick_specify_worker_strategy(_Config) ->
+    ?assertMatch({ok, _} ,grpcbox_channel:get(default_channel, stream, {http, "127.0.0.1", 18080, []})),
+    ?assertEqual({error, not_found_endpoint} ,grpcbox_channel:get(default_channel, stream, {http, "127.0.0.1", 8080, []})),
+    ?assertEqual({error, not_found_endpoint} ,grpcbox_channel:get(channel_xxx, stream, {http, "127.0.0.1", 8080, []})),
     ok.
 
 pick_worker(Name, N) ->
