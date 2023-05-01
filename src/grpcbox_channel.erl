@@ -21,7 +21,7 @@
 -type name() :: t().
 -type transport() :: http | https.
 -type host() :: inet:ip_address() | inet:hostname().
--type endpoint() :: {transport(), host(), inet:port_number(), ssl:ssl_option()}.
+-type endpoint() :: {transport(), host(), inet:port_number(), [gen_tcp:option()], [ssl:ssl_option()]}.
 
 -type options() :: #{balancer => load_balancer(),
                      encoding => gprcbox:encoding(),
@@ -169,10 +169,13 @@ insert_stream_interceptor(Name, _Type, Interceptors) ->
     end.
 
 start_workers(Pool, StatsHandler, Encoding, Endpoints) ->
-    [begin
-         gproc_pool:add_worker(Pool, Endpoint),
-         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SSLOptions},
-             Encoding, StatsHandler),
-         Pid
-     end || Endpoint={Transport, Host, Port, SSLOptions} <- Endpoints].
+    [start_worker(Pool, StatsHandler, Encoding, Endpoint) || Endpoint <- Endpoints].
 
+start_worker(Pool, StatsHandler, Encoding, {Transport, Host, Port, SSLOptions}) ->
+    start_worker(Pool, StatsHandler, Encoding, {Transport, Host, Port, [], SSLOptions});
+
+start_worker(Pool, StatsHandler, Encoding, Endpoint = {Transport, Host, Port, SocketOptions, SSLOptions}) ->
+    gproc_pool:add_worker(Pool, Endpoint),
+    {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SocketOptions, SSLOptions},
+                                              Encoding, StatsHandler),
+    Pid.

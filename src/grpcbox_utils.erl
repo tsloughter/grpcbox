@@ -60,7 +60,9 @@ is_reserved_header(<<"grpc-status-details-bin">>) -> true;
 is_reserved_header(<<"te">>) -> true;
 is_reserved_header(_) -> false.
 
--spec status_to_string(binary()) -> binary().
+-spec status_to_string(integer() | binary()) -> binary().
+status_to_string(Int) when is_integer(Int) ->
+    status_to_string(integer_to_binary(Int));
 status_to_string(?GRPC_STATUS_OK) ->
     <<"OK">>;
 status_to_string(?GRPC_STATUS_CANCELLED) ->

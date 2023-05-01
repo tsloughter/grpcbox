@@ -16,6 +16,7 @@
          error/2,
          ctx/1,
          ctx/2,
+         handler_pid/1,
          handle_streams/2,
          handle_call/2,
          handle_info/2]).
@@ -59,7 +60,8 @@
                 stream_id           :: stream_id(),
                 method              :: #method{} | undefined,
                 stats_handler       :: module() | undefined,
-                stats               :: term() | undefined}).
+                stats               :: term() | undefined
+                                          }).
 
 -type t() :: #state{}.
 
@@ -172,41 +174,50 @@ authenticate({ok, Cert}, Fun) ->
 authenticate(_, _) ->
     false.
 
-handle_streams(Ref, State=#state{full_method=FullMethod,
+handle_streams(Ref, State=#state{handler=Handler,
+                                 full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
                                  method=#method{module=Module,
                                                 function=Function,
+                                                additional_args=AdditionalArgs,
                                                 output={_, false}}}) ->
+    process_flag(trap_exit, true),
     case (case StreamInterceptor of
-              undefined -> Module:Function(Ref, State);
+              undefined -> Module:Function(Ref, State, AdditionalArgs);
               _ ->
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module,
                                  input_stream => true,
                                  output_stream => false},
-                  StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+                  StreamInterceptor(Ref, State, ServerInfo, fun(R, S) -> Module:Function(R, S, AdditionalArgs) end)
           end) of
         {ok, Response, State2} ->
             send(Response, State2);
         E={grpc_error, _} ->
-            throw(E);
+            exit(E);
         E={grpc_extended_error, _} ->
-            throw(E)
+            exit(E)
     end;
-handle_streams(Ref, State=#state{full_method=FullMethod,
+handle_streams(Ref, State=#state{handler=Handler,
+                                 full_method=FullMethod,
                                  stream_interceptor=StreamInterceptor,
                                  method=#method{module=Module,
                                                 function=Function,
+                                                additional_args=AdditionalArgs,
                                                 output={_, true}}}) ->
+    process_flag(trap_exit, true),
     case StreamInterceptor of
         undefined ->
-            Module:Function(Ref, State);
+            case Module:Function(Ref, State, AdditionalArgs) of
+                ok -> ok;
+                Error -> exit(Error)
+            end;
         _ ->
             ServerInfo = #{full_method => FullMethod,
                            service => Module,
                            input_stream => true,
                            output_stream => true},
-            StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+            StreamInterceptor(Ref, State, ServerInfo, fun(R, S) ->  Module:Function(R, S, AdditionalArgs) end)
     end.
 
 on_send_push_promise(_, State) ->
@@ -271,17 +282,18 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
                                         full_method=FullMethod,
                                         method=#method{module=Module,
                                                        function=Function,
+                                                       additional_args=AdditionalArgs,
                                                        proto=_Proto,
                                                        input={_Input, _InputStream},
                                                        output={_Output, _OutputStream}}}) ->
     Ctx1 = ctx_with_stream(Ctx, State),
     case (case UnaryInterceptor of
-              undefined -> Module:Function(Ctx1, Message);
+              undefined -> Module:Function(Ctx1, Message, AdditionalArgs);
               _ ->
                   ServerInfo = #{full_method => FullMethod,
                                  service => Module},
                   UnaryInterceptor(Ctx1, Message, ServerInfo,
-                                   fun Module:Function/2)
+                                   fun (C, S) -> Module:Function(C, S, AdditionalArgs) end)
           end) of
         {ok, Response, Ctx2} ->
             State1 = from_ctx(Ctx2),
@@ -342,7 +354,7 @@ end_stream(Status, Message, State=#state{connection_pid=ConnPid,
                                          ctx=Ctx,
                                          resp_trailers=Trailers}) ->
     EncodedTrailers = grpcbox_utils:encode_headers(Trailers),
-    h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
+    h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, if is_integer(Status) -> integer_to_binary(Status); true -> Status end},
                                                     {<<"grpc-message">>, Message} | EncodedTrailers],
                                 [{send_end_stream, true}]),
     Ctx1 = ctx:with_value(Ctx, grpc_server_status, grpcbox_utils:status_to_string(Status)),
@@ -358,7 +370,7 @@ send_headers(State) ->
 
 send_headers(Ctx, Headers) when is_map(Headers) ->
     State = from_ctx(Ctx),
-    send_headers(maps:to_list(maybe_encode_headers(Headers)), State);
+    ctx_with_stream(Ctx, send_headers(maps:to_list(maybe_encode_headers(Headers)), State));
 
 send_headers(_Metadata, State=#state{headers_sent=true}) ->
     State;
@@ -397,6 +409,12 @@ ctx(#state{handler=Pid}) ->
 ctx(#state{handler=Pid}, Ctx) ->
     h2_stream:call(Pid, {ctx, Ctx}).
 
+handler_pid(#state{handler=Pid}) ->
+    Pid;
+handler_pid(Ctx) ->
+    #state{handler=Pid} = from_ctx(Ctx),
+    Pid.
+
 handle_call(ctx, State=#state{ctx=Ctx}) ->
     {ok, Ctx, State};
 handle_call({ctx, Ctx}, State) ->
@@ -408,23 +426,23 @@ handle_info({add_trailers, Trailers}, State) ->
     update_trailers(Trailers, State);
 handle_info({send_proto, Message}, State) ->
     send(false, Message, State);
-handle_info({'EXIT', _, normal}, State) ->
+handle_info({'EXIT', _Pid, normal}, State) ->
     end_stream(State),
     State;
-handle_info({'EXIT', _, {grpc_error, {Status, Message}}}, State) ->
+handle_info({'EXIT', _Pid, {grpc_error, {Status, Message}}}, State) ->
     end_stream(Status, Message, State),
     State;
-handle_info({'EXIT', _, {grpc_extended_error, #{status := Status, message := Message} = ErrorData}}, State) ->
+handle_info({'EXIT', _Pid, {grpc_extended_error, #{status := Status, message := Message} = ErrorData}}, State) ->
     State1 = add_trailers_from_error_data(ErrorData, State),
     end_stream(Status, Message, State1),
     State1;
-handle_info({'EXIT', _, _Other}, State) ->
+handle_info({'EXIT', _Pid, _Other}, State) ->
     end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
     State;
 handle_info({timeout,_Ref,<<"grpc-timeout">>}, State) ->
     end_stream(?GRPC_STATUS_DEADLINE_EXCEEDED, <<"Deadline expired">>, State),
     State;
-handle_info(_, State) ->
+handle_info(_Other, State) ->
     State.
 
 add_headers(Headers, #state{handler=Pid}) ->
