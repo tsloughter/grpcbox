@@ -169,9 +169,13 @@ insert_stream_interceptor(Name, _Type, Interceptors) ->
     end.
 
 start_workers(Pool, StatsHandler, Encoding, Endpoints) ->
-    [begin
-         gproc_pool:add_worker(Pool, Endpoint),
-         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SocketOptions, SSLOptions},
-             Encoding, StatsHandler),
-         Pid
-     end || Endpoint={Transport, Host, Port, SocketOptions, SSLOptions} <- Endpoints].
+    [start_worker(Pool, StatsHandler, Encoding, Endpoint) || Endpoint <- Endpoints].
+
+start_worker(Pool, StatsHandler, Encoding, {Transport, Host, Port, SSLOptions}) ->
+    start_worker(Pool, StatsHandler, Encoding, {Transport, Host, Port, [], SSLOptions});
+
+start_worker(Pool, StatsHandler, Encoding, Endpoint = {Transport, Host, Port, SocketOptions, SSLOptions}) ->
+    gproc_pool:add_worker(Pool, Endpoint),
+    {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SocketOptions, SSLOptions},
+                                              Encoding, StatsHandler),
+    Pid.
