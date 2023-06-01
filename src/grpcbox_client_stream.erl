@@ -82,11 +82,10 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                                           buffer => <<>>,
                                                                           stats_handler => StatsHandler,
                                                                           stats => #{},
-                                                                          client_pid => self()}], Headers, [], self()) of
+                                                                          client_pid => self()}], Headers, Body, [], self()) of
                 {error, _Code} = Err ->
                     Err;
                 {StreamId, Pid} ->
-                    h2_connection:send_body(Conn, StreamId, Body),
                     {ok, Conn, StreamId, Pid}
             end;
         {error, _}=Error ->
