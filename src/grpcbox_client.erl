@@ -47,7 +47,13 @@
 
 get_channel(Options, Type) ->
     Channel = maps:get(channel, Options, default_channel),
-    grpcbox_channel:pick(Channel, Type).
+    Key =  maps:get(key, Options, undefined),
+    PickStrategy =  maps:get(pick_strategy, Options, undefined),
+    case PickStrategy of
+        specify_worker -> grpcbox_channel:get(Channel, Type, Key);
+        active_worker ->  grpcbox_channel:pick({Channel, active}, Type, Key);
+        undefined -> grpcbox_channel:pick(Channel, Type, Key)
+    end.
 
 unary(Ctx, Service, Method, Input, Def, Options) ->
     unary(Ctx, filename:join([<<>>, Service, Method]), Input, Def, Options).

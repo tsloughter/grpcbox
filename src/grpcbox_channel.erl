@@ -4,7 +4,11 @@
 
 -export([start_link/3,
          is_ready/1,
+         get/3,
          pick/2,
+         pick/3,
+         add_endpoints/2,
+         remove_endpoints/3,
          stop/1,
          stop/2]).
 -export([init/1,
@@ -57,12 +61,30 @@ start_link(Name, Endpoints, Options) ->
 is_ready(Name) ->
     gen_statem:call(?CHANNEL(Name), is_ready).
 
+-spec get(name(), unary | stream, term()) ->
+    {ok, {pid(), grpcbox_client:interceptor() | undefined}} |
+    {error, undefined_channel | not_found_endpoint}.
+get(Name, CallType, Key) ->
+    case lists:keyfind(Key, 1, gproc_pool:active_workers(Name)) of
+        {_, Pid} -> {ok, {Pid, interceptor(Name, CallType)}};
+        false -> {error, not_found_endpoint}
+    end.
+
+
 %% @doc Picks a subchannel from a pool using the configured strategy.
--spec pick(name(), unary | stream) -> {ok, {pid(), grpcbox_client:interceptor() | undefined}} |
-                                   {error, undefined_channel | no_endpoints}.
+-spec pick(name(), unary | stream) ->
+    {ok, {pid(), grpcbox_client:interceptor() | undefined}} |
+    {error, undefined_channel | no_endpoints}.
 pick(Name, CallType) ->
+    pick(Name, CallType, undefined).
+
+%% @doc Picks a subchannel from a pool using the configured strategy.
+-spec pick(name(), unary | stream, term() | undefined) ->
+    {ok, {pid(), grpcbox_client:interceptor() | undefined}} |
+    {error, undefined_channel | no_endpoints}.
+pick(Name, CallType, Key) ->
     try
-        case gproc_pool:pick_worker(Name) of
+        case pick_worker(Name, Key) of
             false -> {error, no_endpoints};
             Pid when is_pid(Pid) ->
                 {ok, {Pid, interceptor(Name, CallType)}}
@@ -71,6 +93,17 @@ pick(Name, CallType) ->
         error:badarg ->
             {error, undefined_channel}
     end.
+
+pick_worker(Name, undefined) ->
+    gproc_pool:pick_worker(Name);
+pick_worker(Name, Key) ->
+    gproc_pool:pick_worker(Name, Key).
+
+add_endpoints(Name, Endpoints) ->
+    gen_statem:call(?CHANNEL(Name), {add_endpoints, Endpoints}).
+
+remove_endpoints(Name, Endpoints, Reason) ->
+    gen_statem:call(?CHANNEL(Name), {remove_endpoints, Endpoints, Reason}).
 
 -spec interceptor(name(), unary | stream) -> grpcbox_client:interceptor() | undefined.
 interceptor(Name, CallType) ->
@@ -96,18 +129,19 @@ init([Name, Endpoints, Options]) ->
 
     gproc_pool:new(Name, BalancerType, [{size, length(Endpoints)},
                                         {auto_size, true}]),
+    gproc_pool:new({Name, active}, BalancerType, [{size, length(Endpoints)},
+                                        {auto_size, true}]),
     Data = #data{
         pool = Name,
         encoding = Encoding,
         stats_handler = StatsHandler,
-        endpoints = Endpoints
+        endpoints = lists:usort(Endpoints)
     },
-
     case maps:get(sync_start, Options, false) of
         false ->
             {ok, idle, Data, [{next_event, internal, connect}]};
         true ->
-            _ = start_workers(Name, StatsHandler, Encoding, Endpoints),
+            start_workers(Name, StatsHandler, Encoding, Endpoints),
             {ok, connected, Data}
     end.
 
@@ -116,6 +150,23 @@ callback_mode() ->
 
 connected({call, From}, is_ready, _Data) ->
     {keep_state_and_data, [{reply, From, true}]};
+connected({call, From}, {add_endpoints, Endpoints},
+            Data=#data{pool=Pool,
+                       stats_handler=StatsHandler,
+                       encoding=Encoding,
+                       endpoints=TotalEndpoints}) ->
+    NewEndpoints = lists:subtract(Endpoints, TotalEndpoints),
+    NewTotalEndpoints = lists:umerge(TotalEndpoints, Endpoints),
+    start_workers(Pool, StatsHandler, Encoding, NewEndpoints),
+    {keep_state, Data#data{endpoints=NewTotalEndpoints}, [{reply, From, ok}]};
+connected({call, From}, {remove_endpoints, Endpoints, Reason},
+            Data=#data{pool=Pool, endpoints=TotalEndpoints}) ->
+
+    NewEndpoints = sets:to_list(sets:intersection(sets:from_list(Endpoints),
+                                sets:from_list(TotalEndpoints))),
+    NewTotalEndpoints = lists:subtract(TotalEndpoints, Endpoints),
+    stop_workers(Pool, NewEndpoints, Reason),
+    {keep_state, Data#data{endpoints = NewTotalEndpoints}, [{reply, From, ok}]};
 connected(EventType, EventContent, Data) ->
     handle_event(EventType, EventContent, Data).
 
@@ -123,7 +174,8 @@ idle(internal, connect, Data=#data{pool=Pool,
                                    stats_handler=StatsHandler,
                                    encoding=Encoding,
                                    endpoints=Endpoints}) ->
-    _ = start_workers(Pool, StatsHandler, Encoding, Endpoints),
+
+    start_workers(Pool, StatsHandler, Encoding, Endpoints),
     {next_state, connected, Data};
 idle({call, From}, is_ready, _Data) ->
     {keep_state_and_data, [{reply, From, false}]};
@@ -134,10 +186,12 @@ handle_event(_, _, Data) ->
     {keep_state, Data}.
 
 terminate({shutdown, force_delete}, _State, #data{pool=Name}) ->
-    gproc_pool:force_delete(Name);
+    gproc_pool:force_delete(Name),
+    gproc_pool:force_delete({Name, active});
 terminate(Reason, _State, #data{pool=Name}) ->
     [grpcbox_subchannel:stop(Pid, Reason) || {_Channel, Pid} <- gproc_pool:active_workers(Name)],
     gproc_pool:delete(Name),
+    gproc_pool:delete({Name, active}),
     ok.
 
 insert_interceptors(Name, Interceptors) ->
@@ -172,9 +226,17 @@ insert_stream_interceptor(Name, _Type, Interceptors) ->
 
 start_workers(Pool, StatsHandler, Encoding, Endpoints) ->
     [begin
-         gproc_pool:add_worker(Pool, Endpoint),
-         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, EndpointOptions},
-             Encoding, StatsHandler),
-         Pid
-     end || Endpoint={Transport, Host, Port, EndpointOptions} <- Endpoints].
+        gproc_pool:add_worker(Pool, Endpoint),
+        gproc_pool:add_worker({Pool, active}, Endpoint),
+        {ok, Pid} = grpcbox_subchannel:start_link(Endpoint,
+                                                    Pool, Endpoint, Encoding, StatsHandler),
+        Pid
+     end || Endpoint <- Endpoints].
 
+stop_workers(Pool, Endpoints, Reason) ->
+    [begin
+        case gproc_pool:whereis_worker(Pool, Endpoint) of
+            undefined -> ok;
+            Pid -> grpcbox_subchannel:stop(Pid, Reason)
+        end
+     end || Endpoint <- Endpoints].
