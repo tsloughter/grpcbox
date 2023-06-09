@@ -14,7 +14,8 @@
          ready/3,
          disconnected/3]).
 
--record(data, {endpoint :: grpcbox_channel:endpoint(),
+-record(data, {name :: any(),
+               endpoint :: grpcbox_channel:endpoint(),
                channel :: grpcbox_channel:t(),
                info :: #{authority := binary(),
                          scheme := binary(),
@@ -41,8 +42,10 @@ stop(Pid, Reason) ->
 
 init([Name, Channel, Endpoint, Encoding, StatsHandler]) ->
     process_flag(trap_exit, true),
+
     gproc_pool:connect_worker(Channel, Name),
-    {ok, disconnected, #data{conn=undefined,
+    {ok, disconnected, #data{name=Name,
+                             conn=undefined,
                              info=info_map(Endpoint, Encoding, StatsHandler),
                              endpoint=Endpoint,
                              channel=Channel}}.
@@ -89,24 +92,24 @@ handle_event(_, _, _) ->
     keep_state_and_data.
 
 terminate(_Reason, _State, #data{conn=undefined,
-                                 endpoint=Endpoint,
+                                 name=Name,
                                  channel=Channel}) ->
-    gproc_pool:disconnect_worker(Channel, Endpoint),
-    gproc_pool:remove_worker(Channel, Endpoint),
+    gproc_pool:disconnect_worker(Channel, Name),
+    gproc_pool:remove_worker(Channel, Name),
     ok;
 terminate(normal, _State, #data{conn=Pid,
-                                 endpoint=Endpoint,
+                                 name=Name,
                                  channel=Channel}) ->
     h2_connection:stop(Pid),
-    gproc_pool:disconnect_worker(Channel, Endpoint),
-    gproc_pool:remove_worker(Channel, Endpoint),
+    gproc_pool:disconnect_worker(Channel, Name),
+    gproc_pool:remove_worker(Channel, Name),
     ok;
 terminate(Reason, _State, #data{conn=Pid,
-                                 endpoint=Endpoint,
+                                 name=Name,
                                  channel=Channel}) ->
+    gproc_pool:disconnect_worker(Channel, Name),
+    gproc_pool:remove_worker(Channel, Name),
     exit(Pid, Reason),
-    gproc_pool:disconnect_worker(Channel, Endpoint),
-    gproc_pool:remove_worker(Channel, Endpoint),
     ok.
 
 connect(Data=#data{conn=undefined,
