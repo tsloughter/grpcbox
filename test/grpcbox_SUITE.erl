@@ -694,18 +694,14 @@ stream_interceptor(_Config) ->
 %% verify that the chatterbox stream isn't storing frame data
 check_stream_state(S) ->
     {_, StreamState} = sys:get_state(maps:get(stream_pid, S)),
-    FrameQueue = element(6, StreamState),
+    FrameQueue = element(7, StreamState),
     ?assert(queue:is_empty(FrameQueue)).
 
 %% return the stream_set of a connection in the channel
 connection_stream_set() ->
     {ok, {Channel, _}} = grpcbox_channel:pick(default_channel, unary),
     {ok, Conn, _} = grpcbox_subchannel:conn(Channel),
-    {connected, ConnState} = sys:get_state(Conn),
-
-    %% I know, I know, this will fail if the connection record in h2_connection ever has elements
-    %% added before the stream_set field. But for now, it is 14 and that's good enough.
-    element(14, ConnState).
+    Conn.
 
 cert_dir(Config) ->
     DataDir = ?config(data_dir, Config),
