@@ -47,7 +47,8 @@
 
 get_channel(Options, Type) ->
     Channel = maps:get(channel, Options, default_channel),
-    grpcbox_channel:pick(Channel, Type).
+    Key =  maps:get(key, Options, undefined),
+    grpcbox_channel:pick(Channel, Type, Key).
 
 unary(Ctx, Service, Method, Input, Def, Options) ->
     unary(Ctx, filename:join([<<>>, Service, Method]), Input, Def, Options).
