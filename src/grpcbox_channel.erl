@@ -20,11 +20,10 @@
 -type t() :: any().
 -type name() :: t().
 -type transport() :: http | https.
--type endpoint_options() :: [ssl:ssl_option() |
-                             {connect_timeout, integer()} |
-                             {tcp_user_timeout, integer()}].
 -type host() :: inet:ip_address() | inet:hostname().
--type endpoint() :: {transport(), host(), inet:port_number(), endpoint_options()}.
+-type connection_settings() :: map().
+-type endpoint() :: {transport(), host(), inet:port_number(), [ssl:ssl_options()]} |
+                    {transport(), host(), inet:port_number(), [ssl:ssl_options()], connection_settings()}.
 
 -type options() :: #{balancer => load_balancer(),
                      encoding => gprcbox:encoding(),
@@ -88,6 +87,9 @@ stop(Name, Reason) ->
 
 init([Name, Endpoints, Options]) ->
     process_flag(trap_exit, true),
+
+    Endpoints1 = normalize_endpoints(Endpoints),
+
     BalancerType = maps:get(balancer, Options, round_robin),
     Encoding = maps:get(encoding, Options, identity),
     StatsHandler = maps:get(stats_handler, Options, undefined),
@@ -100,14 +102,14 @@ init([Name, Endpoints, Options]) ->
         pool = Name,
         encoding = Encoding,
         stats_handler = StatsHandler,
-        endpoints = Endpoints
+        endpoints = Endpoints1
     },
 
     case maps:get(sync_start, Options, false) of
         false ->
             {ok, idle, Data, [{next_event, internal, connect}]};
         true ->
-            _ = start_workers(Name, StatsHandler, Encoding, Endpoints),
+            _ = start_workers(Name, StatsHandler, Encoding, Endpoints1),
             {ok, connected, Data}
     end.
 
@@ -173,8 +175,15 @@ insert_stream_interceptor(Name, _Type, Interceptors) ->
 start_workers(Pool, StatsHandler, Encoding, Endpoints) ->
     [begin
          gproc_pool:add_worker(Pool, Endpoint),
-         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, EndpointOptions},
-             Encoding, StatsHandler),
+         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SSLOptions, ConnectionSettings},
+                                                   Encoding, StatsHandler),
          Pid
-     end || Endpoint={Transport, Host, Port, EndpointOptions} <- Endpoints].
+     end || Endpoint={Transport, Host, Port, SSLOptions, ConnectionSettings} <- Endpoints].
 
+%% add the chatterbox connection settings map to the endpoint if it isn't there already
+normalize_endpoints(Endpoints) ->
+    lists:map(fun({Transport, Host, Port, SSLOptions}) ->
+                      {Transport, Host, Port, SSLOptions, #{}};
+                 ({Transport, Host, Port, SSLOptions, ConnectionSettings}) ->
+                      {Transport, Host, Port, SSLOptions, ConnectionSettings}
+              end, Endpoints).
