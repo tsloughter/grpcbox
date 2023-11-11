@@ -63,8 +63,8 @@
 
 -type t() :: #state{}.
 
--type grpc_status_message() :: unicode:unicode_binary().
--type grpc_status() :: 0..16.
+-type grpc_status_message() :: unicode:chardata() | undefined.
+-type grpc_status() :: binary() | undefined.
 -type http_status() :: integer().
 -type grpc_error() :: {unicode:unicode_binary(), % containing a grpc_status() value as text
                        grpc_status_message()}.
