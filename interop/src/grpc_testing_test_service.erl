@@ -29,17 +29,16 @@ unary_call(Ctx, Request=#{response_size := Size}) ->
             EchoValue = maps:get(?INITIAL_METADATA_KEY, Metadata, <<>>),
             EchoTrailer = maps:get(?TRAILING_METADATA_KEY, Metadata, <<>>),
             Header = grpcbox_metadata:pairs([{?INITIAL_METADATA_KEY, EchoValue}]),
-            grpcbox_stream:send_headers(Ctx, Header),
+            Ctx1 = ctx:set(Ctx, ctx_stream_key, grpcbox_stream:send_headers(Ctx, Header)),
             Trailer = grpcbox_metadata:pairs([{?TRAILING_METADATA_KEY, EchoTrailer}]),
-            Ctx1 = grpcbox_stream:set_trailers(Ctx, Trailer),
-
+            Ctx2 = grpcbox_stream:set_trailers(Ctx1, Trailer),
             Body = << <<0>> || _ <- lists:seq(1, Size) >>,
             {ok, #{payload => #{type => 'COMPRESSABLE',
                                 body => Body
                                },
                    username => <<"tsloughter">>,
                    oauth_scope => <<"some-scope">>
-                  }, Ctx1}
+                  }, Ctx2}
     end.
 
 -spec cacheable_unary_call(ctx:t(), test_pb:simple_request()) ->
