@@ -277,6 +277,17 @@ If no channel is specified in the options to a rpc call the `default_channel` is
 {client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}}
 ```
 
+Unix sockets (UDS) may also be used with the same notation that is defined in `gen_tcp`. Considerations:
+* for UDS, only the `http` scheme is permitted
+* the port must strictly be `0`
+* only available on POSIX operating systems
+* abstract UDS are only available on Linux, and such sockets' names must start with a zero byte
+```
+{client, #{channels => [{default_channel, [{http, {local, "/path/to/unix/socket_name"}, 0, []}], #{}}]}}
+%% or to use an abstract Unix socket:
+%% {client, #{channels => [{default_channel, [{http, {local,  [0 | "socket_name"]}, 0, []}], #{}}]}}
+```
+
 The empty map at the end can contain configuration for the load balancing algorithm, interceptors, statistics handling and compression:
 
 ```
