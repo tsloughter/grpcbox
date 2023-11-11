@@ -13,6 +13,7 @@ groups() ->
     [{ssl, [], [unary_authenticated]},
      {tcp, [], [unary_no_auth, multiple_servers,
                 unary_garbage_collect_streams]},
+     {socket_options, [], [fd_socket_option]},
      {concurrent, [{repeat_until_any_fail, 5}], [unary_concurrent]},
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
      {negative_ssl, [], [unauthorized]},
@@ -22,6 +23,7 @@ groups() ->
 all() ->
     [{group, ssl},
      {group, tcp},
+     {group, socket_options},
      {group, concurrent},
      {group, negative_tests},
      {group, negative_ssl},
@@ -74,6 +76,14 @@ init_per_group(tcp, Config) ->
                                                                               routeguide_route_guide}},
                                              transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
+    Config;
+init_per_group(socket_options, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
+                                                         #{}}]}),
+    application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                                            services => #{'routeguide.RouteGuide' =>
+                                                                              routeguide_route_guide}},
+                                             transport_opts => #{}}]),
     Config;
 init_per_group(concurrent, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
@@ -312,6 +322,8 @@ end_per_testcase(multiple_servers, _Config) ->
     ok;
 end_per_testcase(unary_garbage_collect_streams, _Config) ->
     ok;
+end_per_testcase(fd_socket_option, _Config) ->
+    ok;
 end_per_testcase(unary_concurrent, _Config) ->
     ok;
 end_per_testcase(unimplemented, _Config) ->
@@ -549,6 +561,7 @@ unary_garbage_collect_streams(Config) ->
 client_stream_garbage_collect_streams(Config) ->
     client_stream(Config),
 
+    timer:sleep(100),
     ConnectionStreamSet = connection_stream_set(),
 
     ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
@@ -562,6 +575,24 @@ multiple_servers(_Config) ->
                                                  listen_opts => #{port => 8081}})),
     unary(_Config),
     unary(_Config).
+
+fd_socket_option(_Config) ->
+    %% Use the fd option to dynamically select a free port
+    {ok, Ip} = inet:getaddr("localhost", inet),
+    {ok, Sock} = gen_tcp:listen(0, [{ip, Ip}, inet]),
+    {ok, Fd} = inet:getfd(Sock),
+    {ok, {_ListenIp, ListenPort}} = inet:sockname(Sock),
+    application:set_env(grpcbox, client, #{channels => [{default_channel,
+                                                         [{http, "localhost", ListenPort, []}], #{}}]}),
+
+    application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                                            services => #{'routeguide.RouteGuide' =>
+                                                                              routeguide_route_guide}},
+                                             listen_opts => #{socket_options => [{fd, Fd}]}}]),
+    {ok, _} = application:ensure_all_started(grpcbox),
+    unary(_Config),
+    application:stop(grpcbox),
+    gen_tcp:close(Sock).
 
 unary_concurrent(Config) ->
     Nrs = lists:seq(1,100),
@@ -663,18 +694,14 @@ stream_interceptor(_Config) ->
 %% verify that the chatterbox stream isn't storing frame data
 check_stream_state(S) ->
     {_, StreamState} = sys:get_state(maps:get(stream_pid, S)),
-    FrameQueue = element(6, StreamState),
+    FrameQueue = element(7, StreamState),
     ?assert(queue:is_empty(FrameQueue)).
 
 %% return the stream_set of a connection in the channel
 connection_stream_set() ->
     {ok, {Channel, _}} = grpcbox_channel:pick(default_channel, unary),
     {ok, Conn, _} = grpcbox_subchannel:conn(Channel),
-    {connected, ConnState} = sys:get_state(Conn),
-
-    %% I know, I know, this will fail if the connection record in h2_connection ever has elements
-    %% added before the stream_set field. But for now, it is 14 and thats good enough.
-    element(14, ConnState).
+    Conn.
 
 cert_dir(Config) ->
     DataDir = ?config(data_dir, Config),

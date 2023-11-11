@@ -25,7 +25,8 @@
 -include("grpcbox.hrl").
 
 -type options() :: #{channel => grpcbox_channel:t(),
-                     encoding => grpcbox:encoding()}.
+                     encoding => grpcbox:encoding(),
+                     atom() => any()}.
 
 -type unary_interceptor() :: term().
 -type stream_interceptor() :: term().
@@ -78,7 +79,7 @@ unary_handler(Ctx, Channel, Path, Input, Def, Options) ->
                       stream_pid => Pid,
                       monitor_ref => Ref,
                       service_def => Def},
-                case recv_end(S, 5000) of
+                case recv_end(S, grpcbox_utils:get_timeout_from_ctx(Ctx, 5000)) of
                     eos ->
                         case recv_headers(S, 0) of
                             {ok, Headers} ->

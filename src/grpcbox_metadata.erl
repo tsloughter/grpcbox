@@ -38,7 +38,7 @@ new_incoming_ctx(Map) ->
     ctx:with_value(md_incoming_key, new(Map)).
 
 append_to_outgoing_ctx(Ctx, Map) ->
-    ctx:with_value(md_outgoing_key, join([from_outgoing_ctx(Ctx), new(Map)])).
+    ctx:with_value(Ctx, md_outgoing_key, join([from_outgoing_ctx(Ctx), new(Map)])).
 
 -spec pairs([{key(), value()}]) -> t().
 pairs(List) ->

@@ -30,7 +30,7 @@ message BoolValue {
 // DEPRECATED, don't use. To be removed shortly.
 // The type of payload that should be returned.
 enum PayloadType {
-  // Compressable text format.
+  // Compressible text format.
   COMPRESSABLE = 0;
 }
 

@@ -20,13 +20,12 @@ start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 %% @doc Start a channel under the grpcbox channel supervisor.
--spec start_child(atom(), [grpcbox_channel:endpoint()], grpcbox_channel:options()) -> supervisor:startchild_ret().
+-spec start_child(grpcbox_channel:name(), [grpcbox_channel:endpoint()], grpcbox_channel:options()) -> supervisor:startchild_ret().
 start_child(Name, Endpoints, Options) ->
     supervisor:start_child(?SERVER, [Name, Endpoints, Options]).
 
 %% @doc Create a default child spec for starting a channel
--spec channel_spec(atom(), [grpcbox_channel:endpoint()], grpcbox_channel:options())
-                  -> supervisor:child_spec().
+-spec channel_spec(grpcbox_channel:name(), [grpcbox_channel:endpoint()], grpcbox_channel:options()) -> supervisor:child_spec().
 channel_spec(Name, Endpoints, Options) ->
     #{id => grpcbox_channel,
       start => {grpcbox_channel, start_link, [Name, Endpoints, Options]},
