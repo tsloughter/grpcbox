@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
-%% this module was generated on 2019-03-09T00:28:46+00:00 and should not be modified manually
+%% this module was generated and should not be modified manually
 
 -module(grpcbox_reflection_client).
 
@@ -25,19 +25,19 @@
 
 %% @doc 
 -spec server_reflection_info() ->
-    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
+    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response() | {error, any()}.
 server_reflection_info() ->
     server_reflection_info(ctx:new(), #{}).
 
 -spec server_reflection_info(ctx:t() | grpcbox_client:options()) ->
-    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
+    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response() | {error, any()}.
 server_reflection_info(Ctx) when ?is_ctx(Ctx) ->
     server_reflection_info(Ctx, #{});
 server_reflection_info(Options) ->
     server_reflection_info(ctx:new(), Options).
 
 -spec server_reflection_info(ctx:t(), grpcbox_client:options()) ->
-    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response().
+    {ok, grpcbox_client:stream()} | grpcbox_stream:grpc_error_response() | {error, any()}.
 server_reflection_info(Ctx, Options) ->
     grpcbox_client:stream(Ctx, <<"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo">>, ?DEF(server_reflection_request, server_reflection_response, <<"grpc.reflection.v1alpha.ServerReflectionRequest">>), Options).
 

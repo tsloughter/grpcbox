@@ -12,12 +12,12 @@
 
 -include("grpcbox_interop_tests.hrl").
 
--spec empty_call(ctx:ctx(), test_pb:empty()) ->
+-spec empty_call(ctx:t(), test_pb:empty()) ->
                         {ok, test_pb:empty()} | grpcbox_stream:grpc_error_response().
 empty_call(Ctx, _Empty) ->
     {ok, #{}, Ctx}.
 
--spec unary_call(ctx:ctx(), test_pb:simple_request()) ->
+-spec unary_call(ctx:t(), test_pb:simple_request()) ->
                         {ok, test_pb:simple_response()} | grpcbox_stream:grpc_error_response().
 unary_call(Ctx, Request=#{response_size := Size}) ->
     case maps:get(response_status, Request, #{}) of
@@ -29,20 +29,19 @@ unary_call(Ctx, Request=#{response_size := Size}) ->
             EchoValue = maps:get(?INITIAL_METADATA_KEY, Metadata, <<>>),
             EchoTrailer = maps:get(?TRAILING_METADATA_KEY, Metadata, <<>>),
             Header = grpcbox_metadata:pairs([{?INITIAL_METADATA_KEY, EchoValue}]),
-            grpcbox_stream:send_headers(Ctx, Header),
+            Ctx1 = ctx:set(Ctx, ctx_stream_key, grpcbox_stream:send_headers(Ctx, Header)),
             Trailer = grpcbox_metadata:pairs([{?TRAILING_METADATA_KEY, EchoTrailer}]),
-            Ctx1 = grpcbox_stream:set_trailers(Ctx, Trailer),
-
+            Ctx2 = grpcbox_stream:set_trailers(Ctx1, Trailer),
             Body = << <<0>> || _ <- lists:seq(1, Size) >>,
             {ok, #{payload => #{type => 'COMPRESSABLE',
                                 body => Body
                                },
                    username => <<"tsloughter">>,
                    oauth_scope => <<"some-scope">>
-                  }, Ctx1}
+                  }, Ctx2}
     end.
 
--spec cacheable_unary_call(ctx:ctx(), test_pb:simple_request()) ->
+-spec cacheable_unary_call(ctx:t(), test_pb:simple_request()) ->
     {ok, test_pb:simple_response()} | grpcbox_stream:grpc_error_response().
 cacheable_unary_call(Ctx, _SimpleRequest) ->
     {ok, #{}, Ctx}.

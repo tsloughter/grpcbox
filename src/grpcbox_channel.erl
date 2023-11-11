@@ -5,7 +5,8 @@
 -export([start_link/3,
          is_ready/1,
          pick/2,
-         stop/1]).
+         stop/1,
+         stop/2]).
 -export([init/1,
          callback_mode/0,
          terminate/3,
@@ -20,7 +21,9 @@
 -type name() :: t().
 -type transport() :: http | https.
 -type host() :: inet:ip_address() | inet:hostname().
--type endpoint() :: {transport(), host(), inet:port_number(), ssl:ssl_option()}.
+-type connection_settings() :: map().
+-type endpoint() :: {transport(), host(), inet:port_number(), [ssl:ssl_options()]} |
+                    {transport(), host(), inet:port_number(), [ssl:ssl_options()], connection_settings()}.
 
 -type options() :: #{balancer => load_balancer(),
                      encoding => gprcbox:encoding(),
@@ -78,10 +81,14 @@ interceptor(Name, CallType) ->
     end.
 
 stop(Name) ->
-    gen_statem:stop(?CHANNEL(Name)).
+    stop(Name, {shutdown, force_delete}).
+stop(Name, Reason) ->
+    gen_statem:stop(?CHANNEL(Name), Reason, infinity).
 
 init([Name, Endpoints, Options]) ->
     process_flag(trap_exit, true),
+
+    Endpoints1 = normalize_endpoints(Endpoints),
 
     BalancerType = maps:get(balancer, Options, round_robin),
     Encoding = maps:get(encoding, Options, identity),
@@ -95,14 +102,14 @@ init([Name, Endpoints, Options]) ->
         pool = Name,
         encoding = Encoding,
         stats_handler = StatsHandler,
-        endpoints = Endpoints
+        endpoints = Endpoints1
     },
 
     case maps:get(sync_start, Options, false) of
         false ->
             {ok, idle, Data, [{next_event, internal, connect}]};
         true ->
-            _ = start_workers(Name, StatsHandler, Encoding, Endpoints),
+            _ = start_workers(Name, StatsHandler, Encoding, Endpoints1),
             {ok, connected, Data}
     end.
 
@@ -128,8 +135,11 @@ idle(EventType, EventContent, Data) ->
 handle_event(_, _, Data) ->
     {keep_state, Data}.
 
-terminate(_Reason, _State, #data{pool=Name}) ->
-    gproc_pool:force_delete(Name),
+terminate({shutdown, force_delete}, _State, #data{pool=Name}) ->
+    gproc_pool:force_delete(Name);
+terminate(Reason, _State, #data{pool=Name}) ->
+    [grpcbox_subchannel:stop(Pid, Reason) || {_Channel, Pid} <- gproc_pool:active_workers(Name)],
+    gproc_pool:delete(Name),
     ok.
 
 insert_interceptors(Name, Interceptors) ->
@@ -165,8 +175,15 @@ insert_stream_interceptor(Name, _Type, Interceptors) ->
 start_workers(Pool, StatsHandler, Encoding, Endpoints) ->
     [begin
          gproc_pool:add_worker(Pool, Endpoint),
-         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SSLOptions},
-             Encoding, StatsHandler),
+         {ok, Pid} = grpcbox_subchannel:start_link(Endpoint, Pool, {Transport, Host, Port, SSLOptions, ConnectionSettings},
+                                                   Encoding, StatsHandler),
          Pid
-     end || Endpoint={Transport, Host, Port, SSLOptions} <- Endpoints].
+     end || Endpoint={Transport, Host, Port, SSLOptions, ConnectionSettings} <- Endpoints].
 
+%% add the chatterbox connection settings map to the endpoint if it isn't there already
+normalize_endpoints(Endpoints) ->
+    lists:map(fun({Transport, Host, Port, SSLOptions}) ->
+                      {Transport, Host, Port, SSLOptions, #{}};
+                 ({Transport, Host, Port, SSLOptions, ConnectionSettings}) ->
+                      {Transport, Host, Port, SSLOptions, ConnectionSettings}
+              end, Endpoints).

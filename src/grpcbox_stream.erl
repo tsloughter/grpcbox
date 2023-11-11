@@ -24,13 +24,15 @@
          on_receive_headers/2,
          on_send_push_promise/2,
          on_receive_data/2,
-         on_end_stream/1]).
+         on_end_stream/1,
+         terminate/1]).
 
 -export_type([t/0,
               grpc_status/0,
               grpc_status_message/0,
               grpc_error/0,
               grpc_error_response/0,
+              grpc_callback_error/0,
               grpc_error_data/0,
               grpc_extended_error_response/0]).
 
@@ -38,13 +40,13 @@
                 socket,
                 auth_fun,
                 buffer              :: binary(),
-                ctx                 :: ctx:ctx(),
+                ctx                 :: ctx:t() | undefined,
                 services_table      :: ets:tid(),
                 req_headers=[]      :: list(),
                 full_method         :: binary() | undefined,
                 input_ref           :: reference() | undefined,
                 callback_pid        :: pid() | undefined,
-                connection_pid      :: pid(),
+                connection          :: h2_stream_set:stream_set(),
                 request_encoding    :: gzip | identity | undefined,
                 response_encoding   :: gzip | identity | undefined,
                 content_type        :: proto | json | undefined,
@@ -61,15 +63,19 @@
 
 -type t() :: #state{}.
 
--type grpc_status_message() :: unicode:chardata().
--type grpc_status() :: 0..16.
+-type grpc_status_message() :: unicode:chardata() | undefined.
+-type grpc_status() :: binary() | undefined.
 -type http_status() :: integer().
--type grpc_error() :: {grpc_status(), grpc_status_message()}.
+-type grpc_error() :: {unicode:unicode_binary(), % containing a grpc_status() value as text
+                       grpc_status_message()}.
 -type grpc_error_response() :: {error, grpc_error(), #{headers => map(),
                                                        trailers => #{}}} |
                                {http_error, {http_status(), unicode:chardata()}, #{headers => map(),
                                                                                    trailers => #{}}} |
                                {error, term()}.
+-type grpc_callback_error() :: {error, grpc_error(), #{headers => map(),
+                                                       trailers => #{}}}.
+
 -type grpc_error_data() :: #{
     status := grpc_status(),
     message := grpc_status_message(),
@@ -77,10 +83,10 @@
 }.
 -type grpc_extended_error_response() :: {grpc_extended_error, grpc_error_data()}.
 
-init(ConnPid, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
+init(Conn, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                          StreamInterceptor, StatsHandler]) ->
     process_flag(trap_exit, true),
-    State = #state{connection_pid=ConnPid,
+    State = #state{connection=Conn,
                    stream_id=StreamId,
                    services_table=ServicesTable,
                    buffer = <<>>,
@@ -287,28 +293,32 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
     end.
 
 on_end_stream(State) ->
-    on_end_stream_(State),
-    {ok, State}.
+    on_end_stream_(State).
 
-on_end_stream_(#state{input_ref=Ref,
-                      callback_pid=Pid,
-                      method=#method{input={_Input, true},
-                                     output={_Output, false}}}) ->
-    Pid ! {Ref, eos};
-on_end_stream_(#state{input_ref=Ref,
-                      callback_pid=Pid,
-                      method=#method{input={_Input, true},
-                                     output={_Output, true}}}) ->
-    Pid ! {Ref, eos};
-on_end_stream_(#state{input_ref=_Ref,
-                      callback_pid=_Pid,
-                      method=#method{input={_Input, false},
-                                     output={_Output, true}}}) ->
-    ok;
+on_end_stream_(State=#state{input_ref=Ref,
+                            callback_pid=Pid,
+                            method=#method{input={_Input, true},
+                                           output={_Output, false}}}) ->
+    Pid ! {Ref, eos},
+    {ok, State};
+on_end_stream_(State=#state{input_ref=Ref,
+                            callback_pid=Pid,
+                            method=#method{input={_Input, true},
+                                           output={_Output, true}}}) ->
+    Pid ! {Ref, eos},
+    {ok, State};
+on_end_stream_(State=#state{input_ref=_Ref,
+                            callback_pid=_Pid,
+                            method=#method{input={_Input, false},
+                                           output={_Output, true}}}) ->
+    {ok, State};
 on_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
     end_stream(State);
 on_end_stream_(State) ->
     end_stream(State).
+
+terminate(State) ->
+    on_end_stream(State).
 
 %% Internal
 
@@ -327,12 +337,12 @@ end_stream(Status, Message, State=#state{headers_sent=false}) ->
     end_stream(Status, Message, send_headers(State));
 end_stream(_Status, _Message, State=#state{trailers_sent=true}) ->
     {ok, State};
-end_stream(Status, Message, State=#state{connection_pid=ConnPid,
+end_stream(Status, Message, State=#state{connection=Conn,
                                          stream_id=StreamId,
                                          ctx=Ctx,
                                          resp_trailers=Trailers}) ->
     EncodedTrailers = grpcbox_utils:encode_headers(Trailers),
-    h2_connection:send_trailers(ConnPid, StreamId, [{<<"grpc-status">>, Status},
+    h2_connection:send_trailers(Conn, StreamId, [{<<"grpc-status">>, Status},
                                                     {<<"grpc-message">>, Message} | EncodedTrailers],
                                 [{send_end_stream, true}]),
     Ctx1 = ctx:with_value(Ctx, grpc_server_status, grpcbox_utils:status_to_string(Status)),
@@ -352,12 +362,12 @@ send_headers(Ctx, Headers) when is_map(Headers) ->
 
 send_headers(_Metadata, State=#state{headers_sent=true}) ->
     State;
-send_headers(Metadata, State=#state{connection_pid=ConnPid,
+send_headers(Metadata, State=#state{connection=Conn,
                                     stream_id=StreamId,
                                     resp_headers=Headers,
                                     headers_sent=false}) ->
     MdHeaders = grpcbox_utils:encode_headers(Metadata),
-    h2_connection:send_headers(ConnPid, StreamId, Headers ++ MdHeaders, [{send_end_stream, false}]),
+    h2_connection:send_headers(Conn, StreamId, Headers ++ MdHeaders, [{send_end_stream, false}]),
     State#state{headers_sent=true}.
 
 code_to_status(0) -> ?GRPC_STATUS_OK;
@@ -439,7 +449,7 @@ send(End, Message, State=#state{headers_sent=false}) ->
     State1 = send_headers(State),
     send(End, Message, State1);
 send(End, Message, State=#state{ctx=Ctx,
-                                connection_pid=ConnPid,
+                                connection=Conn,
                                 stream_id=StreamId,
                                 response_encoding=Encoding,
                                 method=#method{proto=Proto,
@@ -447,7 +457,7 @@ send(End, Message, State=#state{ctx=Ctx,
                                                output={Output, _}}}) ->
     BodyToSend = Proto:encode_msg(Message, Output),
     OutFrame = grpcbox_frame:encode(Encoding, BodyToSend),
-    ok = h2_connection:send_body(ConnPid, StreamId, OutFrame, [{send_end_stream, End}]),
+    ok = h2_connection:send_body(Conn, StreamId, OutFrame, [{send_end_stream, End}]),
     stats_handler(Ctx, out_payload, #{uncompressed_size => erlang:external_size(Message),
                                       compressed_size => size(BodyToSend)}, State).
 

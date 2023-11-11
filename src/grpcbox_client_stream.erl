@@ -13,27 +13,17 @@
 
 -include("grpcbox.hrl").
 
--define(headers(Scheme, Host, Path, Encoding, MessageType, MD), [{<<":method">>, <<"POST">>},
-                                                                 {<<":path">>, Path},
-                                                                 {<<":scheme">>, Scheme},
-                                                                 {<<":authority">>, Host},
-                                                                 {<<"grpc-encoding">>, Encoding},
-                                                                 {<<"grpc-message-type">>, MessageType},
-                                                                 {<<"content-type">>, <<"application/grpc+proto">>},
-                                                                 {<<"user-agent">>, <<"grpc-erlang/0.9.2">>},
-                                                                 {<<"te">>, <<"trailers">>} | MD]).
-
 new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 message_type=MessageType,
                                                 marshal_fun=MarshalFun,
                                                 unmarshal_fun=UnMarshalFun}, Options) ->
-    case grpcbox_subchannel:conn(Channel) of
+    case grpcbox_subchannel:conn(Channel, grpcbox_utils:get_timeout_from_ctx(Ctx, infinity)) of
         {ok, Conn, #{scheme := Scheme,
                      authority := Authority,
                      encoding := DefaultEncoding,
                      stats_handler := StatsHandler}} ->
             Encoding = maps:get(encoding, Options, DefaultEncoding),
-            RequestHeaders = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
+            RequestHeaders = headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
                                       MessageType, metadata_headers(Ctx)),
             case h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
                                                             marshal_fun => MarshalFun,
@@ -42,11 +32,10 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                             buffer => <<>>,
                                                             stats_handler => StatsHandler,
                                                             stats => #{},
-                                                            client_pid => self()}], self()) of
+                                                            client_pid => self()}], RequestHeaders, [], self()) of
                 {error, _Code} = Err ->
                     Err;
                 {StreamId, Pid} ->
-                    h2_connection:send_headers(Conn, StreamId, RequestHeaders),
                     Ref = erlang:monitor(process, Pid),
                     {ok, #{channel => Conn,
                            stream_id => StreamId,
@@ -63,14 +52,14 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                      message_type=MessageType,
                                                      marshal_fun=MarshalFun,
                                                      unmarshal_fun=UnMarshalFun}, Options) ->
-    case grpcbox_subchannel:conn(Channel) of
+    case grpcbox_subchannel:conn(Channel, grpcbox_utils:get_timeout_from_ctx(Ctx, infinity)) of
         {ok, Conn, #{scheme := Scheme,
                      authority := Authority,
                      encoding := DefaultEncoding,
                      stats_handler := StatsHandler}} ->
             Encoding = maps:get(encoding, Options, DefaultEncoding),
             Body = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
-            Headers = ?headers(Scheme, Authority, Path, encoding_to_binary(Encoding), MessageType, metadata_headers(Ctx)),
+            Headers = headers(Scheme, Authority, Path, encoding_to_binary(Encoding), MessageType, metadata_headers(Ctx)),
 
             %% headers are sent in the same request as creating a new stream to ensure
             %% concurrent calls can't end up interleaving the sending of headers in such
@@ -83,11 +72,10 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
                                                                           buffer => <<>>,
                                                                           stats_handler => StatsHandler,
                                                                           stats => #{},
-                                                                          client_pid => self()}], Headers, [], self()) of
+                                                                          client_pid => self()}], Headers, Body, [], self()) of
                 {error, _Code} = Err ->
                     Err;
                 {StreamId, Pid} ->
-                    h2_connection:send_body(Conn, StreamId, Body),
                     {ok, Conn, StreamId, Pid}
             end;
         {error, _}=Error ->
@@ -130,7 +118,8 @@ metadata_headers(Ctx) ->
         D when D =:= undefined ; D =:= infinity ->
             grpcbox_utils:encode_headers(maps:to_list(grpcbox_metadata:from_outgoing_ctx(Ctx)));
         {T, _} ->
-            Timeout = {<<"grpc-timeout">>, <<(integer_to_binary(T - erlang:monotonic_time()))/binary, "n">>},
+            TimeMs = erlang:convert_time_unit(T - erlang:monotonic_time(), native, millisecond),
+            Timeout = {<<"grpc-timeout">>, <<(integer_to_binary(TimeMs))/binary, "m">>},
             grpcbox_utils:encode_headers([Timeout | maps:to_list(grpcbox_metadata:from_outgoing_ctx(Ctx))])
     end.
 
@@ -223,3 +212,20 @@ encoding_to_binary(deflate) -> <<"deflate">>;
 encoding_to_binary(snappy) -> <<"snappy">>;
 encoding_to_binary(Custom) -> atom_to_binary(Custom, latin1).
 
+headers(Scheme, Host, Path, Encoding, MessageType, MD) ->
+    {UserAgent, FilteredMD} = case lists:keytake(<<"user-agent">>, 1, MD) of
+        {value, {<<"user-agent">>, MDUserAgent}, MD1} -> {MDUserAgent, MD1};
+        false -> {<<"grpc-erlang/0.9.2">>, MD}
+    end,
+
+    [
+        {<<":method">>, <<"POST">>},
+        {<<":path">>, Path},
+        {<<":scheme">>, Scheme},
+        {<<":authority">>, Host},
+        {<<"grpc-encoding">>, Encoding},
+        {<<"grpc-message-type">>, MessageType},
+        {<<"content-type">>, <<"application/grpc+proto">>},
+        {<<"user-agent">>, UserAgent},
+        {<<"te">>, <<"trailers">>}
+    | FilteredMD].

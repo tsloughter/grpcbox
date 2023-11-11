@@ -265,7 +265,7 @@ Metadata is sent in headers and trailers.
 Using a Service Client
 ----
 
-For each service in the protos passed to `rebar3 gprc gen` it will genrate a `<service>_client` module containing a function for each method in the service.
+For each service in the protos passed to `rebar3 gprc gen` it will generate a `<service>_client` module containing a function for each method in the service.
 
 #### Defining Channels
 
