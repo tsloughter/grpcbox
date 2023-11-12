@@ -19,7 +19,8 @@ all() ->
 groups() ->
     Cases = [empty_unary, large_unary, client_streaming, server_streaming,
              ping_pong, empty_stream, status_code_and_message, custom_metadata,
-             unimplemented_method, unimplemented_service],
+             unimplemented_method, unimplemented_service
+            ],
     [{identity, Cases},
      {gzip, Cases}
     ].
