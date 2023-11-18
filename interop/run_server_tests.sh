@@ -30,7 +30,7 @@ tests=(
 
 for test in "${tests[@]}"; do
     echo -n "Running ${test}... "
-    $GOPATH/bin/go-grpc-interop-client -use_tls=$TLS -test_case=$test -server_port=$PORT
+    go-grpc-interop-client -use_tls=$TLS -test_case=$test -server_port=$PORT
     if [[ $? -ne 0 ]]; then
         echo "Failed!"
         exit 1

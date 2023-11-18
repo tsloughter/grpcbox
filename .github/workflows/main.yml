@@ -40,6 +40,29 @@ jobs:
         file: _build/test/covertool/grpcbox.covertool.xml
         env_vars: OTP_VERSION
 
+    - name: Setup Go 1.21.4
+      uses: actions/setup-go@v4
+      with:
+        # Semantic version range syntax or exact version of Go
+        go-version: '1.21.4'
+
+    - uses: actions/checkout@v4
+      with:
+        repository: 'grpc/grpc-go'
+        path: 'grpc-go'
+
+    - name: Install grpc-go interop client
+      run: |
+        cd grpc-go
+        go build -o ./go-grpc-interop-client ./interop/client
+
+    - name: Run interop tests
+      run: |
+        rebar3 as interop release
+        _build/interop/rel/grpc_interop/bin/grpc_interop daemon
+
+        PATH=grpc-go/:$PATH interop/run_server_tests.sh
+
   dialyzer:
     name: Dialyze on OTP ${{ matrix.otp_version }} and ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
