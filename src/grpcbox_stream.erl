@@ -172,20 +172,28 @@ authenticate({ok, Cert}, Fun) ->
 authenticate(_, _) ->
     false.
 
-handle_streams(Ref, State=#state{full_method=FullMethod,
-                                 stream_interceptor=StreamInterceptor,
-                                 method=#method{module=Module,
-                                                function=Function,
-                                                output={_, false}}}) ->
-    case (case StreamInterceptor of
-              undefined -> Module:Function(Ref, State);
-              _ ->
-                  ServerInfo = #{full_method => FullMethod,
-                                 service => Module,
-                                 input_stream => true,
-                                 output_stream => false},
-                  StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
-          end) of
+maybe_call_interceptor(RefOrMsg,
+                       #state{stream_interceptor=StreamInterceptor,
+                              method=#method{module=Module,
+                                             function=Function}} = State)
+  when StreamInterceptor == undefined ->
+    Module:Function(RefOrMsg, State);
+maybe_call_interceptor(RefOrMsg,
+                       #state{stream_interceptor=StreamInterceptor,
+                              full_method=FullMethod,
+                              method=#method{module=Module,
+                                             function=Function,
+                                             output={_, StreamOut},
+                                             input={_, StreamIn}}} = State) ->
+    ServerInfo = #{full_method => FullMethod,
+                   service => Module,
+                   output_stream => StreamOut,
+                   input_stream => StreamIn},
+    Fun = fun Module:Function/2,
+    StreamInterceptor(RefOrMsg, State, ServerInfo, Fun).
+
+handle_streams(Ref, #state{method=#method{output={_, false}}}=State) ->
+    case maybe_call_interceptor(Ref, State) of
         {ok, Response, State2} ->
             send(Response, State2);
         E={grpc_error, _} ->
@@ -193,20 +201,13 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
         E={grpc_extended_error, _} ->
             throw(E)
     end;
-handle_streams(Ref, State=#state{full_method=FullMethod,
-                                 stream_interceptor=StreamInterceptor,
-                                 method=#method{module=Module,
-                                                function=Function,
-                                                output={_, true}}}) ->
-    case StreamInterceptor of
-        undefined ->
-            Module:Function(Ref, State);
-        _ ->
-            ServerInfo = #{full_method => FullMethod,
-                           service => Module,
-                           input_stream => true,
-                           output_stream => true},
-            StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
+handle_streams(RefOrMsg, #state{method=#method{output={_, true}}}=State) ->
+    case maybe_call_interceptor(RefOrMsg, State) of
+        E={grpc_error, _} ->
+            throw(E);
+        E={grpc_extended_error, _} ->
+            throw(E);
+        R -> R
     end.
 
 on_send_push_promise(_, State) ->
@@ -411,6 +412,8 @@ handle_info({send_proto, Message}, State) ->
 handle_info({'EXIT', _, normal}, State) ->
     end_stream(State),
     State;
+handle_info({'EXIT', Pid, {{nocatch, Exception}, _}}, State) ->
+    handle_info({'EXIT', Pid, Exception}, State);
 handle_info({'EXIT', _, {grpc_error, {Status, Message}}}, State) ->
     end_stream(Status, Message, State),
     State;
