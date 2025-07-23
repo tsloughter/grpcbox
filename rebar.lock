@@ -3,7 +3,11 @@
  {<<"chatterbox">>,{pkg,<<"ts_chatterbox">>,<<"0.15.1">>},0},
  {<<"ctx">>,{pkg,<<"ctx">>,<<"0.6.0">>},0},
  {<<"gproc">>,{pkg,<<"gproc">>,<<"0.9.1">>},0},
- {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.3.0">>},1}]}.
+ {<<"hpack">>,{pkg,<<"hpack_erl">>,<<"0.3.0">>},1},
+ {<<"yval">>,
+  {git,"https://github.com/zinid/yval.git",
+       {ref,"20db3ec327701f1ab06f2e926db3aada2517e5c9"}},
+  0}]}.
 [
 {pkg_hash,[
  {<<"acceptor_pool">>, <<"43C20D2ACAE35F0C2BCD64F9D2BDE267E459F0F3FD23DAB26485BF518C281B21">>},
