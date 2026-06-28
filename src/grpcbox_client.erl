@@ -153,8 +153,8 @@ close_and_recv(Stream) ->
 
 close_send(#{channel := Conn,
              stream_id := StreamId}) ->
-    ok = h2_connection:send_body(Conn, StreamId, <<>>, [{send_end_stream, true}]).
-    %% h2_connection:send_trailers(Conn, StreamId, [], [{send_end_stream, true}]).
+    ok = chatterbox_h2_connection:send_body(Conn, StreamId, <<>>, [{send_end_stream, true}]).
+    %% chatterbox_h2_connection:send_trailers(Conn, StreamId, [], [{send_end_stream, true}]).
 
 send(Stream=#{stream_interceptor := #{send_msg := SendMsg}}, Input) ->
     SendMsg(Stream, fun grpcbox_client_stream:send_msg/2, Input);
@@ -241,7 +241,7 @@ recv_end(#{stream_id := StreamId,
                 {error, eos}
             end;
         {'DOWN', Ref, process, Pid, normal} ->
-            %% this is sent by h2_connection after the stream process has ended
+            %% this is sent by chatterbox_h2_connection after the stream process has ended
             receive
                 {'END_STREAM', StreamId} ->
                     eos
