@@ -12,7 +12,7 @@
          start_child/3]).
 -export([init/1]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -define(SERVER, ?MODULE).
 

@@ -8,7 +8,7 @@
          status_to_string/1,
          get_timeout_from_ctx/2]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 headers_to_metadata(H) ->
     lists:foldl(fun({K, V}, Acc) ->

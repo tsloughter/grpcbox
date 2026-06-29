@@ -2,7 +2,7 @@
 
 -include_lib("chatterbox/include/http2.hrl").
 -include_lib("kernel/include/logger.hrl").
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -behaviour(chatterbox_h2_stream).
 

@@ -22,7 +22,7 @@
          close_send/1]).
 
 -include_lib("chatterbox/include/http2.hrl").
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -type options() :: #{channel => grpcbox_channel:t(),
                      encoding => grpcbox:encoding(),

@@ -13,7 +13,7 @@
          connected/3,
          idle/3]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -define(CHANNEL(Name), {via, gproc, {n, l, {?MODULE, Name}}}).
 
