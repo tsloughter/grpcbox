@@ -22,8 +22,7 @@
                          stats_handler := module() | undefined
                         },
                conn :: chatterbox_h2_stream_set:stream_set() | undefined,
-               conn_pid :: pid() | undefined,
-               idle_interval :: timer:time()}).
+               conn_pid :: pid() | undefined}).
 
 start_link(Name, Channel, Endpoint, Encoding, StatsHandler) ->
     gen_statem:start_link(?MODULE, [Name, Channel, Endpoint, Encoding, StatsHandler], []).
