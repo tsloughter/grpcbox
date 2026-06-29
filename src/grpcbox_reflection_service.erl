@@ -2,7 +2,7 @@
 
 -export([server_reflection_info/2]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -define(UNIMPLEMENTED_RESPONSE,
         {error_response,

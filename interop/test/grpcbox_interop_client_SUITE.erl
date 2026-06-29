@@ -6,7 +6,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include("grpcbox_interop_tests.hrl").
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -define(REQ_SIZES, [27182, 8, 1828, 45904]).
 -define(RESP_SIZES, [31415, 9, 2653, 58979]).

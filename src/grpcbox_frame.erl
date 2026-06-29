@@ -3,7 +3,7 @@
 -export([encode/2,
          split/2]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 encode(gzip, Bin) ->
     CompressedBin = zlib:gzip(Bin),

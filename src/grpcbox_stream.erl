@@ -2,9 +2,9 @@
 
 -include_lib("chatterbox/include/http2.hrl").
 -include_lib("kernel/include/logger.hrl").
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
--behaviour(h2_stream).
+-behaviour(chatterbox_h2_stream).
 
 -export([send/2,
          send/3,
@@ -46,7 +46,7 @@
                 full_method         :: binary() | undefined,
                 input_ref           :: reference() | undefined,
                 callback_pid        :: pid() | undefined,
-                connection          :: h2_stream_set:stream_set(),
+                connection          :: chatterbox_h2_stream_set:stream_set(),
                 request_encoding    :: gzip | identity | undefined,
                 response_encoding   :: gzip | identity | undefined,
                 content_type        :: proto | json | undefined,
@@ -149,7 +149,7 @@ handle_service_lookup(_, _, State) ->
 handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
                                socket=Socket,
                                method=#method{input={_, InputStreaming}}}) ->
-    case authenticate(sock:peercert(Socket), AuthFun) of
+    case authenticate(chatterbox_sock:peercert(Socket), AuthFun) of
         {true, _Identity} ->
             case InputStreaming of
                 true ->
@@ -342,7 +342,7 @@ end_stream(Status, Message, State=#state{connection=Conn,
                                          ctx=Ctx,
                                          resp_trailers=Trailers}) ->
     EncodedTrailers = grpcbox_utils:encode_headers(Trailers),
-    h2_connection:send_trailers(Conn, StreamId, [{<<"grpc-status">>, Status},
+    chatterbox_h2_connection:send_trailers(Conn, StreamId, [{<<"grpc-status">>, Status},
                                                     {<<"grpc-message">>, Message} | EncodedTrailers],
                                 [{send_end_stream, true}]),
     Ctx1 = ctx:with_value(Ctx, grpc_server_status, grpcbox_utils:status_to_string(Status)),
@@ -367,7 +367,7 @@ send_headers(Metadata, State=#state{connection=Conn,
                                     resp_headers=Headers,
                                     headers_sent=false}) ->
     MdHeaders = grpcbox_utils:encode_headers(Metadata),
-    h2_connection:send_headers(Conn, StreamId, Headers ++ MdHeaders, [{send_end_stream, false}]),
+    chatterbox_h2_connection:send_headers(Conn, StreamId, Headers ++ MdHeaders, [{send_end_stream, false}]),
     State#state{headers_sent=true}.
 
 code_to_status(0) -> ?GRPC_STATUS_OK;
@@ -392,10 +392,10 @@ error(Status, Message) ->
     exit(?GRPC_ERROR(Status, Message)).
 
 ctx(#state{handler=Pid}) ->
-    h2_stream:call(Pid, ctx).
+    chatterbox_h2_stream:call(Pid, ctx).
 
 ctx(#state{handler=Pid}, Ctx) ->
-    h2_stream:call(Pid, {ctx, Ctx}).
+    chatterbox_h2_stream:call(Pid, {ctx, Ctx}).
 
 handle_call(ctx, State=#state{ctx=Ctx}) ->
     {ok, Ctx, State};
@@ -457,7 +457,7 @@ send(End, Message, State=#state{ctx=Ctx,
                                                output={Output, _}}}) ->
     BodyToSend = Proto:encode_msg(Message, Output),
     OutFrame = grpcbox_frame:encode(Encoding, BodyToSend),
-    ok = h2_connection:send_body(Conn, StreamId, OutFrame, [{send_end_stream, End}]),
+    ok = chatterbox_h2_connection:send_body(Conn, StreamId, OutFrame, [{send_end_stream, End}]),
     stats_handler(Ctx, out_payload, #{uncompressed_size => erlang:external_size(Message),
                                       compressed_size => size(BodyToSend)}, State).
 

@@ -21,9 +21,8 @@
                          encoding := grpcbox:encoding(),
                          stats_handler := module() | undefined
                         },
-               conn :: h2_stream_set:stream_set() | undefined,
-               conn_pid :: pid() | undefined,
-               idle_interval :: timer:time()}).
+               conn :: chatterbox_h2_stream_set:stream_set() | undefined,
+               conn_pid :: pid() | undefined}).
 
 start_link(Name, Channel, Endpoint, Encoding, StatsHandler) ->
     gen_statem:start_link(?MODULE, [Name, Channel, Endpoint, Encoding, StatsHandler], []).
@@ -116,7 +115,7 @@ terminate(_Reason, _State, #data{conn=undefined,
 terminate(normal, _State, #data{conn=Pid,
                                  endpoint=Endpoint,
                                  channel=Channel}) ->
-    h2_connection:stop(Pid),
+    chatterbox_h2_connection:stop(Pid),
     gproc_pool:disconnect_worker(Channel, Endpoint),
     gproc_pool:remove_worker(Channel, Endpoint),
     ok;
@@ -130,17 +129,17 @@ terminate(Reason, _State, #data{conn_pid=Pid,
 
 connect(Data=#data{conn=undefined,
                    endpoint={Transport, Host, Port, SSLOptions, ConnectionSettings}}, From, Actions) ->
-    case h2_client:start_link(Transport, Host, Port, options(Transport, SSLOptions),
+    case chatterbox_h2_client:start_link(Transport, Host, Port, options(Transport, SSLOptions),
                               ConnectionSettings#{garbage_on_end => true,
                                                   stream_callback_mod => grpcbox_client_stream}) of
         {ok, Conn} ->
-            Pid = h2_stream_set:connection(Conn),
+            Pid = chatterbox_h2_stream_set:connection(Conn),
             {next_state, ready, Data#data{conn=Conn, conn_pid=Pid}, Actions};
         {error, _}=Error ->
             {next_state, disconnected, Data#data{conn=undefined}, [{reply, From, Error}]}
     end;
 connect(Data=#data{conn=Conn, conn_pid=Pid}, From, Actions) when is_pid(Pid) ->
-    h2_connection:stop(Conn),
+    chatterbox_h2_connection:stop(Conn),
     connect(Data#data{conn=undefined, conn_pid=undefined}, From, Actions).
 
 options(https, Options) ->

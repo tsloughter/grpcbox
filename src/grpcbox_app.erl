@@ -9,7 +9,7 @@
 
 -export([start/2, stop/1]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 start(_StartType, _StartArgs) ->
     {ok, Pid} = grpcbox_sup:start_link(),

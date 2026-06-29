@@ -11,7 +11,7 @@
          on_end_stream/1,
          handle_info/2]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
                                                 message_type=MessageType,
@@ -25,7 +25,7 @@ new_stream(Ctx, Channel, Path, Def=#grpcbox_def{service=Service,
             Encoding = maps:get(encoding, Options, DefaultEncoding),
             RequestHeaders = headers(Scheme, Authority, Path, encoding_to_binary(Encoding),
                                       MessageType, metadata_headers(Ctx)),
-            case h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
+            case chatterbox_h2_connection:new_stream(Conn, ?MODULE, [#{service => Service,
                                                             marshal_fun => MarshalFun,
                                                             unmarshal_fun => UnMarshalFun,
                                                             path => Path,
@@ -65,7 +65,7 @@ send_request(Ctx, Channel, Path, Input, #grpcbox_def{service=Service,
             %% concurrent calls can't end up interleaving the sending of headers in such
             %% a way that a lower stream id's headers are sent after another's, which results
             %% in the server closing the connection when it gets them out of order
-            case h2_connection:new_stream(Conn, grpcbox_client_stream, [#{service => Service,
+            case chatterbox_h2_connection:new_stream(Conn, grpcbox_client_stream, [#{service => Service,
                                                                           marshal_fun => MarshalFun,
                                                                           unmarshal_fun => UnMarshalFun,
                                                                           path => Path,
@@ -87,7 +87,7 @@ send_msg(#{channel := Conn,
            encoding := Encoding,
            service_def := #grpcbox_def{marshal_fun=MarshalFun}}, Input) ->
     OutFrame = grpcbox_frame:encode(Encoding, MarshalFun(Input)),
-    h2_connection:send_body(Conn, StreamId, OutFrame, [{send_end_stream, false}]).
+    chatterbox_h2_connection:send_body(Conn, StreamId, OutFrame, [{send_end_stream, false}]).
 
 recv_msg(S=#{stream_id := Id,
              stream_pid := Pid,
