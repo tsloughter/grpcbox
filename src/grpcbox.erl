@@ -15,7 +15,8 @@
                       trailers := grpcbox_metadata:t()}.
 
 -type server_opts() :: #{server_opts => settings(), %% TODO: change this in chatterbox to be under a module
-                         grpc_opts => #{service_protos := [module()]},
+                         grpc_opts => #{service_protos := [module()],
+                                        services := #{atom() := module()}},
                          listen_opts => #{port => inet:port_number(),
                                           ip => inet:ip_address(),
                                           socket_options => [gen_tcp:option()]},
