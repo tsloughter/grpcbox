@@ -16,6 +16,8 @@
          error/2,
          ctx/1,
          ctx/2,
+         stream_id/1,
+         connection/1,
          handle_streams/2,
          handle_call/2,
          handle_info/2]).
@@ -396,6 +398,12 @@ ctx(#state{handler=Pid}) ->
 
 ctx(#state{handler=Pid}, Ctx) ->
     chatterbox_h2_stream:call(Pid, {ctx, Ctx}).
+
+stream_id(#state{stream_id=StreamId}) ->
+    StreamId.
+
+connection(#state{connection=Conn}) ->
+    Conn.
 
 handle_call(ctx, State=#state{ctx=Ctx}) ->
     {ok, Ctx, State};
