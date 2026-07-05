@@ -14,7 +14,7 @@ Server options can be changed in `benchmark/config/sys.config`
 
 Grpcbox benchmark client
 ------------------------
-The benchmark client is implemented as a Common Test. First set test parameters in `benchmark/config/test.config`. The available parameters are described in the file. Also the chatterbox client options can be set. After setting test parameters and starting a server to test against, run the grpcbox benchmark client:
+The benchmark client is implemented as a Common Test. First set test parameters in `benchmark/config/test.config`. The available parameters are described in the file. Also the http/2 client settings can be set. After setting test parameters and starting a server to test against, run the grpcbox benchmark client:
 
 ```
 $ rebar3 as benchmark ct --verbose

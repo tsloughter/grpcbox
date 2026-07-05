@@ -1,11 +1,11 @@
 {application, grpcbox,
- [{description,"Erlang grpc library based on chatterbox"},
+ [{description,"Erlang grpc library based on erlang_h2"},
   {vsn,"git"},
   {registered,[]},
   {mod,{grpcbox_app,[]}},
   {applications,[kernel,
                  stdlib,
-                 chatterbox,
+                 h2,
                  acceptor_pool,
                  gproc,
                  ctx]},
@@ -26,7 +26,7 @@
          %% server acceptors
          {pool_opts, #{size => 10}},
 
-         %% chatterbox options
+         %% http/2 server settings
          {server_opts, #{header_table_size => 4096,
                          enable_push => 1,
                          max_concurrent_streams => unlimited,

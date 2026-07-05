@@ -21,8 +21,7 @@
                          encoding := grpcbox:encoding(),
                          stats_handler := module() | undefined
                         },
-               conn :: chatterbox_h2_stream_set:stream_set() | undefined,
-               conn_pid :: pid() | undefined}).
+               conn :: h2:connection() | undefined}).
 
 start_link(Name, Channel, Endpoint, Encoding, StatsHandler) ->
     gen_statem:start_link(?MODULE, [Name, Channel, Endpoint, Encoding, StatsHandler], []).
@@ -97,9 +96,9 @@ disconnected(EventType, EventContent, Data) ->
 
 handle_event({call, From}, info, #data{info=Info}) ->
     {keep_state_and_data, [{reply, From, Info}]};
-handle_event(info, {'EXIT', Pid, _}, Data=#data{conn_pid=Pid}) ->
-    {next_state, disconnected, Data#data{conn=undefined, conn_pid=undefined}};
-handle_event(info, {'EXIT', _, econnrefused}, #data{conn=undefined, conn_pid=undefined}) ->
+handle_event(info, {'EXIT', Pid, _}, Data=#data{conn=Pid}) ->
+    {next_state, disconnected, Data#data{conn=undefined}};
+handle_event(info, {'EXIT', _, econnrefused}, #data{conn=undefined}) ->
     keep_state_and_data;
 handle_event({call, From}, shutdown, _) ->
     {stop_and_reply, normal, {reply, From, ok}};
@@ -112,37 +111,36 @@ terminate(_Reason, _State, #data{conn=undefined,
     gproc_pool:disconnect_worker(Channel, Endpoint),
     gproc_pool:remove_worker(Channel, Endpoint),
     ok;
-terminate(normal, _State, #data{conn=Pid,
+terminate(normal, _State, #data{conn=Conn,
                                  endpoint=Endpoint,
                                  channel=Channel}) ->
-    chatterbox_h2_connection:stop(Pid),
+    h2:close(Conn),
     gproc_pool:disconnect_worker(Channel, Endpoint),
     gproc_pool:remove_worker(Channel, Endpoint),
     ok;
-terminate(Reason, _State, #data{conn_pid=Pid,
+terminate(Reason, _State, #data{conn=Conn,
                                  endpoint=Endpoint,
                                  channel=Channel}) ->
-    exit(Pid, Reason),
+    exit(Conn, Reason),
     gproc_pool:disconnect_worker(Channel, Endpoint),
     gproc_pool:remove_worker(Channel, Endpoint),
     ok.
 
 connect(Data=#data{conn=undefined,
                    endpoint={Transport, Host, Port, SSLOptions, ConnectionSettings}}, From, Actions) ->
-    case chatterbox_h2_client:start_link(Transport, Host, Port, options(Transport, SSLOptions),
-                              ConnectionSettings#{garbage_on_end => true,
-                                                  stream_callback_mod => grpcbox_client_stream}) of
+    case h2:connect(Host, Port, #{transport => transport(Transport),
+                                  ssl_opts => SSLOptions,
+                                  settings => ConnectionSettings}) of
         {ok, Conn} ->
-            Pid = chatterbox_h2_stream_set:connection(Conn),
-            {next_state, ready, Data#data{conn=Conn, conn_pid=Pid}, Actions};
+            {next_state, ready, Data#data{conn=Conn}, Actions};
         {error, _}=Error ->
             {next_state, disconnected, Data#data{conn=undefined}, [{reply, From, Error}]}
     end;
-connect(Data=#data{conn=Conn, conn_pid=Pid}, From, Actions) when is_pid(Pid) ->
-    chatterbox_h2_connection:stop(Conn),
-    connect(Data#data{conn=undefined, conn_pid=undefined}, From, Actions).
+connect(Data=#data{conn=Conn}, From, Actions) when is_pid(Conn) ->
+    h2:close(Conn),
+    connect(Data#data{conn=undefined}, From, Actions).
 
-options(https, Options) ->
-    [{client_preferred_next_protocols, {client, [<<"h2">>]}} | Options];
-options(http, Options) ->
-    Options.
+transport(https) ->
+    ssl;
+transport(http) ->
+    tcp.

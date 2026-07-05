@@ -8,13 +8,11 @@
 -export([start_server/1,
          server_child_spec/5]).
 
--include_lib("chatterbox/include/http2.hrl").
-
 -type encoding() :: identity | gzip | deflate | snappy | atom().
 -type metadata() :: #{headers := grpcbox_metadata:t(),
                       trailers := grpcbox_metadata:t()}.
 
--type server_opts() :: #{server_opts => settings(), %% TODO: change this in chatterbox to be under a module
+-type server_opts() :: #{server_opts => h2_settings:settings(),
                          grpc_opts => #{service_protos := [module()]},
                          listen_opts => #{port => inet:port_number(),
                                           ip => inet:ip_address(),

@@ -42,17 +42,19 @@ init([ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts, ServiceSupName]
     UnaryInterceptor = interceptor(unary_interceptor, GrpcOpts),
     StreamInterceptor = interceptor(stream_interceptor, GrpcOpts),
     StatsHandler = maps:get(stats_handler, GrpcOpts, undefined),
-    ChatterboxOpts = #{stream_callback_mod => grpcbox_stream,
-                       stream_callback_opts => [Tid, AuthFun, UnaryInterceptor,
-                                                StreamInterceptor, StatsHandler]},
+    StreamOpts = #{services_table => Tid,
+                   auth_fun => AuthFun,
+                   unary_interceptor => UnaryInterceptor,
+                   stream_interceptor => StreamInterceptor,
+                   stats_handler => StatsHandler},
 
     %% unique name for pool based on the ip and port it will listen on
     Name = pool_name(ListenOpts),
 
     RestartStrategy = #{strategy => rest_for_one},
     Pool = #{id => grpcbox_pool,
-             start => {grpcbox_pool, start_link, [Name, chatterbox:settings(server, ServerOpts),
-                                                  ChatterboxOpts, TransportOpts]}},
+             start => {grpcbox_pool, start_link, [Name, ServerOpts,
+                                                  StreamOpts, TransportOpts]}},
     Socket = #{id => grpcbox_socket,
                start => {grpcbox_socket, start_link, [Name, ListenOpts, PoolOpts]}},
     {ok, {RestartStrategy, [Pool, Socket]}}.

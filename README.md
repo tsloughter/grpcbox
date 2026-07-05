@@ -7,7 +7,7 @@ grpcbox
 [![Hex.pm](https://img.shields.io/hexpm/v/grpcbox.svg?maxAge=2592000)](https://hex.pm/packages/grpcbox)
 [![Hex.pm](https://img.shields.io/hexpm/dt/grpcbox.svg?maxAge=2592000)](https://hex.pm/packages/grpcbox)
 
-Library for creating [grpc](https://grpc.io) services (client and server) in Erlang, based on the [chatterbox](https://github.com/joedevivo/chatterbox) http2 library.
+Library for creating [grpc](https://grpc.io) services (client and server) in Erlang, based on the [erlang_h2](https://github.com/benoitc/erlang_h2) http2 library.
 
 Features
 ---

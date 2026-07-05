@@ -179,7 +179,7 @@ start_workers(Pool, StatsHandler, Encoding, Endpoints) ->
          Pid
      end || Endpoint={Transport, Host, Port, SSLOptions, ConnectionSettings} <- Endpoints].
 
-%% add the chatterbox connection settings map to the endpoint if it isn't there already
+%% add the http/2 connection settings map to the endpoint if it isn't there already
 normalize_endpoints(Endpoints) ->
     lists:map(fun({Transport, Host, Port, SSLOptions}) ->
                       {Transport, Host, Port, SSLOptions, #{}};

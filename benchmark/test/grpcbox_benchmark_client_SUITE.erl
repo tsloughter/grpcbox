@@ -30,14 +30,15 @@ init_per_group(Encoding, Config) ->
     application:load(grpcbox),
 
     NrConns = lists:seq(1, ct:get_config(num_conn, 1)),
+    H2Settings = ct:get_config(h2_settings, #{}),
     ChannelEndpoints = [{http,
                          ct:get_config(server_addr, "localhost"),
                          ct:get_config(server_port, 8080),
-                         [{nr, Nr}]} || Nr <- NrConns],
+                         [{nr, Nr}],
+                         H2Settings} || Nr <- NrConns],
     application:set_env(grpcbox, client, #{channels => [{default_channel, ChannelEndpoints,
                                                          #{encoding => Encoding}}]}),
     {ok, _} = application:ensure_all_started(grpcbox),
-    application:set_env([{chatterbox, ct:get_config(chatterbox)}]),
     Config.
 
 end_per_group(_Encoding, _Config) ->
@@ -145,7 +146,7 @@ log_settings() ->
     log_ct_parameter(rq_size),
     log_ct_parameter(rsp_size),
     log_ct_parameter(rpc_type),
-    log_ct_parameter(chatterbox).
+    log_ct_parameter(h2_settings).
 
 log_ct_parameter(Param) ->
     ct:log("~p: ~p" , [Param, ct:get_config(Param)]).

@@ -1,10 +1,9 @@
 -module(grpcbox_stream).
 
--include_lib("chatterbox/include/http2.hrl").
 -include_lib("kernel/include/logger.hrl").
 -include_lib("grpcbox/include/grpcbox.hrl").
 
--behaviour(chatterbox_h2_stream).
+-behaviour(gen_server).
 
 -export([send/2,
          send/3,
@@ -16,16 +15,16 @@
          error/2,
          ctx/1,
          ctx/2,
-         handle_streams/2,
-         handle_call/2,
-         handle_info/2]).
+         handle_streams/2]).
 
--export([init/3,
-         on_receive_headers/2,
-         on_send_push_promise/2,
-         on_receive_data/2,
-         on_end_stream/1,
-         terminate/1]).
+-export([start_link/4]).
+
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         handle_continue/2,
+         terminate/2]).
 
 -export_type([t/0,
               grpc_status/0,
@@ -37,7 +36,7 @@
               grpc_extended_error_response/0]).
 
 -record(state, {handler             :: pid(),
-                socket,
+                peercert            :: public_key:der_encoded() | undefined,
                 auth_fun,
                 buffer              :: binary(),
                 ctx                 :: ctx:t() | undefined,
@@ -46,7 +45,7 @@
                 full_method         :: binary() | undefined,
                 input_ref           :: reference() | undefined,
                 callback_pid        :: pid() | undefined,
-                connection          :: chatterbox_h2_stream_set:stream_set(),
+                connection          :: h2:connection(),
                 request_encoding    :: gzip | identity | undefined,
                 response_encoding   :: gzip | identity | undefined,
                 content_type        :: proto | json | undefined,
@@ -54,9 +53,10 @@
                 resp_trailers=[]    :: list(),
                 headers_sent=false  :: boolean(),
                 trailers_sent=false :: boolean(),
+                client_done=false   :: boolean(),
                 unary_interceptor   :: fun() | undefined,
                 stream_interceptor  :: fun() | undefined,
-                stream_id           :: stream_id(),
+                stream_id           :: h2:stream_id(),
                 method              :: #method{} | undefined,
                 stats_handler       :: module() | undefined,
                 stats               :: term() | undefined}).
@@ -83,8 +83,15 @@
 }.
 -type grpc_extended_error_response() :: {grpc_extended_error, grpc_error_data()}.
 
-init(Conn, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
-                         StreamInterceptor, StatsHandler]) ->
+start_link(Conn, StreamId, Headers, Opts) ->
+    gen_server:start_link(?MODULE, [Conn, StreamId, Headers, Opts], []).
+
+init([Conn, StreamId, Headers, #{services_table := ServicesTable,
+                                 auth_fun := AuthFun,
+                                 unary_interceptor := UnaryInterceptor,
+                                 stream_interceptor := StreamInterceptor,
+                                 stats_handler := StatsHandler,
+                                 peercert := PeerCert}]) ->
     process_flag(trap_exit, true),
     State = #state{connection=Conn,
                    stream_id=StreamId,
@@ -93,12 +100,21 @@ init(Conn, StreamId, [Socket, ServicesTable, AuthFun, UnaryInterceptor,
                    auth_fun=AuthFun,
                    unary_interceptor=UnaryInterceptor,
                    stream_interceptor=StreamInterceptor,
-                   socket=Socket,
+                   peercert=PeerCert,
                    handler=self(),
                    stats_handler=StatsHandler},
-    {ok, State}.
+    %% register for this stream's events. DATA that arrived before
+    %% registration was buffered by the connection and is replayed in order,
+    %% after the {continue, ...} callback has processed the request headers
+    case h2:set_stream_handler(Conn, StreamId, self()) of
+        ok ->
+            {ok, State, {continue, {headers, Headers}}};
+        {error, _} ->
+            %% stream is already gone, e.g. reset by the client
+            {stop, normal}
+    end.
 
-on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
+handle_headers(Headers, State=#state{ctx=_Ctx}) ->
     %% proplists:get_value(<<":method">>, Headers) =:= <<"POST">>,
     Metadata = grpcbox_utils:headers_to_metadata(Headers),
     Ctx = case parse_options(<<"grpc-timeout">>, Headers) of
@@ -119,8 +135,7 @@ on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
     ResponseEncoding = parse_options(<<"grpc-accept-encoding">>, Headers),
     ContentType = parse_options(<<"content-type">>, Headers),
 
-    RespHeaders = [{<<":status">>, <<"200">>},
-                   {<<"user-agent">>, <<"grpc-erlang/0.1.0">>},
+    RespHeaders = [{<<"user-agent">>, <<"grpc-erlang/0.1.0">>},
                    {<<"content-type">>, content_type(ContentType)}
                    | response_encoding(ResponseEncoding)],
 
@@ -138,28 +153,27 @@ handle_service_lookup(Ctx, [Service, Method], State=#state{services_table=Servic
                                  method=M},
             handle_auth(Ctx, State1);
         _ ->
-            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State)
+            end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State#state{ctx=Ctx})
     end;
-handle_service_lookup(_, _, State) ->
-    State1 = State#state{resp_headers=[{<<":status">>, <<"200">>},
-                                       {<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]},
-    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State1),
-    {ok, State1}.
+handle_service_lookup(Ctx, _, State) ->
+    State1 = State#state{ctx=Ctx,
+                         resp_headers=[{<<"user-agent">>, <<"grpc-erlang/0.1.0">>}]},
+    end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"failed parsing path">>, State1).
 
 handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
-                               socket=Socket,
+                               peercert=PeerCert,
                                method=#method{input={_, InputStreaming}}}) ->
-    case authenticate(chatterbox_sock:peercert(Socket), AuthFun) of
+    case authenticate(PeerCert, AuthFun) of
         {true, _Identity} ->
             case InputStreaming of
                 true ->
                     Ref = make_ref(),
                     Pid = proc_lib:spawn_link(?MODULE, handle_streams,
                                               [Ref, State#state{handler=self()}]),
-                    {ok, State#state{input_ref=Ref,
-                                     callback_pid=Pid}};
+                    State#state{input_ref=Ref,
+                                callback_pid=Pid};
                 _ ->
-                    {ok, State}
+                    State
             end;
         _ ->
             end_stream(?GRPC_STATUS_UNAUTHENTICATED, <<"">>, State)
@@ -167,7 +181,7 @@ handle_auth(_Ctx, State=#state{auth_fun=AuthFun,
 
 authenticate(_, undefined) ->
     {true, undefined};
-authenticate({ok, Cert}, Fun) ->
+authenticate(Cert, Fun) when Cert =/= undefined ->
     Fun(Cert);
 authenticate(_, _) ->
     false.
@@ -209,26 +223,23 @@ handle_streams(Ref, State=#state{full_method=FullMethod,
             StreamInterceptor(Ref, State, ServerInfo, fun Module:Function/2)
     end.
 
-on_send_push_promise(_, State) ->
-    {ok, State}.
-
 ctx_with_stream(Ctx, Stream) ->
     ctx:set(Ctx, ctx_stream_key, Stream).
 
 from_ctx(Ctx) ->
     ctx:get(Ctx, ctx_stream_key).
 
-on_receive_data(_, State=#state{method=undefined}) ->
-    {ok, State};
-on_receive_data(Bin, State=#state{request_encoding=Encoding,
-                                  buffer=Buffer}) ->
+handle_data(_, State=#state{method=undefined}) ->
+    State;
+handle_data(Bin, State=#state{request_encoding=Encoding,
+                              buffer=Buffer}) ->
     try
         {NewBuffer, Messages} = grpcbox_frame:split(<<Buffer/binary, Bin/binary>>, Encoding),
         State1 = lists:foldl(fun(EncodedMessage, StateAcc=#state{}) ->
                                      StateAcc1 = handle_message(EncodedMessage, StateAcc),
                                      StateAcc1
                              end, State, Messages),
-        {ok, State1#state{buffer=NewBuffer}}
+        State1#state{buffer=NewBuffer}
     catch
         throw:{grpc_error, {Status, Message}} ->
             end_stream(Status, Message, State);
@@ -256,9 +267,9 @@ handle_message(EncodedMessage, State=#state{input_ref=Ref,
                     Pid ! {Ref, Message},
                     State1;
                 {false, true} ->
-                    _ = proc_lib:spawn_link(?MODULE, handle_streams,
-                                            [Message, State1#state{handler=self()}]),
-                    State1;
+                    CallbackPid = proc_lib:spawn_link(?MODULE, handle_streams,
+                                                      [Message, State1#state{handler=self()}]),
+                    State1#state{callback_pid=CallbackPid};
                 {false, false} ->
                     handle_unary(Ctx1, Message, State1)
             end
@@ -292,33 +303,110 @@ handle_unary(Ctx, Message, State=#state{unary_interceptor=UnaryInterceptor,
             throw(E)
     end.
 
-on_end_stream(State) ->
-    on_end_stream_(State).
+end_of_stream(State0) ->
+    end_of_stream_(State0#state{client_done=true}).
 
-on_end_stream_(State=#state{input_ref=Ref,
+end_of_stream_(State=#state{input_ref=Ref,
                             callback_pid=Pid,
-                            method=#method{input={_Input, true},
-                                           output={_Output, false}}}) ->
+                            method=#method{input={_Input, true}}}) ->
     Pid ! {Ref, eos},
-    {ok, State};
-on_end_stream_(State=#state{input_ref=Ref,
-                            callback_pid=Pid,
-                            method=#method{input={_Input, true},
-                                           output={_Output, true}}}) ->
-    Pid ! {Ref, eos},
-    {ok, State};
-on_end_stream_(State=#state{input_ref=_Ref,
-                            callback_pid=_Pid,
+    State;
+end_of_stream_(State=#state{callback_pid=undefined,
                             method=#method{input={_Input, false},
                                            output={_Output, true}}}) ->
-    {ok, State};
-on_end_stream_(State=#state{method=#method{output={_Output, false}}}) ->
-    end_stream(State);
-on_end_stream_(State) ->
+    %% half-closed before a request message arrived, no handler was started
+    %% so no one will ever end this stream
+    end_stream(?GRPC_STATUS_INTERNAL, <<"half-closed without a request message">>, State);
+end_of_stream_(State=#state{method=#method{input={_Input, false},
+                                           output={_Output, true}}}) ->
+    State;
+end_of_stream_(State) ->
     end_stream(State).
 
-terminate(State) ->
-    on_end_stream(State).
+%% gen_server callbacks
+
+handle_call(ctx, _From, State=#state{ctx=Ctx}) ->
+    {reply, Ctx, State};
+handle_call({ctx, Ctx}, _From, State) ->
+    {reply, ok, State#state{ctx=Ctx}}.
+
+handle_cast(_, State) ->
+    {noreply, State}.
+
+handle_continue({headers, Headers}, State) ->
+    try handle_headers(Headers, State) of
+        State1 ->
+            maybe_stop(State1)
+    catch
+        throw:{grpc_error, {Status, Message}} ->
+            maybe_stop(end_stream(Status, Message, State#state{ctx=ctx:new()}))
+    end.
+
+handle_info({h2, Conn, Event}, State=#state{connection=Conn}) ->
+    handle_event(Event, State);
+handle_info({add_headers, Headers}, State) ->
+    {noreply, update_headers(Headers, State)};
+handle_info({add_trailers, Trailers}, State) ->
+    {noreply, update_trailers(Trailers, State)};
+handle_info({send_proto, Message}, State) ->
+    {noreply, send(false, Message, State)};
+handle_info({'EXIT', Pid, normal}, State=#state{callback_pid=Pid}) ->
+    maybe_stop(end_stream(State));
+handle_info({'EXIT', Pid, {grpc_error, {Status, Message}}}, State=#state{callback_pid=Pid}) ->
+    maybe_stop(end_stream(Status, Message, State));
+handle_info({'EXIT', Pid, {grpc_extended_error, #{status := Status, message := Message} = ErrorData}},
+            State=#state{callback_pid=Pid}) ->
+    State1 = add_trailers_from_error_data(ErrorData, State),
+    maybe_stop(end_stream(Status, Message, State1));
+handle_info({'EXIT', Pid, _Other}, State=#state{callback_pid=Pid}) ->
+    maybe_stop(end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State));
+handle_info({timeout, _Ref, <<"grpc-timeout">>}, State) ->
+    maybe_stop(end_stream(?GRPC_STATUS_DEADLINE_EXCEEDED, <<"Deadline expired">>, State));
+handle_info(_, State) ->
+    {noreply, State}.
+
+terminate(_Reason, State=#state{callback_pid=Pid}) when is_pid(Pid) ->
+    exit(Pid, {shutdown, stream_terminated}),
+    maybe_reset(State),
+    ok;
+terminate(_Reason, State) ->
+    maybe_reset(State),
+    ok.
+
+%% the response is complete but the client's send side is still open: reset
+%% the stream so it doesn't keep streaming into the void and the stream
+%% doesn't stay half open on the connection
+maybe_reset(#state{trailers_sent=true,
+                   client_done=false,
+                   connection=Conn,
+                   stream_id=StreamId}) ->
+    try h2:cancel(Conn, StreamId, no_error) catch _:_ -> ok end;
+maybe_reset(_) ->
+    ok.
+
+handle_event({data, _StreamId, Bin, IsFin}, State) ->
+    State1 = handle_data(Bin, State),
+    State2 = case IsFin of
+                 true ->
+                     end_of_stream(State1);
+                 false ->
+                     State1
+             end,
+    maybe_stop(State2);
+handle_event({trailers, _StreamId, _Trailers}, State) ->
+    %% trailers from the client carry END_STREAM
+    maybe_stop(end_of_stream(State));
+handle_event({stream_reset, _StreamId, _ErrorCode}, State) ->
+    {stop, {shutdown, stream_reset}, State};
+handle_event({closed, _Reason}, State) ->
+    {stop, {shutdown, connection_closed}, State};
+handle_event(_, State) ->
+    {noreply, State}.
+
+maybe_stop(State=#state{trailers_sent=true}) ->
+    {stop, normal, State};
+maybe_stop(State) ->
+    {noreply, State}.
 
 %% Internal
 
@@ -334,40 +422,38 @@ end_stream(State) ->
     end_stream(?GRPC_STATUS_OK, <<>>, State).
 
 end_stream(Status, Message, State=#state{headers_sent=false}) ->
-    end_stream(Status, Message, send_headers(State));
+    end_stream(Status, Message, send_headers_internal([], State));
 end_stream(_Status, _Message, State=#state{trailers_sent=true}) ->
-    {ok, State};
+    State;
 end_stream(Status, Message, State=#state{connection=Conn,
                                          stream_id=StreamId,
                                          ctx=Ctx,
                                          resp_trailers=Trailers}) ->
     EncodedTrailers = grpcbox_utils:encode_headers(Trailers),
-    chatterbox_h2_connection:send_trailers(Conn, StreamId, [{<<"grpc-status">>, Status},
-                                                    {<<"grpc-message">>, Message} | EncodedTrailers],
-                                [{send_end_stream, true}]),
+    _ = h2:send_trailers(Conn, StreamId, [{<<"grpc-status">>, Status},
+                                          {<<"grpc-message">>, Message} | EncodedTrailers]),
     Ctx1 = ctx:with_value(Ctx, grpc_server_status, grpcbox_utils:status_to_string(Status)),
     State1 = stats_handler(Ctx1, rpc_end, {}, State),
-    {ok, State1#state{trailers_sent=true}}.
+    State1#state{trailers_sent=true}.
 
 set_trailers(Ctx, Trailers) ->
     State = from_ctx(Ctx),
     ctx_with_stream(Ctx, State#state{resp_trailers=maps:to_list(Trailers)}).
 
-send_headers(State) ->
-    send_headers([], State).
-
 send_headers(Ctx, Headers) when is_map(Headers) ->
     State = from_ctx(Ctx),
-    send_headers(maps:to_list(maybe_encode_headers(Headers)), State);
+    send_headers_internal(maps:to_list(maybe_encode_headers(Headers)), State);
+send_headers(Metadata, State=#state{}) ->
+    send_headers_internal(Metadata, State).
 
-send_headers(_Metadata, State=#state{headers_sent=true}) ->
+send_headers_internal(_Metadata, State=#state{headers_sent=true}) ->
     State;
-send_headers(Metadata, State=#state{connection=Conn,
-                                    stream_id=StreamId,
-                                    resp_headers=Headers,
-                                    headers_sent=false}) ->
+send_headers_internal(Metadata, State=#state{connection=Conn,
+                                             stream_id=StreamId,
+                                             resp_headers=Headers,
+                                             headers_sent=false}) ->
     MdHeaders = grpcbox_utils:encode_headers(Metadata),
-    chatterbox_h2_connection:send_headers(Conn, StreamId, Headers ++ MdHeaders, [{send_end_stream, false}]),
+    _ = h2:send_response(Conn, StreamId, 200, Headers ++ MdHeaders),
     State#state{headers_sent=true}.
 
 code_to_status(0) -> ?GRPC_STATUS_OK;
@@ -392,40 +478,10 @@ error(Status, Message) ->
     exit(?GRPC_ERROR(Status, Message)).
 
 ctx(#state{handler=Pid}) ->
-    chatterbox_h2_stream:call(Pid, ctx).
+    gen_server:call(Pid, ctx).
 
 ctx(#state{handler=Pid}, Ctx) ->
-    chatterbox_h2_stream:call(Pid, {ctx, Ctx}).
-
-handle_call(ctx, State=#state{ctx=Ctx}) ->
-    {ok, Ctx, State};
-handle_call({ctx, Ctx}, State) ->
-    {ok, ok, State#state{ctx=Ctx}}.
-
-handle_info({add_headers, Headers}, State) ->
-    update_headers(Headers, State);
-handle_info({add_trailers, Trailers}, State) ->
-    update_trailers(Trailers, State);
-handle_info({send_proto, Message}, State) ->
-    send(false, Message, State);
-handle_info({'EXIT', _, normal}, State) ->
-    end_stream(State),
-    State;
-handle_info({'EXIT', _, {grpc_error, {Status, Message}}}, State) ->
-    end_stream(Status, Message, State),
-    State;
-handle_info({'EXIT', _, {grpc_extended_error, #{status := Status, message := Message} = ErrorData}}, State) ->
-    State1 = add_trailers_from_error_data(ErrorData, State),
-    end_stream(Status, Message, State1),
-    State1;
-handle_info({'EXIT', _, _Other}, State) ->
-    end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
-    State;
-handle_info({timeout,_Ref,<<"grpc-timeout">>}, State) ->
-    end_stream(?GRPC_STATUS_DEADLINE_EXCEEDED, <<"Deadline expired">>, State),
-    State;
-handle_info(_, State) ->
-    State.
+    gen_server:call(Pid, {ctx, Ctx}).
 
 add_headers(Headers, #state{handler=Pid}) ->
     Pid ! {add_headers, Headers}.
@@ -446,7 +502,7 @@ send(Message, #state{handler=Pid}) ->
     Pid ! {send_proto, Message}.
 
 send(End, Message, State=#state{headers_sent=false}) ->
-    State1 = send_headers(State),
+    State1 = send_headers_internal([], State),
     send(End, Message, State1);
 send(End, Message, State=#state{ctx=Ctx,
                                 connection=Conn,
@@ -457,9 +513,24 @@ send(End, Message, State=#state{ctx=Ctx,
                                                output={Output, _}}}) ->
     BodyToSend = Proto:encode_msg(Message, Output),
     OutFrame = grpcbox_frame:encode(Encoding, BodyToSend),
-    ok = chatterbox_h2_connection:send_body(Conn, StreamId, OutFrame, [{send_end_stream, End}]),
+    %% block on flow control, bounded by the request deadline so the
+    %% grpc-timeout still fires against a stalled client
+    case h2:send_data(Conn, StreamId, OutFrame, End, #{block => block_timeout(Ctx)}) of
+        {error, timeout} ->
+            exit({shutdown, send_timeout});
+        _ ->
+            ok
+    end,
     stats_handler(Ctx, out_payload, #{uncompressed_size => erlang:external_size(Message),
                                       compressed_size => size(BodyToSend)}, State).
+
+block_timeout(Ctx) ->
+    case ctx:deadline(Ctx) of
+        D when D =:= undefined ; D =:= infinity ->
+            infinity;
+        {T, _} ->
+            max(0, erlang:convert_time_unit(T - erlang:monotonic_time(), native, millisecond))
+    end.
 
 response_encoding(gzip) ->
     [{<<"grpc-encoding">>, <<"gzip">>}];

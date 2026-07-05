@@ -21,7 +21,6 @@
          close_and_recv/1,
          close_send/1]).
 
--include_lib("chatterbox/include/http2.hrl").
 -include_lib("grpcbox/include/grpcbox.hrl").
 
 -type options() :: #{channel => grpcbox_channel:t(),
@@ -33,7 +32,7 @@
 -type interceptor() :: unary_interceptor() | stream_interceptor().
 
 -type stream() :: #{channel => pid(),
-                    stream_id => stream_id(),
+                    stream_id => h2:stream_id(),
                     stream_pid => pid(),
                     monitor_ref => reference(),
                     service_def => #grpcbox_def{},
@@ -153,8 +152,15 @@ close_and_recv(Stream) ->
 
 close_send(#{channel := Conn,
              stream_id := StreamId}) ->
-    ok = chatterbox_h2_connection:send_body(Conn, StreamId, <<>>, [{send_end_stream, true}]).
-    %% chatterbox_h2_connection:send_trailers(Conn, StreamId, [], [{send_end_stream, true}]).
+    %% half-close the send side. A no-op if the stream or the connection is
+    %% already gone, the error is delivered through the stream events
+    try h2:send_data(Conn, StreamId, <<>>, true) of
+        _ ->
+            ok
+    catch
+        exit:_ ->
+            ok
+    end.
 
 send(Stream=#{stream_interceptor := #{send_msg := SendMsg}}, Input) ->
     SendMsg(Stream, fun grpcbox_client_stream:send_msg/2, Input);
@@ -234,18 +240,13 @@ recv_end(#{stream_id := StreamId,
     receive
         {eos, StreamId} ->
             erlang:demonitor(Ref, [flush]),
-            receive
-                {'END_STREAM', StreamId} ->
-                    eos
-            after Timeout -> %% actually, this Timeout will never happen because of outer receive Timeout
-                {error, eos}
-            end;
+            eos;
         {'DOWN', Ref, process, Pid, normal} ->
-            %% this is sent by chatterbox_h2_connection after the stream process has ended
+            %% sent when the stream process has ended, eos was sent first
             receive
-                {'END_STREAM', StreamId} ->
+                {eos, StreamId} ->
                     eos
-            after Timeout ->
+            after 0 ->
                 {error, {stream_down, normal}}
             end;
         {'DOWN', Ref, process, Pid, Reason} ->

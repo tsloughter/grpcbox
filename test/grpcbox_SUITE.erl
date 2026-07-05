@@ -15,8 +15,10 @@ groups() ->
      {concurrent, [{repeat_until_any_fail, 5}], [unary_concurrent]},
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
      {negative_ssl, [], [unauthorized]},
-     {context, [], [%% deadline
-                   ]}].
+     {robustness, [], [large_message, client_cancel_stream, unknown_encoding,
+                       empty_request_end_stream_on_headers,
+                       empty_server_streaming_request]},
+     {context, [], [deadline_exceeded]}].
 
 all() ->
     [{group, ssl},
@@ -25,6 +27,8 @@ all() ->
      {group, concurrent},
      {group, negative_tests},
      {group, negative_ssl},
+     {group, robustness},
+     {group, context},
      initially_down_service,
      unary_interceptor,
      unary_client_interceptor,
@@ -82,6 +86,15 @@ init_per_group(socket_options, Config) ->
                                              transport_opts => #{}}]),
     Config;
 init_per_group(concurrent, Config) ->
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
+                                                         #{}}]}),
+    application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                                            services => #{'routeguide.RouteGuide' =>
+                                                                              routeguide_route_guide}},
+                                             transport_opts => #{}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
+init_per_group(Group, Config) when Group =:= robustness ; Group =:= context ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}],
                                                          #{}}]}),
     application:set_env(grpcbox, servers, [#{grpc_opts => #{service_protos => [route_guide_pb],
@@ -297,6 +310,18 @@ end_per_testcase(streaming_generate_error, _Config) ->
     ok;
 end_per_testcase(closed_stream, _Config) ->
     ok;
+end_per_testcase(large_message, _Config) ->
+    ok;
+end_per_testcase(client_cancel_stream, _Config) ->
+    ok;
+end_per_testcase(unknown_encoding, _Config) ->
+    ok;
+end_per_testcase(empty_request_end_stream_on_headers, _Config) ->
+    ok;
+end_per_testcase(empty_server_streaming_request, _Config) ->
+    ok;
+end_per_testcase(deadline_exceeded, _Config) ->
+    ok;
 end_per_testcase(_, _Config) ->
     application:stop(grpcbox),
     ok.
@@ -474,21 +499,27 @@ unary_no_auth(_Config) ->
 unary_authenticated(Config) ->
     unary(Config).
 
-%% checks that no closed streams are left around after unary requests
+%% checks that stream accounting on the connection stays consistent after
+%% unary requests. h2 keeps a bounded cache of recently closed streams, so
+%% completed streams can not accumulate by construction
 unary_garbage_collect_streams(Config) ->
     unary(Config),
 
-    ConnectionStreamSet = connection_stream_set(),
+    Conn = client_connection(),
 
-    ?assertEqual([], chatterbox_h2_stream_set:my_active_streams(ConnectionStreamSet)).
+    ?assertEqual(ok, h2_connection:verify_stream_counts(Conn)),
+    wait_for_no_procs(grpcbox_stream),
+    wait_for_no_procs(grpcbox_client_stream).
 
 client_stream_garbage_collect_streams(Config) ->
     client_stream(Config),
 
     timer:sleep(100),
-    ConnectionStreamSet = connection_stream_set(),
+    Conn = client_connection(),
 
-    ?assertEqual([], chatterbox_h2_stream_set:my_active_streams(ConnectionStreamSet)).
+    ?assertEqual(ok, h2_connection:verify_stream_counts(Conn)),
+    wait_for_no_procs(grpcbox_stream),
+    wait_for_no_procs(grpcbox_client_stream).
 
 multiple_servers(_Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []},
@@ -603,14 +634,130 @@ stream_interceptor(_Config) ->
 
 %%
 
-%% verify that the chatterbox stream isn't storing frame data
-check_stream_state(S) ->
-    {_, StreamState} = sys:get_state(maps:get(stream_pid, S)),
-    FrameQueue = element(7, StreamState),
-    ?assert(queue:is_empty(FrameQueue)).
+%% a message larger than the http/2 flow control window and the per-stream
+%% send buffer goes through in both directions
+large_message(_Config) ->
+    {ok, S} = routeguide_route_guide_client:route_chat(ctx:new()),
+    Location = #{latitude => 7, longitude => 7},
+    Big = binary:copy(<<"a">>, 2 * 1024 * 1024),
+    ok = grpcbox_client:send(S, #{location => Location, message => Big}),
+    %% route_chat echoes the previously seen messages at the same location
+    ok = grpcbox_client:send(S, #{location => Location, message => <<"trigger">>}),
+    {ok, #{message := Got}} = grpcbox_client:recv_data(S, 15000),
+    ?assertEqual(byte_size(Big), byte_size(Got)),
+    ?assertMatch(ok, grpcbox_client:close_send(S)).
 
-%% return the stream_set of a connection in the channel
-connection_stream_set() ->
+%% resetting a stream from the client cleans the server side up and leaves
+%% the connection usable
+client_cancel_stream(_Config) ->
+    {ok, S=#{channel := Conn, stream_id := StreamId}} = routeguide_route_guide_client:route_chat(ctx:new()),
+    ok = grpcbox_client:send(S, #{location => #{latitude => 3, longitude => 3}, message => <<"hi">>}),
+    _ = h2:cancel(Conn, StreamId),
+    wait_for_no_procs(grpcbox_stream),
+    unary(_Config).
+
+%% an unsupported grpc-encoding responds with UNIMPLEMENTED trailers instead
+%% of resetting the stream
+unknown_encoding(_Config) ->
+    {ok, Conn} = h2:connect("127.0.0.1", 8080, #{transport => tcp}),
+    {ok, StreamId} = h2:request(Conn, raw_headers(<<"/routeguide.RouteGuide/GetFeature">>,
+                                                  [{<<"grpc-encoding">>, <<"br">>}]),
+                                #{handler => self(), end_stream => false}),
+    ok = h2:send_data(Conn, StreamId, <<>>, true),
+    Trailers = raw_recv_trailers(Conn, StreamId),
+    ?assertEqual(<<"12">>, proplists:get_value(<<"grpc-status">>, Trailers)),
+    h2:close(Conn).
+
+%% a request that carries END_STREAM on its HEADERS still gets an answer
+empty_request_end_stream_on_headers(_Config) ->
+    {ok, Conn} = h2:connect("127.0.0.1", 8080, #{transport => tcp}),
+    {ok, StreamId} = h2:request(Conn, raw_headers(<<"/routeguide.RouteGuide/GetFeature">>, []),
+                                #{handler => self(), end_stream => true}),
+    Trailers = raw_recv_trailers(Conn, StreamId),
+    ?assertEqual(<<"0">>, proplists:get_value(<<"grpc-status">>, Trailers)),
+    h2:close(Conn).
+
+%% a server streaming rpc half-closed without a request message answers with
+%% INTERNAL instead of hanging
+empty_server_streaming_request(_Config) ->
+    {ok, Conn} = h2:connect("127.0.0.1", 8080, #{transport => tcp}),
+    {ok, StreamId} = h2:request(Conn, raw_headers(<<"/routeguide.RouteGuide/ListFeatures">>, []),
+                                #{handler => self(), end_stream => true}),
+    Trailers = raw_recv_trailers(Conn, StreamId),
+    ?assertEqual(<<"13">>, proplists:get_value(<<"grpc-status">>, Trailers)),
+    wait_for_no_procs(grpcbox_stream),
+    h2:close(Conn).
+
+%% the server ends the rpc with DEADLINE_EXCEEDED when the grpc-timeout
+%% passes, even while the handler is waiting for input
+deadline_exceeded(_Config) ->
+    Ctx = ctx:with_deadline_after(ctx:new(), 300, millisecond),
+    {ok, S} = routeguide_route_guide_client:record_route(Ctx),
+    %% never half-close: the server side deadline has to fire
+    ?assertMatch({ok, {<<"4">>, _, _}}, grpcbox_client:recv_trailers(S, 5000)),
+    wait_for_no_procs(grpcbox_stream).
+
+%%
+
+raw_headers(Path, Extra) ->
+    [{<<":method">>, <<"POST">>},
+     {<<":path">>, Path},
+     {<<":scheme">>, <<"http">>},
+     {<<":authority">>, <<"localhost:8080">>},
+     {<<"content-type">>, <<"application/grpc+proto">>},
+     {<<"user-agent">>, <<"grpcbox-suite">>},
+     {<<"te">>, <<"trailers">>} | Extra].
+
+raw_recv_trailers(Conn, StreamId) ->
+    receive
+        {h2, Conn, {trailers, StreamId, Trailers}} ->
+            Trailers;
+        {h2, Conn, {response, StreamId, _, _}} ->
+            raw_recv_trailers(Conn, StreamId);
+        {h2, Conn, {data, StreamId, _, _}} ->
+            raw_recv_trailers(Conn, StreamId)
+    after 5000 ->
+            error(no_trailers)
+    end.
+
+%% processes spawned for a stream, both the gen_servers and the handler
+%% processes spawned with proc_lib
+stream_procs(Mod) ->
+    lists:filter(fun(P) ->
+                         case erlang:process_info(P, dictionary) of
+                             {dictionary, D} ->
+                                 case lists:keyfind('$initial_call', 1, D) of
+                                     {'$initial_call', {M, _, _}} ->
+                                         M =:= Mod;
+                                     false ->
+                                         false
+                                 end;
+                             undefined ->
+                                 false
+                         end
+                 end, erlang:processes()).
+
+wait_for_no_procs(Mod) ->
+    wait_for_no_procs(Mod, 40).
+
+wait_for_no_procs(Mod, 0) ->
+    ?assertEqual([], stream_procs(Mod));
+wait_for_no_procs(Mod, N) ->
+    case stream_procs(Mod) of
+        [] ->
+            ok;
+        _ ->
+            timer:sleep(50),
+            wait_for_no_procs(Mod, N - 1)
+    end.
+
+%% verify that the client stream process isn't holding on to frame data
+check_stream_state(S) ->
+    StreamState = sys:get_state(maps:get(stream_pid, S)),
+    ?assertEqual(<<>>, maps:get(buffer, StreamState)).
+
+%% return the connection of a subchannel in the channel
+client_connection() ->
     {ok, {Channel, _}} = grpcbox_channel:pick(default_channel, unary),
     {ok, Conn, _} = grpcbox_subchannel:conn(Channel),
     Conn.

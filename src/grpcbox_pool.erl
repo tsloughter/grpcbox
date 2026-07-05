@@ -7,13 +7,13 @@
 
 -export([init/1]).
 
-start_link(Name, ServerOpts, ChatterboxOpts, TransportOpts) ->
-    acceptor_pool:start_link({local, Name}, ?MODULE, [ServerOpts, ChatterboxOpts, TransportOpts]).
+start_link(Name, ServerSettings, StreamOpts, TransportOpts) ->
+    acceptor_pool:start_link({local, Name}, ?MODULE, [ServerSettings, StreamOpts, TransportOpts]).
 
 accept_socket(Pool, Socket, Acceptors) ->
     acceptor_pool:accept_socket(Pool, Socket, Acceptors).
 
-init([ServerOpts, ChatterboxOpts, TransportOpts]) ->
+init([ServerSettings, StreamOpts, TransportOpts]) ->
     {Transport, SslOpts} = case TransportOpts of
                                #{ssl := true,
                                  keyfile := KeyFile,
@@ -26,12 +26,12 @@ init([ServerOpts, ChatterboxOpts, TransportOpts]) ->
                                           {fail_if_no_peer_cert, true},
                                           {verify, verify_peer},
                                           {versions, ['tlsv1.2']},
-                                          {next_protocols_advertised, [<<"h2">>]}]};
+                                          {alpn_preferred_protocols, [<<"h2">>]}]};
                                _ ->
                                    {gen_tcp, []}
                            end,
 
     Conn = #{id => grpcbox_acceptor,
-             start => {grpcbox_acceptor, {Transport, ServerOpts, ChatterboxOpts, SslOpts}, []},
+             start => {grpcbox_acceptor, {Transport, ServerSettings, StreamOpts, SslOpts}, []},
              grace => 5000},
     {ok, {#{}, [Conn]}}.
