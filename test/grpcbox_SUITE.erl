@@ -14,7 +14,8 @@ groups() ->
      {socket_options, [], [fd_socket_option]},
      {concurrent, [{repeat_until_any_fail, 5}], [unary_concurrent]},
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
-     {negative_ssl, [], [unauthorized]},
+     {negative_ssl, [], [unauthorized, unauthorized_handler_not_run,
+                         unauthorized_stream_handler_not_run]},
      {context, [], [%% deadline
                    ]}].
 
@@ -99,6 +100,7 @@ init_per_group(negative_tests, Config) ->
     application:ensure_all_started(grpcbox),
     Config;
 init_per_group(negative_ssl, Config) ->
+    persistent_term:put({?MODULE, handler_runs}, counters:new(1, [])),
     ClientCerts = cert_dir(Config),
     Options = [{certfile, cert(Config, "server1.pem")},
                {keyfile, cert(Config, "server1.key")},
@@ -108,7 +110,19 @@ init_per_group(negative_ssl, Config) ->
     Servers = [#{grpc_opts => #{service_protos => [route_guide_pb],
                                 services => #{'routeguide.RouteGuide' => routeguide_route_guide},
                                 client_cert_dir => ClientCerts,
-                                auth_fun => fun(_) -> false end
+                                auth_fun => fun(_) -> false end,
+                                %% count every time a handler is reached, so the
+                                %% tests can check a rejected call never runs one
+                                unary_interceptor =>
+                                    fun(Ctx, Req, _, Method) ->
+                                            counters:add(handler_runs(), 1, 1),
+                                            Method(Ctx, Req)
+                                    end,
+                                stream_interceptor =>
+                                    fun(Ref, Stream, _ServerInfo, Handler) ->
+                                            counters:add(handler_runs(), 1, 1),
+                                            Handler(Ref, Stream)
+                                    end
                                },
                  transport_opts => #{ssl => true,
                                      keyfile => cert(Config, "server1.key"),
@@ -291,6 +305,10 @@ end_per_testcase(unimplemented, _Config) ->
     ok;
 end_per_testcase(unauthorized, _Config) ->
     ok;
+end_per_testcase(unauthorized_handler_not_run, _Config) ->
+    ok;
+end_per_testcase(unauthorized_stream_handler_not_run, _Config) ->
+    ok;
 end_per_testcase(generate_error, _Config) ->
     ok;
 end_per_testcase(streaming_generate_error, _Config) ->
@@ -328,6 +346,28 @@ unauthorized(_Config) ->
     Ctx = ctx:new(),
     {error, {?GRPC_STATUS_UNAUTHENTICATED, _}, #{headers := #{}, trailers := #{}}}
         = routeguide_route_guide_client:get_feature(Ctx, Point).
+
+unauthorized_handler_not_run(_Config) ->
+    counters:put(handler_runs(), 1, 0),
+    Point = #{latitude => 409146138, longitude => -746188906},
+    ?assertMatch({error, {?GRPC_STATUS_UNAUTHENTICATED, _}, _},
+                 routeguide_route_guide_client:get_feature(ctx:new(), Point)),
+    %% give any DATA frame that arrives after the trailers time to reach the
+    %% server stream before checking
+    timer:sleep(200),
+    ?assertEqual(0, counters:get(handler_runs(), 1)).
+
+unauthorized_stream_handler_not_run(_Config) ->
+    counters:put(handler_runs(), 1, 0),
+    {ok, Stream} =
+        routeguide_route_guide_client:list_features(ctx:new(), #{hi => #{latitude => 1, longitude => 2},
+                                                                 lo => #{latitude => 3, longitude => 5}}),
+    ?assertMatch({error, {?GRPC_STATUS_UNAUTHENTICATED, _}, _}, grpcbox_client:recv_data(Stream)),
+    timer:sleep(200),
+    ?assertEqual(0, counters:get(handler_runs(), 1)).
+
+handler_runs() ->
+    persistent_term:get({?MODULE, handler_runs}).
 
 generate_error(_Config) ->
     Response = routeguide_route_guide_client:generate_error(#{}),
