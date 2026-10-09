@@ -16,6 +16,8 @@ groups() ->
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
      {negative_ssl, [], [unauthorized, unauthorized_handler_not_run,
                          unauthorized_stream_handler_not_run]},
+     {ended_stream, [], [deadline_late_data_handler_not_run,
+                         exited_handler_not_rerun]},
      {context, [], [%% deadline
                    ]}].
 
@@ -26,6 +28,7 @@ all() ->
      {group, concurrent},
      {group, negative_tests},
      {group, negative_ssl},
+     {group, ended_stream},
      initially_down_service,
      unary_interceptor,
      unary_client_interceptor,
@@ -97,6 +100,20 @@ init_per_group(negative_tests, Config) ->
                                                             services => #{'routeguide.RouteGuide' =>
                                                                               routeguide_route_guide}},
                                              transport_opts => #{}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
+init_per_group(ended_stream, Config) ->
+    persistent_term:put({?MODULE, handler_runs}, counters:new(1, [])),
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                          stream_interceptor =>
+                                              fun(Ref, Stream, _ServerInfo, Handler) ->
+                                                      counters:add(handler_runs(), 1, 1),
+                                                      Handler(Ref, Stream)
+                                              end},
+                           transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
     Config;
 init_per_group(negative_ssl, Config) ->
@@ -307,6 +324,10 @@ end_per_testcase(unauthorized, _Config) ->
     ok;
 end_per_testcase(unauthorized_handler_not_run, _Config) ->
     ok;
+end_per_testcase(deadline_late_data_handler_not_run, _Config) ->
+    ok;
+end_per_testcase(exited_handler_not_rerun, _Config) ->
+    ok;
 end_per_testcase(unauthorized_stream_handler_not_run, _Config) ->
     ok;
 end_per_testcase(generate_error, _Config) ->
@@ -365,6 +386,41 @@ unauthorized_stream_handler_not_run(_Config) ->
     ?assertMatch({error, {?GRPC_STATUS_UNAUTHENTICATED, _}, _}, grpcbox_client:recv_data(Stream)),
     timer:sleep(200),
     ?assertEqual(0, counters:get(handler_runs(), 1)).
+
+%% The request DATA of a server-streaming call arrives after the stream's
+%% grpc-timeout has fired. The handler must not run.
+deadline_late_data_handler_not_run(_Config) ->
+    counters:put(handler_runs(), 1, 0),
+    Ctx = ctx:with_deadline_after(ctx:new(), 200, millisecond),
+    {ok, Stream} = grpcbox_client:stream(Ctx, <<"/routeguide.RouteGuide/ListFeatures">>,
+                                         rectangle_def(), #{}),
+    timer:sleep(500),
+    ok = grpcbox_client:send(Stream, rectangle()),
+    timer:sleep(200),
+    ?assertEqual(0, counters:get(handler_runs(), 1)).
+
+%% A server-streaming handler finishes and exits normally, then the client
+%% sends another request message on the same stream. The handler must not
+%% run a second time.
+exited_handler_not_rerun(_Config) ->
+    counters:put(handler_runs(), 1, 0),
+    {ok, Stream} = grpcbox_client:stream(ctx:new(), <<"/routeguide.RouteGuide/ListFeatures">>,
+                                         rectangle_def(), #{}),
+    ok = grpcbox_client:send(Stream, rectangle()),
+    ?assertMatch({ok, {_, _, _}}, grpcbox_client:recv_trailers(Stream)),
+    ?assertEqual(1, counters:get(handler_runs(), 1)),
+    ok = grpcbox_client:send(Stream, rectangle()),
+    timer:sleep(200),
+    ?assertEqual(1, counters:get(handler_runs(), 1)).
+
+rectangle() ->
+    #{hi => #{latitude => 1, longitude => 2}, lo => #{latitude => 3, longitude => 5}}.
+
+rectangle_def() ->
+    #grpcbox_def{service = 'routeguide.RouteGuide',
+                 message_type = <<"routeguide.Rectangle">>,
+                 marshal_fun = fun(I) -> route_guide_pb:encode_msg(I, rectangle) end,
+                 unmarshal_fun = fun(B) -> route_guide_pb:decode_msg(B, feature) end}.
 
 handler_runs() ->
     persistent_term:get({?MODULE, handler_runs}).
