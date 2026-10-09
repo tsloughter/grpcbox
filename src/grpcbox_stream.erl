@@ -220,6 +220,11 @@ from_ctx(Ctx) ->
 
 on_receive_data(_, State=#state{method=undefined}) ->
     {ok, State};
+%% The stream was already terminated by the server (for example `auth_fun'
+%% rejected the peer and UNAUTHENTICATED trailers were sent). Drop any data
+%% that arrives afterwards so it never reaches the handler.
+on_receive_data(_, State=#state{trailers_sent=true}) ->
+    {ok, State};
 on_receive_data(Bin, State=#state{request_encoding=Encoding,
                                   buffer=Buffer}) ->
     try
