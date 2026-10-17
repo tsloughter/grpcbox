@@ -220,6 +220,11 @@ from_ctx(Ctx) ->
 
 on_receive_data(_, State=#state{method=undefined}) ->
     {ok, State};
+%% The stream was already terminated by the server (for example `auth_fun'
+%% rejected the peer and UNAUTHENTICATED trailers were sent). Drop any data
+%% that arrives afterwards so it never reaches the handler.
+on_receive_data(_, State=#state{trailers_sent=true}) ->
+    {ok, State};
 on_receive_data(Bin, State=#state{request_encoding=Encoding,
                                   buffer=Buffer}) ->
     try
@@ -408,22 +413,24 @@ handle_info({add_trailers, Trailers}, State) ->
     update_trailers(Trailers, State);
 handle_info({send_proto, Message}, State) ->
     send(false, Message, State);
+%% These clauses keep the state end_stream returns, so trailers_sent is set
+%% and on_receive_data drops any DATA that arrives after the stream ended.
 handle_info({'EXIT', _, normal}, State) ->
-    end_stream(State),
-    State;
+    {ok, State1} = end_stream(State),
+    State1;
 handle_info({'EXIT', _, {grpc_error, {Status, Message}}}, State) ->
-    end_stream(Status, Message, State),
-    State;
+    {ok, State1} = end_stream(Status, Message, State),
+    State1;
 handle_info({'EXIT', _, {grpc_extended_error, #{status := Status, message := Message} = ErrorData}}, State) ->
     State1 = add_trailers_from_error_data(ErrorData, State),
-    end_stream(Status, Message, State1),
-    State1;
+    {ok, State2} = end_stream(Status, Message, State1),
+    State2;
 handle_info({'EXIT', _, _Other}, State) ->
-    end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
-    State;
+    {ok, State1} = end_stream(?GRPC_STATUS_UNKNOWN, <<"process exited without reason">>, State),
+    State1;
 handle_info({timeout,_Ref,<<"grpc-timeout">>}, State) ->
-    end_stream(?GRPC_STATUS_DEADLINE_EXCEEDED, <<"Deadline expired">>, State),
-    State;
+    {ok, State1} = end_stream(?GRPC_STATUS_DEADLINE_EXCEEDED, <<"Deadline expired">>, State),
+    State1;
 handle_info(_, State) ->
     State.
 
