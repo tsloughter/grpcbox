@@ -23,10 +23,6 @@
     #{lo => point(),
       hi => point()}.
 
--type route_note() ::
-    #{location => point(),
-      message => string()}.
-
 -type feature() ::
     #{name => string(),
       location => point()}.
