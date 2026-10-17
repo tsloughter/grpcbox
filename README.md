@@ -17,7 +17,6 @@ Features
 * Interceptors
 * Health check service
 * Reflection service
-* [OpenCensus](https://opencensus.io) interceptors for stats and tracing
 * [Plugin](https://github.com/tsloughter/grpcbox_plugin) for generating clients and behaviour type specs for service server implementation
 
 Implementing a Service Server
@@ -214,50 +213,6 @@ There is a provided interceptor `grpcbox_chain_interceptor` which accepts a list
                                      fun ?MODULE:three/4])}
 ```
 
-#### Tracing
-
-The provided interceptor `grpcbox_trace` supports the [OpenCensus](http://opencensus.io/) wire protocol using [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erlang). It will use the `trace_id`, `span_id` and any options or tags from the trace context.
-
-Configure as an interceptor:
-
-```erlang
-#{service_protos => [route_guide_pb],
-  unary_interceptor => {grpcbox_trace, unary}}
-```
-
-Or as a middleware in the chain interceptor:
-
-```erlang
-#{service_protos => [route_guide_pb],
-  unary_interceptor =>
-    grpcbox_chain_interceptor:unary([..., 
-                                     fun grpcbox_trace:unary/4, 
-                                     ...])}
-```
-
-See [opencensus-erlang](https://github.com/census-instrumentation/opencensus-erlang) for details on configuring reporters.
-
-#### Statistics
-
-Statistics are collected by implementing a stats handler module. A handler for OpenCensus stats (be sure to include [OpenCensus](https://hex.pm/packages/opencensus) as a dependency and make sure it starts on boot) is provided and can be enabled for the server with a config option:
-
-``` erlang
-{grpcbox, [{servers, [#{grpc_opts => #{stats_handler => grpcbox_oc_stats_handler
-                                       ...}}]}]}
-```
-
-For the client the stats handler is a per-channel configuration, see the Defining Channels section below.
-
-You can verify it is working by enabling the stdout exporter:
-
-``` erlang
- {opencensus, [{stat, [{exporters, [{oc_stat_exporter_stdout, []}]}]}]}
-```
-
-For actual use, an [exporter for Prometheus](https://github.com/opencensus-beam/prometheus) is available.
-
-Details on all the metrics that are collected can be found in the [OpenCensus gRPC Stats specification](https://github.com/census-instrumentation/opencensus-specs/blob/master/stats/gRPC.md).
-
 #### Metadata
 
 Metadata is sent in headers and trailers.
@@ -344,7 +299,7 @@ ok = grpcbox_client:send(S, #{location => #{latitude => 1, longitude => 1}, mess
 
 #### Context
 
-Client calls optionally accept a [context](https://hex.pm/packages/ctx) as the first argument. Contexts are used to set and propagate deadlines and [OpenCensus](https://hex.pm/packages/opencensus) tags.
+Client calls optionally accept a [context](https://hex.pm/packages/ctx) as the first argument. Contexts are used to set and propagate deadlines:
 
 ```erlang
 Ctx = ctx:with_deadline_after(300, seconds),
