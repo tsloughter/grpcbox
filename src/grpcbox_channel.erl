@@ -13,7 +13,7 @@
          connected/3,
          idle/3]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -define(CHANNEL(Name), {via, gproc, {n, l, {?MODULE, Name}}}).
 
@@ -45,8 +45,7 @@
                interceptors :: #{unary_interceptor => grpcbox_client:unary_interceptor(),
                                  stream_interceptor => grpcbox_client:stream_interceptor()}
                              | undefined,
-               stats_handler :: module() | undefined,
-               refresh_interval :: timer:time()}).
+               stats_handler :: module() | undefined}).
 
 -spec start_link(name(), [endpoint()], options()) -> {ok, pid()} | ignore | {error, term()}.
 start_link(Name, Endpoints, Options) ->

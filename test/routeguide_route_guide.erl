@@ -1,6 +1,6 @@
 -module(routeguide_route_guide).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 -export([get_feature/2,
          list_features/2,

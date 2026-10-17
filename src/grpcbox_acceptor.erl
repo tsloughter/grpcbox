@@ -15,12 +15,12 @@ acceptor_continue(_PeerName, Socket, {ssl, _MRef, ServerOpts, ChatterboxOpts, Ss
     {ok, AcceptSocket} = ssl:handshake(Socket, SslOpts),
     case ssl:negotiated_protocol(AcceptSocket) of
         {ok, <<"h2">>} ->
-            h2_connection:become({ssl, AcceptSocket}, ServerOpts, ChatterboxOpts);
+            chatterbox_h2_connection:become({ssl, AcceptSocket}, ServerOpts, ChatterboxOpts);
         _ ->
             exit(bad_negotiated_protocol)
     end;
 acceptor_continue(_PeerName, Socket, {gen_tcp, _MRef, ServerOpts, ChatterboxOpts, _SslOpts}) ->
-    h2_connection:become({gen_tcp, Socket}, ServerOpts, ChatterboxOpts).
+    chatterbox_h2_connection:become({gen_tcp, Socket}, ServerOpts, ChatterboxOpts).
 
 acceptor_terminate(Reason, _) ->
     % Something went wrong. Either the acceptor_pool is terminating or the

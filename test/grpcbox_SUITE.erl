@@ -5,9 +5,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--include_lib("opencensus/include/opencensus.hrl").
-
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 groups() ->
     [{ssl, [], [unary_authenticated]},
@@ -16,7 +14,10 @@ groups() ->
      {socket_options, [], [fd_socket_option]},
      {concurrent, [{repeat_until_any_fail, 5}], [unary_concurrent]},
      {negative_tests, [], [unimplemented, closed_stream, generate_error, streaming_generate_error]},
-     {negative_ssl, [], [unauthorized]},
+     {negative_ssl, [], [unauthorized, unauthorized_handler_not_run,
+                         unauthorized_stream_handler_not_run]},
+     {ended_stream, [], [deadline_late_data_handler_not_run,
+                         exited_handler_not_rerun]},
      {context, [], [%% deadline
                    ]}].
 
@@ -27,6 +28,7 @@ all() ->
      {group, concurrent},
      {group, negative_tests},
      {group, negative_ssl},
+     {group, ended_stream},
      initially_down_service,
      unary_interceptor,
      unary_client_interceptor,
@@ -37,11 +39,9 @@ all() ->
      client_stream_garbage_collect_streams,
      compression,
      stats_handler,
-     server_latency_stats,
      health_service,
      reflection_service
      %% TODO: rst stream error handling
-     %% %% trace_interceptor
     ].
 
 init_per_suite(Config) ->
@@ -102,7 +102,22 @@ init_per_group(negative_tests, Config) ->
                                              transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
     Config;
+init_per_group(ended_stream, Config) ->
+    persistent_term:put({?MODULE, handler_runs}, counters:new(1, [])),
+    application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []}], #{}}]}),
+    application:set_env(grpcbox, servers,
+                        [#{grpc_opts => #{service_protos => [route_guide_pb],
+                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
+                                          stream_interceptor =>
+                                              fun(Ref, Stream, _ServerInfo, Handler) ->
+                                                      counters:add(handler_runs(), 1, 1),
+                                                      Handler(Ref, Stream)
+                                              end},
+                           transport_opts => #{}}]),
+    application:ensure_all_started(grpcbox),
+    Config;
 init_per_group(negative_ssl, Config) ->
+    persistent_term:put({?MODULE, handler_runs}, counters:new(1, [])),
     ClientCerts = cert_dir(Config),
     Options = [{certfile, cert(Config, "server1.pem")},
                {keyfile, cert(Config, "server1.key")},
@@ -112,7 +127,19 @@ init_per_group(negative_ssl, Config) ->
     Servers = [#{grpc_opts => #{service_protos => [route_guide_pb],
                                 services => #{'routeguide.RouteGuide' => routeguide_route_guide},
                                 client_cert_dir => ClientCerts,
-                                auth_fun => fun(_) -> false end
+                                auth_fun => fun(_) -> false end,
+                                %% count every time a handler is reached, so the
+                                %% tests can check a rejected call never runs one
+                                unary_interceptor =>
+                                    fun(Ctx, Req, _, Method) ->
+                                            counters:add(handler_runs(), 1, 1),
+                                            Method(Ctx, Req)
+                                    end,
+                                stream_interceptor =>
+                                    fun(Ref, Stream, _ServerInfo, Handler) ->
+                                            counters:add(handler_runs(), 1, 1),
+                                            Handler(Ref, Stream)
+                                    end
                                },
                  transport_opts => #{ssl => true,
                                      keyfile => cert(Config, "server1.key"),
@@ -175,19 +202,6 @@ init_per_testcase(chain_interceptor, Config) ->
                            transport_opts => #{}}]),
     application:ensure_all_started(grpcbox),
     Config;
-init_per_testcase(trace_interceptor, Config) ->
-    application:set_env(grpcbox, client, #{channels => [{default_channel,
-                                                         [{http, "localhost", 8080, []}], #{}}]}),
-    application:ensure_all_started(opencensus),
-    application:set_env(grpcbox, servers,
-                        [#{grpc_opts => #{service_protos => [route_guide_pb],
-                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                          unary_interceptor =>
-                                              grpcbox_chain_interceptor:unary([fun grpcbox_trace:unary/4,
-                                                                               fun ?MODULE:trace_to_trailer/4])},
-                           transport_opts => #{}}]),
-    application:ensure_all_started(grpcbox),
-    Config;
 init_per_testcase(stream_interceptor, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}], #{}}]}),
@@ -246,16 +260,6 @@ init_per_testcase(stats_handler, Config) ->
                                           stats_handler => test_stats_handler}}]),
     application:ensure_all_started(grpcbox),
     Config;
-init_per_testcase(server_latency_stats, Config) ->
-    application:set_env(grpcbox, client, #{channels => [{default_channel,
-                                                         [{http, "localhost", 8080, []}], #{}}]}),
-    application:set_env(grpcbox, servers,
-                        [#{grpc_opts => #{service_protos => [route_guide_pb],
-                                          services => #{'routeguide.RouteGuide' => routeguide_route_guide},
-                                          stats_handler => grpcbox_oc_stats_handler}}]),
-    {ok, _} = application:ensure_all_started(opencensus),
-    application:ensure_all_started(grpcbox),
-    Config;
 init_per_testcase(health_service, Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel,
                                                          [{http, "localhost", 8080, []}],
@@ -297,18 +301,6 @@ end_per_testcase(chain_interceptor, _Config) ->
                                                                    port => 8080})),
     application:stop(grpcbox),
     ok;
-end_per_testcase(trace_interceptor, _Config) ->
-    application:stop(opencensus),
-    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
-                                                                   port => 8080})),
-    application:stop(grpcbox),
-    ok;
-end_per_testcase(server_latency_stats, _Config) ->
-    application:stop(opencensus),
-    ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
-                                                                   port => 8080})),
-    application:stop(grpcbox),
-    ok;
 end_per_testcase(health_service, _Config) ->
     ?assertMatch(ok, grpcbox_services_simple_sup:terminate_child(#{ip => {0, 0, 0, 0},
                                                                    port => 8080})),
@@ -329,6 +321,14 @@ end_per_testcase(unary_concurrent, _Config) ->
 end_per_testcase(unimplemented, _Config) ->
     ok;
 end_per_testcase(unauthorized, _Config) ->
+    ok;
+end_per_testcase(unauthorized_handler_not_run, _Config) ->
+    ok;
+end_per_testcase(deadline_late_data_handler_not_run, _Config) ->
+    ok;
+end_per_testcase(exited_handler_not_rerun, _Config) ->
+    ok;
+end_per_testcase(unauthorized_stream_handler_not_run, _Config) ->
     ok;
 end_per_testcase(generate_error, _Config) ->
     ok;
@@ -367,6 +367,63 @@ unauthorized(_Config) ->
     Ctx = ctx:new(),
     {error, {?GRPC_STATUS_UNAUTHENTICATED, _}, #{headers := #{}, trailers := #{}}}
         = routeguide_route_guide_client:get_feature(Ctx, Point).
+
+unauthorized_handler_not_run(_Config) ->
+    counters:put(handler_runs(), 1, 0),
+    Point = #{latitude => 409146138, longitude => -746188906},
+    ?assertMatch({error, {?GRPC_STATUS_UNAUTHENTICATED, _}, _},
+                 routeguide_route_guide_client:get_feature(ctx:new(), Point)),
+    %% give any DATA frame that arrives after the trailers time to reach the
+    %% server stream before checking
+    timer:sleep(200),
+    ?assertEqual(0, counters:get(handler_runs(), 1)).
+
+unauthorized_stream_handler_not_run(_Config) ->
+    counters:put(handler_runs(), 1, 0),
+    {ok, Stream} =
+        routeguide_route_guide_client:list_features(ctx:new(), #{hi => #{latitude => 1, longitude => 2},
+                                                                 lo => #{latitude => 3, longitude => 5}}),
+    ?assertMatch({error, {?GRPC_STATUS_UNAUTHENTICATED, _}, _}, grpcbox_client:recv_data(Stream)),
+    timer:sleep(200),
+    ?assertEqual(0, counters:get(handler_runs(), 1)).
+
+%% The request DATA of a server-streaming call arrives after the stream's
+%% grpc-timeout has fired. The handler must not run.
+deadline_late_data_handler_not_run(_Config) ->
+    counters:put(handler_runs(), 1, 0),
+    Ctx = ctx:with_deadline_after(ctx:new(), 200, millisecond),
+    {ok, Stream} = grpcbox_client:stream(Ctx, <<"/routeguide.RouteGuide/ListFeatures">>,
+                                         rectangle_def(), #{}),
+    timer:sleep(500),
+    ok = grpcbox_client:send(Stream, rectangle()),
+    timer:sleep(200),
+    ?assertEqual(0, counters:get(handler_runs(), 1)).
+
+%% A server-streaming handler finishes and exits normally, then the client
+%% sends another request message on the same stream. The handler must not
+%% run a second time.
+exited_handler_not_rerun(_Config) ->
+    counters:put(handler_runs(), 1, 0),
+    {ok, Stream} = grpcbox_client:stream(ctx:new(), <<"/routeguide.RouteGuide/ListFeatures">>,
+                                         rectangle_def(), #{}),
+    ok = grpcbox_client:send(Stream, rectangle()),
+    ?assertMatch({ok, {_, _, _}}, grpcbox_client:recv_trailers(Stream)),
+    ?assertEqual(1, counters:get(handler_runs(), 1)),
+    ok = grpcbox_client:send(Stream, rectangle()),
+    timer:sleep(200),
+    ?assertEqual(1, counters:get(handler_runs(), 1)).
+
+rectangle() ->
+    #{hi => #{latitude => 1, longitude => 2}, lo => #{latitude => 3, longitude => 5}}.
+
+rectangle_def() ->
+    #grpcbox_def{service = 'routeguide.RouteGuide',
+                 message_type = <<"routeguide.Rectangle">>,
+                 marshal_fun = fun(I) -> route_guide_pb:encode_msg(I, rectangle) end,
+                 unmarshal_fun = fun(B) -> route_guide_pb:decode_msg(B, feature) end}.
+
+handler_runs() ->
+    persistent_term:get({?MODULE, handler_runs}).
 
 generate_error(_Config) ->
     Response = routeguide_route_guide_client:generate_error(#{}),
@@ -507,43 +564,6 @@ stats_handler(_Config) ->
 
     ?assert(maps:get(rpc_end, Stats) > maps:get(rpc_begin, Stats)).
 
--define(server_latency_view(View),
-        {ok, {view, "grpc.io/server/server_latency", _Measure, _, _B, _Help, _M, _Methods, oc_stat_aggregation_distribution, _Buckets} = View}).
-
-server_latency_stats(_Config) ->
-    Registered = grpcbox_oc_stats_handler:init(),
-    Subscribed = grpcbox_oc_stats:subscribe_views(),
-
-    ?assertEqual(ok, Registered),
-    ?assertEqual([], lists:filter(fun ({Ok, _}) -> ok =/= Ok end, Subscribed)),
-
-    [SrvLatencyView] = [View || ?server_latency_view(View) <- Subscribed],
-
-    Args = [ctx:new(), #{latitude => 409146138, longitude => -746188906}, #{encoding => gzip}],
-    {MeasuredTime, {ok, Feature, _}} =
-        timer:tc(routeguide_route_guide_client, get_feature, Args),
-
-    ?assertEqual(#{location =>
-                       #{latitude => 409146138, longitude => -746188906},
-                   name =>
-                       <<"Berkshire Valley Management Area Trail, Jefferson, NJ, USA">>}, Feature),
-
-    #{data := #{rows :=  [#{value := #{buckets := Bs,
-                            count := Count,
-                            mean := Mean,
-                            sum := Sum}}]}} = oc_stat_view:export(SrvLatencyView),
-
-    {H, T} = lists:splitwith(fun ({_, C}) -> C =:= 0 end, Bs),
-
-    ?assert(element(1, lists:last(H)) =< MeasuredTime), %% Bucket size > Reported time
-    ?assertEqual(element(2, hd(T)), Count), %% Count = 1 = In bucket
-    ?assert(element(1, lists:last(H)) =< Sum), %% Lower bucket < Reported time
-    ?assert(Sum =< MeasuredTime), %% Reported time < Measured time
-    ?assert(element(1, hd(T)) > Sum), %% Higher bucket > Reported time
-    ?assertEqual(Mean*Count, Sum),
-
-    ok.
-
 unary_no_auth(_Config) ->
     unary(_Config).
 
@@ -556,7 +576,7 @@ unary_garbage_collect_streams(Config) ->
 
     ConnectionStreamSet = connection_stream_set(),
 
-    ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
+    ?assertEqual([], chatterbox_h2_stream_set:my_active_streams(ConnectionStreamSet)).
 
 client_stream_garbage_collect_streams(Config) ->
     client_stream(Config),
@@ -564,7 +584,7 @@ client_stream_garbage_collect_streams(Config) ->
     timer:sleep(100),
     ConnectionStreamSet = connection_stream_set(),
 
-    ?assertEqual([], h2_stream_set:my_active_streams(ConnectionStreamSet)).
+    ?assertEqual([], chatterbox_h2_stream_set:my_active_streams(ConnectionStreamSet)).
 
 multiple_servers(_Config) ->
     application:set_env(grpcbox, client, #{channels => [{default_channel, [{http, "localhost", 8080, []},
@@ -668,18 +688,6 @@ chain_interceptor(_Config) ->
                    <<"x-grpc-interceptor-three">> := <<"three">>,
                    <<"x-grpc-interceptor-two">> := <<"two">>}, Trailers).
 
-%% include a trace context and test that it works by having a second interceptor add
-%% the trace id from the context as a response trailer.
-trace_interceptor(_Config) ->
-    Point = #{latitude => 409146138, longitude => -746188906},
-    Ctx = oc_trace:with_child_span(ctx:background(), <<"grpc-client-call">>),
-    Context = oc_propagation_binary:encode(oc_trace:from_ctx(Ctx)),
-    Metadata = #{<<"grpc-trace-bin">> => Context},
-    Ctx1 = grpcbox_metadata:append_to_outgoing_ctx(Ctx, Metadata),
-    {_, _Feature, #{trailers := Trailers}} = routeguide_route_guide_client:get_feature(Ctx1, Point),
-    BinTraceId = integer_to_binary((oc_trace:from_ctx(Ctx))#span_ctx.trace_id),
-    ?assertMatch(BinTraceId, maps:get(<<"x-grpc-trace-id">>, Trailers)).
-
 stream_interceptor(_Config) ->
     {ok, Stream} =
         routeguide_route_guide_client:list_features(ctx:background(), #{hi => #{latitude => 1, longitude => 2},
@@ -724,12 +732,5 @@ two(Ctx, Message, _ServerInfo, Handler) ->
 
 three(Ctx, Message, _ServerInfo, Handler) ->
     Trailer = grpcbox_metadata:pairs([{<<"x-grpc-interceptor-three">>, <<"three">>}]),
-    Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
-    Handler(Ctx1, Message).
-
-trace_to_trailer(Ctx, Message, _ServerInfo, Handler) ->
-    SpanCtx = oc_trace:from_ctx(Ctx),
-    BinTraceId = integer_to_binary(SpanCtx#span_ctx.trace_id),
-    Trailer = grpcbox_metadata:pairs([{<<"x-grpc-trace-id">>, BinTraceId}]),
     Ctx1 = grpcbox_stream:add_trailers(Ctx, Trailer),
     Handler(Ctx1, Message).

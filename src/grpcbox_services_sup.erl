@@ -13,7 +13,7 @@
          name/2]).
 -export([init/1]).
 
--include("grpcbox.hrl").
+-include_lib("grpcbox/include/grpcbox.hrl").
 
 start_link(ServerOpts, GrpcOpts, ListenOpts, PoolOpts, TransportOpts) ->
     %% give the services_sup a name because in the future we might want to reference it easily for

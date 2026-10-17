@@ -14,9 +14,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        otp_version: ['26.0', '25.2.3', '24.1.2', '23.3']
-        rebar3_version: ['3.20.0']
-        os: [ubuntu-20.04]
+        otp_version: ['29.0', '28.0', '27.0']
+        rebar3_version: ['3.27.0']
+        os: [ubuntu-latest]
     env:
       OTP_VERSION: ${{ matrix.otp_version }}
 
@@ -68,9 +68,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        otp_version: ['26.0']
-        rebar3_version: ['3.22.1']
-        os: [ubuntu-20.04]
+        otp_version: ['29.0']
+        rebar3_version: ['3.27.0']
+        os: [ubuntu-latest]
     steps:
     - uses: actions/checkout@v2
     - uses: erlef/setup-beam@v1
@@ -78,7 +78,7 @@ jobs:
         otp-version: ${{ matrix.otp_version }}
         rebar3-version: ${{ matrix.rebar3_version }}
         version-type: 'strict'
-    - uses: actions/cache@v2
+    - uses: actions/cache@v4
       name: Cache
       with:
         path: |

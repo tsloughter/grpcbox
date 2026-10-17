@@ -34,5 +34,5 @@
                          max_frame_size => 16384,
                          max_header_list_size => unlimited}}]},
   {modules,[]},
-  {licenses,["Apache 2.0"]},
+  {licenses,["Apache-2.0"]},
   {links,[{"Github","https://github.com/tsloughter/grpcbox"}]}]}.
