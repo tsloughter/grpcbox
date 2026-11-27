@@ -136,6 +136,12 @@ load_services([ServicePbModule | Rest], Services, ServicesTable) ->
                                                end,
               {ServiceModule, AdditionalArgs, ServiceModule:module_info(exports)} of
              {ServiceModule1, AdditionalArgs1, Exports} ->
+                 %% Every method row used to hold its own copy of the args,
+                 %% and ets:lookup copied them again into each stream; a
+                 %% service whose args are its whole handler map paid that
+                 %% per method and per call.
+                 ArgsKey = {grpcbox_additional_args, ServicesTable, ServiceName},
+                 persistent_term:put(ArgsKey, AdditionalArgs1),
                  [begin
                       SnakedMethodName = atom_snake_case(Name),
                       case lists:member({SnakedMethodName, 3}, Exports) of
@@ -148,7 +154,7 @@ load_services([ServicePbModule | Rest], Services, ServicesTable) ->
                                                                 input={Input, InputStream},
                                                                 output={Output, OutputStream},
                                                                 opts=Opts,
-                                                                additional_args = AdditionalArgs1
+                                                                additional_args_key = ArgsKey
                                                                });
                           false ->
                               %% TODO: error? log? insert into ets as unimplemented?

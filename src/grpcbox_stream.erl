@@ -135,9 +135,9 @@ on_receive_headers(Headers, State=#state{ctx=_Ctx}) ->
 
 handle_service_lookup(Ctx, [Service, Method], State=#state{services_table=ServicesTable}) ->
     case ets:lookup(ServicesTable, {Service, Method}) of
-        [M=#method{}] ->
+        [M=#method{additional_args_key=ArgsKey}] ->
             State1 = State#state{ctx=Ctx,
-                                 method=M},
+                                 method=M#method{additional_args=persistent_term:get(ArgsKey)}},
             handle_auth(Ctx, State1);
         _ ->
             end_stream(?GRPC_STATUS_UNIMPLEMENTED, <<"Method not found on server">>, State)

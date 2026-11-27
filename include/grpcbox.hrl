@@ -5,7 +5,11 @@
                  input           :: {term(), boolean()} | '_',
                  output          :: {term(), boolean()} | '_',
                  opts            :: [term()] | '_',
-                 additional_args :: term()
+                 additional_args :: term(),
+                 %% where the service's additional args are kept, once for all
+                 %% its methods: in persistent_term, so neither the table nor
+                 %% a stream holds a copy (see grpcbox_services_sup)
+                 additional_args_key :: term()
                 }
        ).
 
